@@ -1,0 +1,26 @@
+# --- StatForge ---
+# Owner-scoped local store (stat blocks, encounters, roll logs) — NEVER commit.
+data/
+# Extracted page images.
+*.png
+# …except the PWA icons, which the web app needs.
+!docs/icons/*.png
+_probe*.py
+# Personal export from tools/export_compendium.py.
+compendium.json
+# Local test PDFs and any PDF (copyrighted) — never commit.
+docs/_test*.pdf
+*.pdf
+
+# --- editor / tooling ---
+.claude/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+dist/
+build/

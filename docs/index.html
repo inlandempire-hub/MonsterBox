@@ -1,0 +1,1787 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>StatForge</title>
+<link rel="icon" href="StatForge.ico" />
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#a4191c" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="StatForge" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<style>
+
+  :root {
+    --glasspct: 0%;           /* side-panel glass fill — 0 = blur only (readability from inner cards) */
+    --gap: 12px;              /* uniform gap: window margin + between all panels */
+    --bg: #e7e6e4;            /* app background, neutral warm gray */
+    --panel: #ffffff;         /* cards (library / tracker) */
+    --panel2: #f2f1ef;        /* secondary fill */
+    --sheet: #fbf9f5;         /* parchment for the stat sheet */
+    --ink: #1d1c1a;           /* primary text */
+    --dim: #6c6a66;           /* muted text */
+    --line: #d6d4d0;          /* hairline borders */
+    --line2: #cdbfb9;         /* warm border on the sheet */
+    --red: #a4191c;           /* D&D crimson — accents, headers */
+    --red-dark: #7c1316;
+    --red-soft: #f3e4e2;      /* light red fill for chips/hover */
+    --good: #3f8f4f; --good-bg: #e3efe1;
+    --bad: #b3261e;
+    --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    /* centre-panel scroll */
+    --scroll-bg: #f5efdc;       /* parchment surface */
+    --scroll-rod: #9b7c3c;      /* golden wood rollers */
+    --scroll-edge: #c8a86a;     /* warm-gold side border */
+    --bg-fallback: #7ab4a0;     /* shown while bg-light.jpg loads */
+    --bg-img: url('bg-light.jpg');
+  }
+  * { box-sizing: border-box; }
+  /* During a light/dark toggle, suppress element transitions so colours snap
+     instantly (the universal selector doesn't touch the wallpaper's ::before/
+     ::after, so the background still crossfades). */
+  body.no-anim * { transition: none !important; }
+  body {
+    margin: 0; font: 14px/1.55 system-ui, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    /* UI colours switch instantly on mode toggle (only the wallpaper crossfades).
+       Interpolating every colour var per-frame forced color-mix + backdrop-filter
+       panels to repaint each frame, which caused the fade flicker. */
+  }
+  /* title (no ribbon) — sits in its own space atop the background, above the
+     import panel in the left column */
+  .titlebar { display: flex; align-items: center; gap: 10px; pointer-events: none;
+        padding: 2px 4px; flex-shrink: 0; }
+  .title-icon { width: 34px; height: 34px; flex-shrink: 0;
+        filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
+  .title-text { font: 700 23px/1 var(--serif); color: var(--red); letter-spacing: .3px;
+        text-shadow: 0 1px 2px rgba(255,255,255,.5), 0 2px 10px rgba(0,0,0,.4); }
+  /* themed scrollbars (follow light / dark via --dim) */
+  * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--dim) 55%, transparent);
+    border-radius: 6px; border: 2px solid transparent; background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--dim); border: 2px solid transparent; background-clip: padding-box;
+  }
+  /* ---- floating-panel layout ----
+     One uniform --gap is used for the window margin, the gaps between the two
+     left panels and the two right panels, and the gaps between columns. */
+  .layout {
+    display: grid;
+    grid-template-columns: 250px 1fr 340px;
+    grid-template-rows: 1fr;             /* panels fill the full height (title overlays) */
+    gap: var(--gap);
+    padding: var(--gap);
+    height: 100vh; box-sizing: border-box;
+    position: relative; z-index: 1;
+  }
+  /* a left/right column = a flex stack of glass panels with the same gap */
+  .side { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+
+  /* ---- full-window wallpaper (light/dark crossfade) behind the glass UI ---- */
+  #wallpaper { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  #wallpaper::before, #wallpaper::after {
+    content: ''; position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    transition: opacity 0.75s ease;
+  }
+  #wallpaper::before { background-image: url('bg-light.jpg'); opacity: 1; }
+  #wallpaper::after  { background-image: url('bg-dark.jpg');  opacity: 0; }
+  body.dark #wallpaper::before { opacity: 0; }
+  body.dark #wallpaper::after  { opacity: 1; }
+
+  /* ---- detached, rounded "glass" panels ---- */
+  .glass {
+    background: color-mix(in srgb, var(--panel) var(--glasspct), transparent);
+    backdrop-filter: blur(16px) saturate(125%);
+    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    border: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.25);
+  }
+  /* the import panel sizes to its content; the compendium fills the rest */
+  #importpanel { flex: 0 0 auto; padding: 14px 16px; }
+  #library { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  /* right side: tracker on top, roll log below, each scrolls internally */
+  /* compact encounter planner — small; the roll log takes the rest of the column */
+  #plannerpanel { flex: 0 0 auto; max-height: 38%; overflow: hidden; display: flex; flex-direction: column; padding: 14px 16px; }
+  #logpanel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px 14px; }
+  .log-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
+  .planner-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
+  .planner-row { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        background: color-mix(in srgb, var(--panel) 70%, transparent);
+        border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; margin-bottom: 6px; }
+  .planner-row .pname { font-weight: 600; font-size: 13px; min-width: 0; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap; }
+  .planner-row .pname .pcbadge { margin-left: 5px; }
+  .planner-empty { color: var(--dim); font-size: 12px; font-style: italic; margin-top: 8px; }
+
+  /* expanded encounter "run" view in the centre — same width as the scroll */
+  #encounterrun {
+    width: 96%; max-width: 1100px; min-width: 280px; max-height: 100%;
+    display: flex; flex-direction: column; overflow: hidden; padding: 0;
+  }
+  #encounterrun .run-frozen { flex-shrink: 0; padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
+  #encounterrun .run-frozen .title { font: 700 22px/1.1 var(--serif); color: var(--red); }
+  #runtracker { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 18px 16px; }
+
+  /* cards inside the glass read as frosted tiles, still high-contrast for text */
+  .mon, .cb, .drop {
+    background: color-mix(in srgb, var(--panel) 70%, transparent) !important;
+  }
+  /* compendium: frozen top (search + filters), scrolling monster list below */
+  .lib-frozen { padding: 14px 16px 10px; flex-shrink: 0; border-bottom: 1px solid var(--line); }
+  .lib-scroll { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
+  .impnote { font-size: 11px; color: var(--dim); margin: 8px 2px 0; line-height: 1.4; }
+  .impnote b { color: var(--ink); }
+  .totalcount { font-size: 12px; color: var(--ink); margin-top: 6px; }
+  .totalcount b { color: var(--red); font: 700 13px/1 var(--serif); }
+  .totalcount .mword { font-weight: 700; color: var(--ink); }
+  #search { width: 100%; background: var(--panel); border: 1px solid var(--line);
+        color: var(--ink); border-radius: 6px; padding: 6px 9px; font: inherit;
+        margin: 8px 0; }
+  #search:focus { outline: none; border-color: var(--red); }
+  .filters { display: flex; gap: 6px; margin-bottom: 8px; }
+  .filters select { flex: 1; min-width: 0; background: var(--panel); color: var(--ink);
+        border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font: inherit; font-size: 12px; }
+  .filters select:focus { outline: none; border-color: var(--red); }
+  .newentry { width: 100%; cursor: pointer; border: 1px solid var(--red);
+        background: var(--red); color: #fff; border-radius: 6px; padding: 6px 10px;
+        font-size: 12px; font-weight: 600; margin-bottom: 10px;
+        transition: background .12s; }
+  .newentry:hover { background: var(--red-dark); }
+  #sheet {
+    background: transparent;     /* the window wallpaper shows through */
+    padding: 24px 0;
+    position: relative;
+    overflow: hidden;            /* the panel itself never scrolls … */
+    display: flex;               /* … only the stat block inside it does */
+    flex-direction: column;
+    align-items: center;
+  }
+  h2 { font: 700 12px/1 system-ui, sans-serif; text-transform: uppercase;
+       letter-spacing: 1px; color: var(--ink); margin: 0 0 10px; }
+
+  /* library */
+  .mon { position: relative; padding: 9px 11px; border: 1px solid var(--line);
+         border-radius: 7px; margin-bottom: 8px; cursor: pointer; background: var(--panel);
+         box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .12s, box-shadow .12s; }
+  .mon:hover { border-color: var(--red); }
+  .mon.sel { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
+  .mon .nm { font-weight: 600; padding-right: 18px; text-transform: uppercase; }
+  .mon .sub { color: var(--dim); font-size: 12px; }
+  .mon .cr { display: inline-block; font: 700 11px/1.4 var(--serif); color: var(--red);
+        background: var(--red-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; }
+  .warn { color: #b07400; }
+  .libhead { display: flex; align-items: baseline; justify-content: space-between; }
+  .x { background: none; border: none; color: var(--dim); cursor: pointer;
+       font-size: 13px; padding: 2px 4px; border-radius: 5px; line-height: 1; }
+  .x:hover { color: #fff; background: var(--bad); }
+  .mon .x { position: absolute; top: 6px; right: 6px; }
+  .clearbtn { font-size: 11px; color: var(--ink); background: none; border: none;
+              cursor: pointer; text-decoration: underline; }
+  .clearbtn:hover { color: var(--bad); }
+
+  /* import drop zone */
+  .drop { border: 2px dashed var(--line2); border-radius: 9px; padding: 14px 10px;
+          text-align: center; color: var(--dim); font-size: 12px; margin-bottom: 10px;
+          cursor: pointer; background: var(--panel); transition: border-color .15s, background .15s; }
+  .drop:hover { border-color: var(--red); }
+  .drop.over { border-color: var(--red); background: var(--red-soft); color: var(--ink); }
+  .drop .link { color: var(--red); text-decoration: underline; }
+  #importmsg { font-size: 12px; color: var(--dim); margin-bottom: 10px; min-height: 1em; }
+  #importmsg.busy { color: var(--red); }
+  .impcount { border-bottom: 1px dotted currentColor; cursor: help; }
+  .pbar { height: 8px; background: var(--panel2); border: 1px solid var(--line);
+        border-radius: 4px; overflow: hidden; margin-top: 5px; }
+  .pbar > div { height: 100%; background: var(--red); transition: width .2s; }
+
+  /* CR groups (collapsible) */
+  .crgroup { display: flex; align-items: center; justify-content: space-between;
+        cursor: pointer; padding: 5px 9px; margin: 8px 0 4px; background: var(--panel2);
+        border: 1px solid var(--line); border-radius: 6px; user-select: none;
+        font: 700 13px/1 var(--serif); color: var(--red); }
+  .crgroup:hover { background: var(--red-soft); }
+  .crgroup .caret { display: inline-block; transition: transform .15s; color: var(--dim);
+        margin-right: 4px; }
+  .crgroup.open .caret { transform: rotate(90deg); }
+  .crgroup .count { color: var(--dim); font: 400 11px/1 system-ui, sans-serif; }
+  .crbody { display: none; }
+  .crbody.open { display: block; }
+
+  /* sheet — styled like a stat block / character sheet */
+  .sheet h2.title { font: 700 26px/1.1 var(--serif); color: var(--red);
+        text-transform: uppercase; letter-spacing: 0; margin: 0; }
+  .sheet .meta { color: var(--dim); font-style: italic; margin: 2px 0 10px;
+        border-bottom: 2px solid var(--red); padding-bottom: 10px; }
+  .defenses { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .defenses .d { background: var(--panel); border: 1px solid var(--line2);
+        border-radius: 7px; padding: 6px 14px; text-align: center; min-width: 84px; }
+  .defenses .d .k { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--red); }
+  .defenses .d .v { font: 700 20px/1.2 var(--serif); }
+  .defenses .d.roll-init { cursor: pointer; transition: background .12s, color .12s; }
+  .defenses .d.roll-init:hover { background: var(--red); }
+  .defenses .d.roll-init:hover .k, .defenses .d.roll-init:hover .v { color: #fff; }
+  .abilities { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 14px; }
+  /* each ability = a CHECK button (label/mod/score) above a SAVE button */
+  .ab { display: flex; flex-direction: column; gap: 5px; text-align: center; }
+  .ab-btn { width: 100%; cursor: pointer; font: inherit; color: var(--ink);
+        background: color-mix(in srgb, var(--scroll-bg) 60%, var(--panel) 40%);
+        border: 1px solid var(--scroll-edge); border-radius: 8px;
+        transition: background .12s, color .12s; }
+  .ab-btn:hover { background: var(--red); color: #fff; }
+  .ab-check { padding: 7px 0 5px; }
+  .ab-check .k { font-size: 10px; font-weight: 700; letter-spacing: .5px; color: var(--red); }
+  .ab-check .mod { font: 700 19px/1.1 var(--serif); }
+  .ab-check .sc { font-size: 11px; color: var(--dim); }
+  .ab-check:hover .k, .ab-check:hover .sc { color: #fff; }
+  .ab-save { padding: 3px 0; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+  .ab-save .svk { font-size: 9px; font-weight: 700; letter-spacing: .5px; color: var(--red); line-height: 1; }
+  .ab-save .svv { font: 700 13px/1 var(--serif); }
+  .ab-save:hover .svk { color: #fff; }
+  .line { font-size: 13px; margin: 3px 0; }
+  .line.cap { text-transform: none; }   /* capitalisation handled in JS, not CSS */
+  .line b { color: var(--red); }
+  .rollchip { cursor: pointer; color: var(--red); border-bottom: 1px dotted var(--red); }
+  .rollchip:hover { background: var(--red-soft); }
+  .sheethead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .headbtns { display: flex; gap: 6px; flex-shrink: 0; }
+  .headbtns .btn { margin: 0; }
+  .btn.addentry { font-size: 11px; padding: 3px 9px; }
+
+  /* edit form */
+  .ef label { display: block; font-size: 11px; color: var(--dim); margin: 8px 0 2px; }
+  .ef input, .ef textarea { width: 100%; background: var(--panel); color: var(--ink);
+        border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font: inherit; }
+  .ef textarea { min-height: 46px; resize: vertical; }
+  .ef .row { display: flex; gap: 8px; } .ef .row > div { flex: 1; }
+  .ef .ab6 { display: grid; grid-template-columns: repeat(6,1fr); gap: 6px; }
+  .ef .editrow { border-top: 1px solid var(--line); padding: 8px 0; position: relative; }
+  .ef .editrow .x { position: absolute; top: 8px; right: 0; }
+  /* edit Save / Save-as-New / Cancel: small button clusters attached to the
+     scroll at the very top-right and very bottom-right (no full-width bar) */
+  .editbtns { position: absolute; right: 34px; z-index: 6; display: flex; gap: 6px; }
+  .editbtns.top    { top: 10px; }
+  .editbtns.bottom { bottom: 12px; }
+  .editbtns .btn { margin: 0; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+
+  /* ---- custom confirm modal (in-app, replaces the native delete popup) ---- */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0,0,0,.45);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .modal-box {
+    background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line2); border-radius: 10px;
+    padding: 20px 22px; max-width: 360px; width: calc(100% - 40px);
+    box-shadow: 0 16px 50px rgba(0,0,0,.5);
+  }
+  .modal-msg { font-size: 14px; margin-bottom: 16px; line-height: 1.5; }
+  .modal-btns { display: flex; justify-content: flex-end; gap: 8px; }
+  .modal-btns .btn { margin: 0; }
+
+  /* small "Stat Block" button on a run card */
+  .btn.tiny { font-size: 11px; padding: 2px 7px; margin: 0 6px 0 0; }
+  /* condition-effect note under a run card */
+  .condeffect { margin-top: 7px; font-size: 12px; color: var(--ink);
+        background: color-mix(in srgb, var(--red-soft) 80%, transparent);
+        border-left: 3px solid var(--red); border-radius: 4px; padding: 5px 8px; }
+  .condeffect b { color: var(--red); }
+  /* active-conditions banner on an opened stat block */
+  .condbanner { border: 1px solid var(--red); background: color-mix(in srgb, var(--red-soft) 85%, transparent);
+        border-radius: 8px; padding: 8px 11px; margin-bottom: 12px; }
+  .condbanner .cbh { font: 700 11px/1 system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .6px; color: var(--red); margin-bottom: 5px; }
+  .condbanner .condline { font-size: 13px; color: var(--ink); margin: 6px 0 0; }
+  .condbanner .condline:first-of-type { margin-top: 0; }
+  .condbanner .condline b { color: var(--red); }
+  .condbanner .condsub { font-size: 12px; color: var(--ink); margin: 1px 0 0 12px; position: relative; }
+  .condbanner .condsub::before { content: "•"; color: var(--red); position: absolute; left: -10px; }
+  .struck { text-decoration: line-through; color: var(--dim); }
+  /* a stat-block section disabled by a condition */
+  .section.disabled { opacity: .42; }
+  .section.disabled .btn, .section.disabled .rollchip { pointer-events: none; }
+  .disabled-tag { font: 700 10px/1 system-ui, sans-serif; text-transform: uppercase;
+        letter-spacing: .5px; color: #fff; background: var(--dim); border-radius: 4px;
+        padding: 2px 6px; vertical-align: middle; }
+
+  .section { margin-top: 18px; }
+  .section > h2 { color: var(--red); font: 700 15px/1 var(--serif); text-transform: none;
+        letter-spacing: 0; border-bottom: 1.5px solid var(--red); padding-bottom: 4px; margin-bottom: 4px; }
+  .entry { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .entry .en { font-weight: 700; }
+  .entry .en .pill { font-size: 10px; color: #fff; background: var(--red);
+        border-radius: 4px; padding: 1px 6px; margin-left: 6px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .3px; }
+  .entry .txt { color: #44423e; font-size: 13px; }
+
+  /* buttons — neutral default, red for primary actions */
+  .btn { cursor: pointer; border: 1px solid var(--line); background: var(--panel);
+        color: var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 12px;
+        margin: 6px 6px 0 0; transition: background .12s, border-color .12s; }
+  .btn:hover { border-color: var(--red); background: var(--red-soft); }
+  .btn.add, .btn.save { border-color: var(--red); background: var(--red); color: #fff; }
+  .btn.add:hover, .btn.save:hover { background: var(--red-dark); }
+  .placeholder { color: var(--dim); margin-top: 60px; text-align: center; font-style: italic; }
+
+  /* tracker */
+  .ctrls { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+  .ctrls input, .ctrls select { background: var(--panel); border: 1px solid var(--line);
+        color: var(--ink); border-radius: 5px; padding: 4px 6px; font: inherit; min-width: 0; }
+  .ctrls input { flex: 1; }
+  .ctrls input.sm { flex: 0 0 46px; width: 46px; }
+  .ctrls select { flex: 1; }
+  .conds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; align-items: center; }
+  .cond { font-size: 11px; background: var(--red-soft); color: var(--red-dark);
+        border: 1px solid #e0c7c4; border-radius: 5px; padding: 1px 6px; cursor: pointer; }
+  .cond:hover { background: var(--bad); color: #fff; border-color: var(--bad); }
+  .condsel { font-size: 11px; background: var(--panel); color: var(--dim);
+        border: 1px solid var(--line); border-radius: 5px; padding: 2px 3px; }
+  .pcbadge { font-size: 10px; background: var(--red); color: #fff; font-weight: 700;
+        border-radius: 4px; padding: 0 5px; margin-left: 5px; vertical-align: middle; }
+  .cb { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+        padding: 9px 11px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .cb.active { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
+  .cb .top { display: flex; justify-content: space-between; align-items: center; }
+  .cb .init { background: var(--red); color: #fff; border-radius: 6px;
+        padding: 1px 8px; font: 700 12px/1.5 var(--serif); }
+  .hpbar { height: 8px; background: #ecdcd9; border-radius: 4px; overflow: hidden; margin: 7px 0; }
+  .hpbar > div { height: 100%; background: var(--good); }
+  /* distinguish combatants: PCs green, monsters red */
+  .hpbar > div.hp-pc  { background: var(--good); }
+  .hpbar > div.hp-mob { background: var(--red); }
+  .cb .hprow { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .cb input { width: 52px; background: var(--panel); border: 1px solid var(--line);
+        color: var(--ink); border-radius: 5px; padding: 2px 5px; }
+
+  /* roll log — each result is a rounded "tab", more opaque than the glass panel
+     so it stays readable even at low panel opacity */
+  .roll {
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    padding: 7px 12px;
+    margin-bottom: 7px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .roll .rollinfo { flex: 1; min-width: 0; }
+  .roll .src { color: var(--red); font: 700 14px/1.2 var(--serif); }
+  .roll .rtitle { color: var(--ink); font-size: 12px; margin-top: 1px; }
+  .roll .det { color: var(--dim); font-size: 12px; margin-top: 1px; }
+  .roll .tot { font: 700 26px/1 var(--serif); color: var(--ink); flex-shrink: 0; }
+  .roll .advtag { color: var(--red); font-weight: 700; font-size: 11px; }
+
+  /* brief toast (e.g. auto-fail save notice) */
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,.85); color: #fff; padding: 10px 16px; border-radius: 8px;
+        font-size: 13px; z-index: 10002; opacity: 0; transition: opacity .2s; pointer-events: none;
+        box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+  #toast.show { opacity: 1; }
+
+  /* ---- scroll wrapper (centre panel overlay) ---- */
+  .scroll-wrap {
+    width: 96%; max-width: 1100px; min-width: 280px;
+    max-height: 100%;            /* bounded by the (non-scrolling) panel */
+    margin: 0;
+    display: flex;               /* rod · parchment · rod, vertically */
+    flex-direction: column;
+    /* overflow:hidden clips the rod ends cleanly — no corner artifacts */
+    overflow: hidden;
+    border-radius: 6px;
+    border: 2px solid var(--scroll-edge);
+    /* outer shadow lives here so overflow:hidden doesn't clip it */
+    box-shadow: 0 10px 40px rgba(0,0,0,.55), 0 3px 10px rgba(0,0,0,.35);
+    position: relative;
+    z-index: 1; /* above #sheet::before/after bg pseudo-elements */
+  }
+  /* the two wooden roller bars at top and bottom of the scroll */
+  .scroll-rod {
+    height: 32px;
+    flex-shrink: 0;              /* rods keep their height; parchment flexes */
+    border-radius: 0;            /* parent clips ends — no gaps at corners */
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--scroll-rod) 38%, #fff 62%) 0%,
+      var(--scroll-rod) 26%,
+      color-mix(in srgb, var(--scroll-rod) 86%, #000 14%) 60%,
+      color-mix(in srgb, var(--scroll-rod) 40%, #000 60%) 100%
+    );
+    box-shadow: 0 4px 12px rgba(0,0,0,.5),
+                inset 0 3px 5px rgba(255,255,255,.26),
+                inset 0 -2px 4px rgba(0,0,0,.30);
+  }
+  /* the parchment / vellum content area */
+  .scroll-content {
+    background: var(--scroll-bg);
+    background-image:
+      repeating-linear-gradient(
+        0deg,
+        transparent 0px, transparent 27px,
+        rgba(0,0,0,.03) 27px, rgba(0,0,0,.03) 28px
+      ),
+      /* age-stain: darkened corners/edges */
+      radial-gradient(ellipse 80% 30% at 50% 0%,   rgba(120,80,20,.08) 0%, transparent 100%),
+      radial-gradient(ellipse 80% 30% at 50% 100%, rgba(120,80,20,.08) 0%, transparent 100%);
+    padding: 0;                  /* frozen header + scroll body handle padding */
+    position: relative;
+    flex: 1;                     /* fill space between the two rods … */
+    min-height: 0;               /* … and allow the inner body to scroll */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: inset 0 0 60px rgba(0,0,0,.06),
+                inset 10px 0 24px rgba(0,0,0,.04),
+                inset -10px 0 24px rgba(0,0,0,.04);
+  }
+  /* The scroll open/close (rod-hold + unfurl/furl) is driven from JS via
+     max-height transitions on .scroll-content — see openScroll()/closeScroll(). */
+  /* the always-visible top of the stat block (name → ability scores) */
+  .sheet-frozen {
+    flex-shrink: 0;
+    padding: 26px 28px 8px;
+    border-bottom: 1px solid var(--scroll-edge);
+    position: relative;
+    z-index: 2;                  /* above the top curl shadow */
+  }
+  /* everything below the abilities scrolls within the parchment */
+  .sheet-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 28px 20px;
+  }
+  /* curl shadows — simulates the parchment rolling onto the rod above/below */
+  .scroll-content::before,
+  .scroll-content::after {
+    content: '';
+    display: block;
+    position: absolute;
+    left: 0; right: 0;
+    height: 32px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .scroll-content::before {
+    top: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,.20) 0%, transparent 100%);
+  }
+  .scroll-content::after {
+    bottom: 0;
+    background: linear-gradient(to top, rgba(0,0,0,.20) 0%, transparent 100%);
+  }
+  .scroll-content .placeholder { padding-top: 40px; color: var(--dim); }
+
+  /* defense cards: match the light / dark scroll surface */
+  .defenses .d {
+    background: color-mix(in srgb, var(--scroll-bg) 60%, var(--panel) 40%);
+    border-color: var(--scroll-edge);
+  }
+
+  /* ---- light / dark toggle (pill-slider, top-right of centre panel) ---- */
+  #modetoggle {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;   /* above #sheet bg pseudo-elements */
+    width: 54px;
+    height: 28px;
+    background: #b8b2aa;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background .3s;
+    padding: 0;
+    outline: none;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.3);
+  }
+  /* the sliding knob */
+  #modetoggle::after {
+    content: '☀️';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,.38);
+    transition: transform .3s cubic-bezier(.4,0,.2,1), background .3s;
+    font-size: 12px;
+    line-height: 22px;
+    text-align: center;
+    display: block;
+  }
+  body.dark #modetoggle {
+    background: #2e251a;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.5);
+  }
+  body.dark #modetoggle::after {
+    content: '🌙';
+    transform: translateX(26px);
+    background: #14100c;
+  }
+
+  /* ---- app reveal (UI stays hidden until the splash finishes) ---- */
+  #app { opacity: 1; transition: opacity 1s ease; }
+  body.booting #app { opacity: 0; }
+
+  /* ---- title card / splash intro (sits over the wallpaper only) ---- */
+  #splash {
+    position: fixed; inset: 0; z-index: 9999;
+    background: transparent;        /* wallpaper shows through during fades */
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+    /* fade in 1.5s, hold static 2s, fade out 1.5s = 5s */
+    animation: splashShow 5s ease forwards;
+  }
+  #splash .card {
+    border: 5px solid rgba(255,255,255,.92);
+    padding: 10px 26px 20px;       /* extra bottom room for the f / g descenders */
+    background: rgba(0,0,0,.20);
+    box-shadow: 0 8px 40px rgba(0,0,0,.45);
+    line-height: 1;
+  }
+  #splash .card span {
+    font-family: var(--serif);      /* same font as the app heading (header h1) */
+    font-style: italic;
+    font-size: 88px;
+    color: #ffffff;
+    text-shadow: 0 2px 16px rgba(0,0,0,.55);
+    letter-spacing: .5px;
+  }
+  #splash .card .t1 { font-weight: 700; }   /* "Stat" bold + italic */
+  #splash .card .t2 { font-weight: 400; }   /* "forge" italic only */
+  @keyframes splashShow {
+    0%    { opacity: 0; }
+    30%   { opacity: 1; }   /* 1.5s in */
+    70%   { opacity: 1; }   /* hold until 3.5s */
+    100%  { opacity: 0; }   /* fully out at 5s */
+  }
+
+  /* central transparent empty-state label (no scroll shown when nothing picked) */
+  #emptylabel {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 0 40px;
+    font: italic 600 22px/1.4 var(--serif);
+    color: rgba(255,255,255,.92);
+    text-shadow: 0 2px 12px rgba(0,0,0,.6);
+    pointer-events: none;
+  }
+
+  /* ---- dark mode overrides ---- */
+  body.dark {
+    --bg: #0e0c0a;
+    --panel: #1e1a14;
+    --panel2: #161210;
+    --sheet: #28211a;
+    --ink: #e8e2d4;
+    --dim: #8a7a6a;
+    --line: #362d24;
+    --line2: #4a3c2c;
+    --red: #d4444a;
+    --red-dark: #a83030;
+    --red-soft: #2d1416;
+    --good: #5ab865; --good-bg: #1a2e1a;
+    --bad: #e74c3c;
+    --scroll-bg: #2a2116;
+    --scroll-rod: #1a1008;
+    --scroll-edge: #3d2e1c;
+    --bg-fallback: #1a1f2e;
+    --bg-img: url('bg-dark.jpg');
+  }
+  /* dark: keep header and form controls consistent */
+  body.dark .ctrls input, body.dark .ctrls select,
+  body.dark .ef input, body.dark .ef textarea,
+  body.dark .cb input { background: var(--panel); border-color: var(--line2); }
+  body.dark .drop { background: var(--panel); }
+  /* dark: roll log and tracker match dark panel */
+  body.dark .hpbar { background: #3a2820; }
+  /* dark: entry body text was hardcoded dark — override to a readable warm grey */
+  body.dark .entry .txt { color: #c0b8ac; }
+</style>
+</head>
+<body class="booting">
+<div id="wallpaper"></div>
+<div id="splash"><div class="card"><span class="t1">Stat</span><span class="t2">Forge</span></div></div>
+<div id="app">
+<div class="layout">
+  <!-- LEFT: title (atop background) + import panel + compendium panel -->
+  <div class="side" id="leftside">
+    <div class="titlebar">
+      <img class="title-icon" src="StatForge.ico" alt="">
+      <span class="title-text">StatForge</span>
+    </div>
+    <div class="glass" id="importpanel">
+      <div class="drop" id="drop">
+        Drop a PDF here<br>or <span class="link">browse</span>
+        <input type="file" id="file" accept="application/pdf" hidden>
+      </div>
+      <div class="ctrls">
+        <button class="btn" onclick="sfExport()">Export JSON</button>
+        <label class="btn" style="margin:6px 6px 0 0;">Import JSON
+          <input type="file" accept="application/json,.json" hidden
+                 onchange="sfImport(this.files[0]); this.value='';">
+        </label>
+      </div>
+      <div class="impnote">Your PDF is parsed <b>on your device</b> and never uploaded.
+        Export/Import JSON to back up or move your compendium.</div>
+      <div id="importmsg"></div>
+    </div>
+    <div class="glass" id="library">
+      <div class="lib-frozen">
+        <div class="libhead">
+          <h2>Compendium</h2>
+          <button class="clearbtn" onclick="clearLibrary()">Clear All</button>
+        </div>
+        <input id="search" type="search" placeholder="Search Monsters…"
+               oninput="onSearch(this.value)" />
+        <div class="filters">
+          <select id="filterCR" onchange="onFilter()"><option value="">All CR</option></select>
+          <select id="filterType" onchange="onFilter()"><option value="">All Types</option></select>
+        </div>
+        <button class="newentry" onclick="newEntry()">＋ New Compendium Entry</button>
+        <div id="totalcount" class="totalcount"></div>
+      </div>
+      <div id="monlist" class="lib-scroll"></div>
+    </div>
+  </div>
+
+  <!-- CENTRE: the scroll -->
+  <div class="col sheet" id="sheet">
+    <button id="modetoggle" title="Toggle light / dark mode" onclick="toggleMode()"></button>
+    <div id="emptylabel">← Select a monster from the Compendium</div>
+    <div class="scroll-wrap" style="display:none">
+      <div class="scroll-rod"></div>
+      <div class="scroll-content" id="scrollcontent"></div>
+      <div class="scroll-rod"></div>
+    </div>
+    <!-- expanded encounter "run" view (centre); same width as the scroll -->
+    <div class="glass" id="encounterrun" style="display:none">
+      <div class="run-frozen">
+        <div class="sheethead">
+          <h2 class="title">Encounter</h2>
+          <button class="btn" onclick="toggleEncounterExpand()">▣ Collapse</button>
+        </div>
+        <div class="ctrls">
+          <button class="btn" onclick="nextTurn()">Next Turn ▸</button>
+          <button class="btn" onclick="clearEnc()">Clear</button>
+          <span id="round" style="color:var(--dim)"></span>
+        </div>
+        <div class="ctrls">
+          <input id="pc_name" placeholder="Player Name" />
+          <input id="pc_init" type="number" placeholder="Init" class="sm" />
+          <input id="pc_hp" type="number" placeholder="HP" class="sm" />
+          <button class="btn" onclick="addPlayer()">＋ Add PC</button>
+        </div>
+      </div>
+      <div id="runtracker" class="run-scroll"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: compact encounter planner + roll log (log grows when expanded) -->
+  <div class="side" id="rightside">
+    <div class="glass" id="plannerpanel">
+      <div class="libhead">
+        <h2>Encounter</h2>
+        <button class="btn" onclick="toggleEncounterExpand()" title="Expand into the centre to run it">⤢ Expand</button>
+      </div>
+      <div class="ctrls">
+        <button class="btn" onclick="saveEncounter()">Save</button>
+        <select id="encsel" onchange="onEncSelect(this.value)">
+          <option value="">Load Encounter…</option>
+        </select>
+        <button class="btn" onclick="deleteSelectedEncounter()" title="Delete saved encounter">Delete</button>
+      </div>
+      <div id="plannerlist" class="planner-list"></div>
+    </div>
+    <div class="glass" id="logpanel">
+      <div class="libhead">
+        <h2>Roll Log</h2>
+        <button class="clearbtn" onclick="clearLog()">Clear Log</button>
+      </div>
+      <div id="log" class="log-scroll"></div>
+    </div>
+  </div>
+</div>
+</div><!-- /#app -->
+
+<!-- custom confirm modal (replaces the browser's native delete popup) -->
+<div id="confirmModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-msg" id="confirmMsg"></div>
+    <div class="modal-btns">
+      <button class="btn" id="confirmCancel">Cancel</button>
+      <button class="btn save" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- client-side backend (IndexedDB + roll/tracker engine + fetch shim) -->
+<script src="engine.js"></script>
+<!-- in-browser PDF import (pdf.js + parser port) -->
+<script src="vendor/pdf.min.js"></script>
+<script src="pdfimport.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+let selected = null;
+let library = [];            // cached list from /api/statblocks (id, name, ...)
+let expandedCRs = new Set(); // which CR groups are open
+let knownCRs = new Set();    // CR groups we've already chosen a default state for
+let searchTerm = "";         // live filter from the library search box
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+function post(path, body) {
+  return api(path, { method: "POST", headers: {"Content-Type":"application/json"},
+                     body: JSON.stringify(body || {}) });
+}
+const mod = (score) => { const m = Math.floor((score - 10) / 2); return (m>=0?"+":"")+m; };
+
+// Scroll open/close with a "rods together" hold.
+//  open:  show the two rods closed for 0.5s, then unfurl the parchment.
+//  close: furl the parchment up, hold the rods closed 0.5s, then fade out.
+let _scrollAnim = null;          // cancels an in-flight sequence if re-triggered
+
+function _wrap() { return document.querySelector(".scroll-wrap"); }
+
+// If the encounter is expanded into the centre, restore the collapsed planner
+// layout (so the centre can show a stat block / form / empty label instead).
+function _restorePlannerLayout() {
+  if (!encounterExpanded) return;
+  encounterExpanded = false;
+  const run = $("encounterrun"), planner = $("plannerpanel");
+  if (run) run.style.display = "none";
+  if (planner) planner.style.display = "";
+  loadTracker();   // refresh the compact list
+}
+
+function showEmptyLabel() {
+  _restorePlannerLayout();
+  const w = _wrap();
+  if (w) w.style.display = "none";
+  $("emptylabel").style.display = "flex";
+}
+
+// Reset any inline animation styles back to the CSS-governed layout.
+function _resetScrollStyles(c) {
+  c.style.transition = ""; c.style.height = ""; c.style.maxHeight = "";
+  c.style.flex = ""; c.style.opacity = ""; c.style.overflow = "";
+}
+
+// Make the scroll visible immediately, no animation (used for the edit form).
+function ensureScrollOpen() {
+  _restorePlannerLayout();
+  if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+  $("emptylabel").style.display = "none";
+  const w = _wrap(), c = $("scrollcontent");
+  w.style.display = "flex"; w.style.opacity = ""; w.style.transition = "";
+  _resetScrollStyles(c);
+}
+
+// open: rods held together 0.5s, then a smooth height-based unfurl.
+function openScroll() {
+  _restorePlannerLayout();
+  if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+  $("emptylabel").style.display = "none";
+  const w = _wrap(), c = $("scrollcontent");
+  w.style.display = "flex"; w.style.opacity = "1"; w.style.transition = "";
+  // measure the final (panel-bounded) height while invisible, to avoid a flash
+  c.style.transition = "none"; c.style.opacity = "0";
+  _resetScrollStyles(c); c.style.transition = "none"; c.style.opacity = "0";
+  void c.offsetWidth;
+  const target = c.offsetHeight;                 // bounded, flex-governed height
+  // collapse to "rods together" (fixed height 0 so the bottom rod meets the top)
+  c.style.flex = "none"; c.style.overflow = "hidden"; c.style.height = "0px";
+  void c.offsetWidth;
+  _scrollAnim = setTimeout(() => {               // hold rods together 0.25s, then unfurl
+    c.style.transition = "height .55s cubic-bezier(.22,.61,.36,1), opacity .5s ease";
+    c.style.height = target + "px";
+    c.style.opacity = "1";
+    _scrollAnim = setTimeout(() => { _resetScrollStyles(c); _scrollAnim = null; }, 600);
+  }, 250);
+}
+
+// close: furl the parchment up (content STAYS visible so there's no empty box),
+// hold the rods together 0.5s, then fade the closed scroll out.
+function closeScroll(done) {
+  if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+  const w = _wrap(), c = $("scrollcontent");
+  const cur = c.offsetHeight;
+  c.style.transition = "none";
+  c.style.flex = "none"; c.style.overflow = "hidden"; c.style.height = cur + "px"; c.style.opacity = "1";
+  void c.offsetWidth;
+  c.style.transition = "height .4s ease-in";     // furl up, content visible the whole time
+  c.style.height = "0px";
+  _scrollAnim = setTimeout(() => {               // rods together, hold 0.5s …
+    w.style.transition = "opacity .3s ease";
+    w.style.opacity = "0";
+    _scrollAnim = setTimeout(() => {             // … then fade the scroll out
+      w.style.display = "none";
+      w.style.transition = ""; w.style.opacity = "";
+      _resetScrollStyles(c);
+      _scrollAnim = null;
+      if (done) done();
+    }, 320);
+  }, 400 + 250);   // furl (.4s) + hold rods together (.25s)
+}
+
+async function loadLibrary() {
+  const mons = await api("/api/statblocks");
+  library = mons;
+
+  // running total (shown below the import box, still inside the frozen pane)
+  const tc = $("totalcount");
+  if (tc) tc.innerHTML = mons.length ? `<b>${mons.length}</b> <span class="mword">monsters</span>` : "";
+
+  if (!mons.length) {
+    $("monlist").innerHTML = '<div class="sub">No monsters yet. Drop a PDF above.</div>';
+    return;
+  }
+
+  populateFilters(mons);
+
+  // combined filters: free-text search + CR dropdown + type dropdown
+  const q = searchTerm.trim().toLowerCase();
+  const shown = mons.filter(m => {
+    if (q && !(m.name||"").toLowerCase().includes(q)
+          && !(m.creature_type||"").toLowerCase().includes(q)) return false;
+    if (filterCR && (m.challenge_rating || "?") !== filterCR) return false;
+    if (filterType && (m.creature_type || "") !== filterType) return false;
+    return true;
+  });
+
+  if (!shown.length) {
+    $("monlist").innerHTML = `<div class="sub" style="color:var(--dim)">No monsters match the current filters.</div>`;
+    return;
+  }
+
+  // group by CR, preserving the server's CR-ascending order
+  const order = [];
+  const byCR = new Map();
+  for (const m of shown) {
+    const cr = m.challenge_rating || "?";
+    if (!byCR.has(cr)) { byCR.set(cr, []); order.push(cr); }
+    byCR.get(cr).push(m);
+  }
+  // default new groups: expanded for a small library, collapsed for a big one
+  const expandByDefault = mons.length <= 20;
+  for (const cr of order) {
+    if (!knownCRs.has(cr)) { knownCRs.add(cr); if (expandByDefault) expandedCRs.add(cr); }
+  }
+  // (Note: we intentionally do NOT force the selected monster's group open —
+  // a highlighted stat block stays in the centre panel, so its library group
+  // can be freely collapsed.)
+
+  $("monlist").innerHTML = order.map(cr => {
+    // while searching, show every matching group expanded
+    const open = q ? true : expandedCRs.has(cr);
+    const items = byCR.get(cr).map(m => `
+      <div class="mon ${selected===m.id?'sel':''}" onclick="showSheet('${m.id}')">
+        <button class="x" title="Delete"
+          onclick="event.stopPropagation(); delMon('${m.id}')">✕</button>
+        <div class="nm">${esc(m.name)}</div>
+        <div class="sub">${esc(m.size||"")} ${esc(m.creature_type||"")}
+          ${m.parse_confidence < 0.6 ? '<span class="warn">⚠ check</span>' : ''}</div>
+      </div>`).join("");
+    return `<div class="crgroup ${open?'open':''}" onclick="toggleCR('${cr}')">
+        <span><span class="caret">▸</span>CR ${esc(cr)}</span>
+        <span class="count">${byCR.get(cr).length}</span>
+      </div>
+      <div class="crbody ${open?'open':''}">${items}</div>`;
+  }).join("");
+}
+
+function toggleCR(cr) {
+  if (expandedCRs.has(cr)) expandedCRs.delete(cr); else expandedCRs.add(cr);
+  loadLibrary();
+}
+
+function onSearch(v) { searchTerm = v; loadLibrary(); }
+
+let filterCR = "", filterType = "";
+function onFilter() {
+  filterCR = $("filterCR").value;
+  filterType = $("filterType").value;
+  loadLibrary();
+}
+// (re)build the CR + Type dropdown options from the current library
+function populateFilters(mons) {
+  const crSel = $("filterCR"), tySel = $("filterType");
+  if (!crSel || !tySel) return;
+  const crs = [...new Set(mons.map(m => m.challenge_rating || "?"))]
+    .sort((a, b) => crValue(a) - crValue(b));
+  const types = [...new Set(mons.map(m => m.creature_type).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  crSel.innerHTML = '<option value="">All CR</option>' +
+    crs.map(c => `<option value="${esc(c)}" ${c===filterCR?"selected":""}>CR ${esc(c)}</option>`).join("");
+  tySel.innerHTML = '<option value="">All Types</option>' +
+    types.map(t => `<option value="${esc(t)}" ${t===filterType?"selected":""}>${esc(t)}</option>`).join("");
+}
+function crValue(cr) {
+  if (cr === "?" || cr == null) return Infinity;
+  if (String(cr).includes("/")) { const [n,d] = String(cr).split("/"); return (+n)/(+d); }
+  return parseFloat(cr);
+}
+
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+// Title-case helper (keeps small connector words lowercase): "passive perception"
+// -> "Passive Perception", "sleight of hand" -> "Sleight of Hand".
+const _SMALLWORDS = new Set(["of","the","and","a","an","to","in","or","with","on",
+  "from","that","ft","ft.","ft.,"]);   // keep units / connectors lowercase mid-string
+function capWords(s){
+  return String(s||"").split(" ").map((w,i) =>
+    (i>0 && _SMALLWORDS.has(w.toLowerCase())) ? w.toLowerCase()
+      : (w.charAt(0).toUpperCase() + w.slice(1))
+  ).join(" ");
+}
+
+function entryHtml(a, sid) {
+  let pill = "";
+  if (a.usage) pill = `<span class="pill">${esc(a.usage)}</span>`;
+  else if (a.recharge) pill = `<span class="pill">${esc(a.recharge)}</span>`;
+  else if (a.legendary_cost > 1) pill = `<span class="pill">Costs ${a.legendary_cost}</span>`;
+  let buttons = "";
+  if (a.attack) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','attack')">🎲 +${a.attack.to_hit} to hit</button>`;
+  if (a.damage && a.damage.length) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','damage')">🎲 damage</button>`;
+  let save = a.save ? ` <span class="line"><b>Save:</b> DC ${a.save.dc} ${a.save.ability.toUpperCase()}</span>` : "";
+  return `<div class="entry"><div class="en">${esc(a.name)}${pill}</div>
+    <div class="txt">${esc(a.raw_text)}</div>${save}<div>${buttons}</div></div>`;
+}
+
+function sectionHtml(title, list, sid, catKey, disabled) {
+  if (!list || !list.length) return "";
+  const off = disabled && catKey && disabled.has(catKey);
+  return `<div class="section${off ? " disabled" : ""}">
+    <h2>${title}${off ? ' <span class="disabled-tag">Unavailable</span>' : ""}</h2>
+    ${list.map(a => entryHtml(a, sid)).join("")}</div>`;
+}
+
+let currentSb = null;   // full stat block currently shown (for editing)
+let currentConditions = [];  // active conditions on the shown sheet (for roll adjustment)
+
+// brief, non-native toast notification
+function toast(msg) {
+  let t = $("toast");
+  if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+// roll adjustments implied by the shown creature's active conditions
+function _activeFlags() {
+  const f = { attackDis:false, attackAdv:false, checkDis:false, dexSaveDis:false, autoFailStrDex:false };
+  (currentConditions || []).forEach(cn => {
+    const e = CONDITION_EFFECTS[cn]; if (!e) return;
+    if (e.selfAttackDis) f.attackDis = true;
+    if (e.selfAttackAdv) f.attackAdv = true;
+    if (e.selfCheckDis) f.checkDis = true;
+    if (e.dexSaveDis) f.dexSaveDis = true;
+    if (e.autoFailStrDexSave) f.autoFailStrDex = true;
+  });
+  return f;
+}
+function _attackAdv() {
+  const f = _activeFlags();
+  if (f.attackAdv && f.attackDis) return null;   // advantage + disadvantage cancel
+  if (f.attackDis) return "disadvantage";
+  if (f.attackAdv) return "advantage";
+  return null;
+}
+const ABILS = [["STR","str","strength"],["DEX","dex","dexterity"],
+  ["CON","con","constitution"],["INT","int","intelligence"],
+  ["WIS","wis","wisdom"],["CHA","cha","charisma"]];
+
+async function showSheet(id, opts = {}) {
+  selected = id;
+  loadLibrary();
+  const sb = await api("/api/statblocks/" + id);
+  currentSb = sb;
+  const ab = sb.abilities;
+  // condition context (only when opened from a combatant in the encounter)
+  const conds = opts.conditions || [];
+  currentConditions = conds;   // drives roll pre-adjustment (advantage/disadvantage)
+  const disabled = new Set();
+  let speedZero = false;
+  conds.forEach(cn => {
+    const eff = condEffect(cn);
+    if (!eff) return;
+    eff.disables.forEach(d => disabled.add(d));
+    if (eff.speedZero) speedZero = true;
+  });
+  // save bonus for an ability: from saving_throws (case-insensitive) else the modifier
+  const saveBonus = (code, v) => {
+    for (const [k, val] of Object.entries(sb.saving_throws || {})) {
+      if (k.toLowerCase() === code) return val;
+    }
+    return Math.floor((v - 10) / 2);
+  };
+  // CHECK button = label/modifier/score; SAVE button below = save bonus (same styling).
+  const abBox = (label, code, v) => {
+    const sv = saveBonus(code, v);
+    return `<div class="ab">
+      <button class="ab-btn ab-check" title="Roll ${label} check" onclick="rollAbility('${id}','${code}','check')">
+        <div class="k">${label}</div>
+        <div class="mod">${mod(v)}</div>
+        <div class="sc">${v}</div>
+      </button>
+      <button class="ab-btn ab-save" title="Roll ${label} save" onclick="rollAbility('${id}','${code}','save')">
+        <span class="svk">SAVE</span><span class="svv">${sv>=0?'+':''}${sv}</span>
+      </button>
+    </div>`;
+  };
+  const line = (label, text, cls="") =>
+    text ? `<div class="line ${cls}"><b>${label}</b> ${esc(text)}</div>` : "";
+  const listLine = (label, arr, cls="") => line(label, (arr||[]).join(", "), cls);
+  // clickable saves / skills (skill names title-cased)
+  const chips = (label, obj, kind) => {
+    const items = Object.entries(obj||{});
+    if (!items.length) return "";
+    const inner = items.map(([k,v]) => {
+      const disp = kind==="skill" ? capWords(k) : k;
+      const arg = kind==="skill" ? `'${id}',null,'skill','${esc(k)}'` : `'${id}','${k.toLowerCase()}','save'`;
+      return `<span class="rollchip" onclick="rollAbility(${arg})">${esc(disp)} ${v>=0?'+':''}${v}</span>`;
+    }).join(", ");
+    return `<div class="line"><b>${label}</b> ${inner}</div>`;
+  };
+  const speedText = Object.entries(sb.speed||{})
+    .map(([k,v]) => k==="walk" ? `${v} ft.` : `${capWords(k)} ${v} ft.`).join(", ");
+  const sensesText = [
+    ...Object.entries(sb.senses||{}).map(([k,v]) => `${capWords(k)} ${v} ft.`),
+    sb.passive_perception != null ? `Passive Perception ${sb.passive_perception}` : null,
+  ].filter(Boolean).join(", ");
+  $("scrollcontent").innerHTML = `
+    <div class="sheet-frozen">
+      <div class="sheethead">
+        <h2 class="title">${esc(sb.name)}</h2>
+        <div class="headbtns">
+          ${opts.fromCombatant ? `<button class="btn" onclick="backToEncounter()">◂ Back to Encounter</button>` : ""}
+          <button class="btn" onclick="startEdit()">✎ Edit</button>
+          <button class="btn" title="Close (clears the panel, keeps it in the library)"
+                  onclick="clearSheet()">✕ Close</button>
+        </div>
+      </div>
+      <div class="meta">${esc(sb.size||"")} ${esc(sb.creature_type||"")}${sb.alignment?", "+esc(sb.alignment):""}</div>
+      <div class="defenses">
+        <div class="d"><div class="k">Armor Class</div><div class="v">${sb.armor_class}</div></div>
+        <div class="d"><div class="k">Hit Points</div><div class="v">${sb.hit_points}</div></div>
+        <div class="d"><div class="k">Challenge</div><div class="v">${sb.challenge_rating||"?"}</div></div>
+        <div class="d roll-init" title="Roll initiative (d20 + DEX)" onclick="rollInitiative('${id}')">
+          <div class="k">Initiative</div>
+          <div class="v">${mod(ab.dexterity)}</div>
+        </div>
+      </div>
+      <div class="abilities">${ABILS.map(([l,c,f]) => abBox(l,c,ab[f])).join("")}</div>
+    </div>
+    <div class="sheet-scroll">
+      ${conds.length ? `<div class="condbanner">
+        <div class="cbh">Active Conditions</div>
+        ${conds.map(cn => {
+          const eff = condEffect(cn);
+          const body = eff ? eff.lines.map(l => `<div class="condsub">${esc(l)}</div>`).join("") : "";
+          return `<div class="condline"><b>${esc(cn)}</b>${body}</div>`;
+        }).join("")}
+      </div>` : ""}
+      ${speedZero
+        ? `<div class="line"><b>Speed</b> <span class="struck">${esc(speedText)}</span> &rarr; 0 ft.</div>`
+        : line("Speed", speedText)}
+      ${chips("Saving Throws", sb.saving_throws, "save")}
+      ${chips("Skills", sb.skills, "skill")}
+      ${listLine("Damage Vulnerabilities", (sb.damage_vulnerabilities||[]).map(capWords))}
+      ${listLine("Damage Resistances", (sb.damage_resistances||[]).map(capWords))}
+      ${listLine("Damage Immunities", (sb.damage_immunities||[]).map(capWords))}
+      ${listLine("Condition Immunities", (sb.condition_immunities||[]).map(capWords))}
+      ${line("Senses", sensesText)}
+      ${listLine("Languages", (sb.languages||[]).map(capWords))}
+      <button class="btn add" onclick="spawn('${id}')">➕ Add to Encounter</button>
+      ${sectionHtml("Traits", sb.traits, id, "traits", disabled)}
+      ${sectionHtml("Actions", sb.actions, id, "actions", disabled)}
+      ${sectionHtml("Bonus Actions", sb.bonus_actions, id, "bonus_actions", disabled)}
+      ${sectionHtml("Reactions", sb.reactions, id, "reactions", disabled)}
+      ${sectionHtml("Legendary Actions", sb.legendary_actions, id, "legendary_actions", disabled)}
+    </div>
+  `;
+  openScroll();
+}
+
+// clear the centre panel without deleting the stat block from the library
+function clearSheet() {
+  selected = null;
+  currentSb = null;
+  closeScroll(showEmptyLabel);   // furl, hold rods, fade out, then show label
+  loadLibrary();
+}
+
+async function rollAbility(id, code, kind, skill) {
+  const body = { statblock_id: id, kind };
+  if (kind === "skill") body.skill = skill; else body.ability = code;
+  const f = _activeFlags();
+  if (kind === "check" || kind === "skill") {
+    if (f.checkDis) body.advantage = "disadvantage";
+  } else if (kind === "save") {
+    if ((code === "str" || code === "dex") && f.autoFailStrDex) {
+      toast(`${code.toUpperCase()} save automatically fails (condition).`);
+      return;   // auto-fail: no roll
+    }
+    if (code === "dex" && f.dexSaveDis) body.advantage = "disadvantage";
+  }
+  await post("/api/roll", body);
+  loadLog();
+}
+
+async function rollInitiative(id) {
+  const body = { statblock_id: id, kind: "initiative" };
+  if (_activeFlags().checkDis) body.advantage = "disadvantage";   // initiative is a DEX check
+  await post("/api/roll", body);
+  loadLog();
+}
+
+// ---- edit mode ----
+let editState = null;
+let isNewEntry = false;       // true while building a brand-new compendium entry
+const CATS = [["traits","Traits"],["actions","Actions"],["bonus_actions","Bonus Actions"],
+  ["reactions","Reactions"],["legendary_actions","Legendary Actions"]];
+const escAttr = (s) => esc(s).replace(/"/g, "&quot;");
+
+function startEdit() { isNewEntry = false; editState = JSON.parse(JSON.stringify(currentSb)); renderEdit(); }
+function cancelEdit() {
+  editState = null;
+  if (isNewEntry) { isNewEntry = false; clearSheet(); return; }
+  showSheet(currentSb.id);
+}
+
+// ---- custom (hand-built) compendium entries ----
+function blankStatblock() {
+  return {
+    id: (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now(),
+    name: "New Monster",
+    size: "", creature_type: "", alignment: "",
+    armor_class: 10, hit_points: 1, challenge_rating: "",
+    abilities: { strength:10, dexterity:10, constitution:10,
+                 intelligence:10, wisdom:10, charisma:10 },
+    saving_throws: {}, skills: {}, senses: {}, passive_perception: null,
+    languages: [], speed: {},
+    damage_vulnerabilities: [], damage_resistances: [],
+    damage_immunities: [], condition_immunities: [],
+    traits: [], actions: [], bonus_actions: [], reactions: [], legendary_actions: [],
+  };
+}
+function newEntry() {
+  selected = null;
+  isNewEntry = true;
+  currentSb = blankStatblock();
+  editState = JSON.parse(JSON.stringify(currentSb));
+  loadLibrary();
+  renderEdit(true);   // unfurl the scroll for a fresh new-entry form
+}
+function addEntry(cat) {
+  captureEdits();
+  if (!editState[cat]) editState[cat] = [];
+  editState[cat].push({ name: "New " + cat.replace(/_/g, " "), raw_text: "",
+                        attack: null, damage: [] });
+  renderEdit();
+}
+
+function renderEdit(animate = false) {
+  const sb = editState, ab = sb.abilities;
+  const inp = (id, val) => `<input id="${id}" value="${escAttr(val)}">`;
+  const num = (id, val) => `<input id="${id}" type="number" value="${val == null ? "" : val}">`;
+  const bonusText = (o) => Object.entries(o||{}).map(([k,v]) => `${k} ${v>=0?'+':''}${v}`).join(", ");
+  const sensesText = [...Object.entries(sb.senses||{}).map(([k,v]) => `${k} ${v}`),
+    sb.passive_perception != null ? `passive Perception ${sb.passive_perception}` : null].filter(Boolean).join(", ");
+  const abInputs = ABILS.map(([l,c,f]) => `<div><label>${l}</label>${num("e_ab_"+f, ab[f])}</div>`).join("");
+  const entries = (cat) => (sb[cat]||[]).map((a,i) => {
+    const isAct = cat !== "traits";
+    return `<div class="editrow">
+      <button class="x" title="Delete entry" onclick="deleteEntry('${cat}',${i})">✕</button>
+      <label>Name</label>${inp(`e_${cat}_${i}_name`, a.name)}
+      <label>Description</label><textarea id="e_${cat}_${i}_desc">${esc(a.raw_text||"")}</textarea>
+      ${isAct ? `<div class="row">
+        <div><label>To hit</label>${num(`e_${cat}_${i}_tohit`, a.attack ? a.attack.to_hit : null)}</div>
+        <div><label>Damage (e.g. 1d8+3 slashing, 1d8 fire)</label>${inp(`e_${cat}_${i}_dmg`, damageToText(a.damage))}</div>
+      </div>` : ""}
+    </div>`;
+  }).join("") || '<div class="sub" style="color:var(--dim)">none</div>';
+
+  const editButtons = (pos) => `<div class="editbtns ${pos}">
+      <button class="btn save" onclick="saveEdit()">Save</button>
+      <button class="btn" onclick="saveEditAsNew()" title="Save as a new copy, keeping the original">Save as New</button>
+      <button class="btn" onclick="cancelEdit()">Cancel</button>
+    </div>`;
+
+  $("scrollcontent").innerHTML = `
+    ${editButtons("top")}
+    <div class="sheet-scroll"><div class="ef">
+    <div class="sheethead"><h2 class="title">${isNewEntry ? "New Compendium Entry" : "Editing"}</h2></div>
+    <label>Name</label>${inp("e_name", sb.name)}
+    <div class="row">
+      <div><label>Size</label>${inp("e_size", sb.size||"")}</div>
+      <div><label>Type</label>${inp("e_type", sb.creature_type||"")}</div>
+    </div>
+    <label>Alignment</label>${inp("e_align", sb.alignment||"")}
+    <div class="row">
+      <div><label>Armor Class</label>${num("e_ac", sb.armor_class)}</div>
+      <div><label>Hit Points</label>${num("e_hp", sb.hit_points)}</div>
+      <div><label>Challenge</label>${inp("e_cr", sb.challenge_rating||"")}</div>
+    </div>
+    <label>Abilities</label><div class="ab6">${abInputs}</div>
+    <label>Saving Throws (e.g. Con +10, Wis +6)</label>${inp("e_saves", bonusText(sb.saving_throws))}
+    <label>Skills</label>${inp("e_skills", bonusText(sb.skills))}
+    <label>Senses (e.g. darkvision 60, passive Perception 14)</label>${inp("e_senses", sensesText)}
+    <label>Languages</label>${inp("e_langs", (sb.languages||[]).join(", "))}
+    ${CATS.map(([cat,title]) => `<div class="section">
+      <h2>${title}</h2>${entries(cat)}
+      <button class="btn addentry" onclick="addEntry('${cat}')">＋ Add ${title.replace(/s$/, "").toLowerCase()}</button>
+    </div>`).join("")}
+    </div></div>
+    ${editButtons("bottom")}
+  `;
+  if (animate) openScroll(); else ensureScrollOpen();
+}
+
+function deleteEntry(cat, i) { captureEdits(); editState[cat].splice(i, 1); renderEdit(); }
+
+function captureEdits() {
+  const sb = editState, v = (id) => { const el = $(id); return el ? el.value : undefined; };
+  CATS.forEach(([cat]) => (sb[cat]||[]).forEach((a,i) => {
+    const n = v(`e_${cat}_${i}_name`); if (n !== undefined) a.name = n;
+    const d = v(`e_${cat}_${i}_desc`); if (d !== undefined) a.raw_text = d;
+    const th = v(`e_${cat}_${i}_tohit`);
+    if (th !== undefined) {
+      if (th === "") a.attack = null;
+      else { if (!a.attack) a.attack = { kind:"melee_weapon", to_hit:null, reach_ft:null, range_ft:null, targets:"one target" };
+             a.attack.to_hit = parseInt(th, 10); }
+    }
+    const dm = v(`e_${cat}_${i}_dmg`);
+    if (dm !== undefined) a.damage = parseDamage(dm);
+  }));
+}
+
+async function saveEdit() {
+  captureEdits();
+  const sb = editState;
+  sb.name = $("e_name").value.trim() || sb.name;
+  sb.size = $("e_size").value.trim() || null;
+  sb.creature_type = $("e_type").value.trim() || null;
+  sb.alignment = $("e_align").value.trim() || null;
+  sb.armor_class = parseInt($("e_ac").value, 10) || sb.armor_class;
+  sb.hit_points = parseInt($("e_hp").value, 10) || sb.hit_points;
+  sb.challenge_rating = $("e_cr").value.trim() || null;
+  ABILS.forEach(([l,c,f]) => { const x = parseInt($("e_ab_"+f).value, 10); if (!isNaN(x)) sb.abilities[f] = x; });
+  sb.saving_throws = parseBonuses($("e_saves").value);
+  sb.skills = parseBonuses($("e_skills").value);
+  const sen = parseSenses($("e_senses").value); sb.senses = sen.senses; sb.passive_perception = sen.passive;
+  sb.languages = parseList($("e_langs").value);
+  const r = await fetch("/api/statblocks/" + sb.id, {
+    method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(sb) });
+  if (!r.ok) { let m=""; try { m = (await r.json()).error || ""; } catch(e){} alert("Save failed (" + r.status + "). " + m); return; }
+  editState = null;
+  isNewEntry = false;
+  selected = sb.id;
+  // refurl the edit form, then unfurl the saved stat block
+  closeScroll(() => showSheet(sb.id));
+}
+
+// Save the current edits as a brand-new entry, leaving the original untouched.
+// (Give editState a fresh id, then save normally — the server upserts by id.)
+async function saveEditAsNew() {
+  if (!editState) return;
+  const wasExisting = !isNewEntry;
+  editState.id = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID() : "sb-" + Date.now();
+  // append "(Copy)" so the modified version is distinguishable from the original
+  if (wasExisting) {
+    const cur = ($("e_name").value || editState.name || "").trim();
+    if (cur && !/\(copy\)/i.test(cur)) $("e_name").value = cur + " (Copy)";
+  }
+  isNewEntry = true;            // so cancel/flow treat it as new from here
+  await saveEdit();
+}
+
+// client-side parsers (mirror the server, for the edit form)
+function parseBonuses(text) {
+  const out = {};
+  (text||"").split(",").forEach(p => { const m = p.match(/(.+?)\s*([+-]\d+)/); if (m) out[m[1].trim()] = parseInt(m[2],10); });
+  return out;
+}
+function parseList(text) {
+  const t = (text||"").trim();
+  if (!t || ["none","-","—","–"].includes(t.toLowerCase())) return [];
+  return t.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+}
+function parseSenses(text) {
+  const senses = {}; let passive = null;
+  (text||"").split(",").forEach(p => {
+    p = p.trim();
+    const pm = p.match(/passive Perception\s+(\d+)/i);
+    const m = p.match(/^([A-Za-z]+)\s+(\d+)/);
+    if (pm) passive = parseInt(pm[1],10);
+    else if (m) senses[m[1].toLowerCase()] = parseInt(m[2],10);
+  });
+  return { senses, passive };
+}
+function damageToText(damage) {
+  return (damage||[]).map(c => `${c.dice||""}${c.bonus ? (c.bonus>0?"+":"")+c.bonus : ""} ${c.damage_type||""}`.trim()).join(", ");
+}
+function parseDamage(text) {
+  if (!text || !text.trim()) return [];
+  return (text).split(",").map(p => {
+    const m = p.match(/(\d+d\d+)\s*([+-]\d+)?\s*([A-Za-z]+)?/);
+    if (!m) return null;
+    return { dice: m[1], bonus: m[2] ? parseInt(m[2],10) : 0, average: null,
+             damage_type: m[3] ? m[3].toLowerCase() : null, notes: null };
+  }).filter(Boolean);
+}
+
+const blankSheet = () => {
+  // no scroll when nothing is selected — just the central transparent label
+  $("scrollcontent").innerHTML = "";
+  showEmptyLabel();
+};
+
+// in-app confirm modal — returns a Promise<bool>, replacing the native popup
+let _confirmResolve = null;
+function uiConfirm(message, okLabel) {
+  $("confirmMsg").textContent = message;
+  $("confirmOk").textContent = okLabel || "Delete";
+  $("confirmModal").style.display = "flex";
+  return new Promise(resolve => { _confirmResolve = resolve; });
+}
+(function initConfirmModal() {
+  const close = (val) => {
+    $("confirmModal").style.display = "none";
+    if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
+  };
+  $("confirmOk").onclick = () => close(true);
+  $("confirmCancel").onclick = () => close(false);
+  $("confirmModal").addEventListener("click", e => {
+    if (e.target.id === "confirmModal") close(false);   // click backdrop = cancel
+  });
+})();
+
+async function delMon(id) {
+  const m = library.find(x => x.id === id);
+  const name = m ? m.name : "this monster";
+  if (!await uiConfirm(`Delete “${name}” from the compendium?`)) return;
+  const r = await fetch("/api/statblocks/" + id, { method: "DELETE" });
+  if (!r.ok) { alert("Delete failed (" + r.status + "). Try restarting StatForge."); return; }
+  if (selected === id) { selected = null; blankSheet(); }
+  loadLibrary();
+}
+
+async function clearLibrary() {
+  if (!await uiConfirm("Delete ALL monsters from the compendium? This cannot be undone.",
+                       "Delete All")) return;
+  const r = await fetch("/api/statblocks", { method: "DELETE" });
+  if (!r.ok) { alert("Clear failed (" + r.status + "). Try restarting StatForge."); return; }
+  selected = null;
+  blankSheet();
+  loadLibrary();
+}
+
+async function removeCombatant(id) {
+  const r = await fetch("/api/encounter/remove", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ combatant_id: id })
+  });
+  if (!r.ok) { alert("Remove failed (" + r.status + "). Try restarting StatForge."); return; }
+  loadTracker();
+}
+
+async function roll(sid, action, kind) {
+  const body = { statblock_id: sid, action_name: action, kind };
+  if (kind === "attack") { const a = _attackAdv(); if (a) body.advantage = a; }
+  await post("/api/roll", body);
+  await loadLog();
+}
+
+const CONDITIONS = ["Blinded","Charmed","Concentration","Deafened","Exhaustion",
+  "Frightened","Grappled","Incapacitated","Invisible","Paralyzed","Petrified",
+  "Poisoned","Prone","Restrained","Stunned","Unconscious"];
+
+// How each condition affects a creature:
+//   lines     — DM-facing effect text (shown in the run-card note + sheet banner)
+//   disables  — stat-block sections greyed out on the affected creature's sheet
+//   includes  — other conditions whose effects also apply (e.g. Paralyzed → Incapacitated)
+//   speedZero — the creature's Speed becomes 0 (struck through on the sheet)
+const CONDITION_EFFECTS = {
+  "Blinded": {
+    selfAttackDis: true,
+    lines: ["Can't see; automatically fails any ability check that requires sight.",
+            "Attack rolls against it have advantage; its attack rolls have disadvantage."],
+  },
+  "Charmed": {
+    lines: ["Can't attack the charmer or target them with harmful abilities or magical effects.",
+            "The charmer has advantage on ability checks to interact socially with it."],
+  },
+  "Concentration": {
+    lines: ["Maintaining Concentration on a spell.",
+            "Taking damage forces a Constitution save (DC 10 or half the damage, whichever is higher) or the spell ends."],
+  },
+  "Deafened": {
+    lines: ["Can't hear; automatically fails any ability check that requires hearing."],
+  },
+  "Exhaustion": {
+    lines: ["Level 1: Disadvantage on ability checks.",
+            "Level 2: Speed halved.",
+            "Level 3: Disadvantage on attack rolls and saving throws.",
+            "Level 4: Hit point maximum halved.",
+            "Level 5: Speed reduced to 0.",
+            "Level 6: Death.",
+            "(Cumulative; this chip doesn't track the level, so rolls aren't auto-adjusted.)"],
+  },
+  "Frightened": {
+    selfAttackDis: true, selfCheckDis: true,
+    lines: ["Disadvantage on ability checks and attack rolls while the source of fear is in line of sight.",
+            "Can't willingly move closer to the source of its fear."],
+  },
+  "Grappled": {
+    speedZero: true,
+    lines: ["Speed becomes 0; can't benefit from any bonus to its speed.",
+            "Ends if the grappler is Incapacitated, or if it's removed from the grappler's reach."],
+  },
+  "Incapacitated": {
+    disables: ["actions", "bonus_actions", "reactions", "legendary_actions"],
+    lines: ["Can't take Actions, Bonus Actions, or Reactions.",
+            "Loses Concentration. Can move but can't Dash."],
+  },
+  "Invisible": {
+    selfAttackAdv: true,
+    lines: ["Impossible to see without magic or a special sense; heavily obscured for hiding.",
+            "Attack rolls against it have disadvantage; its attack rolls have advantage."],
+  },
+  "Paralyzed": {
+    includes: ["Incapacitated"], autoFailStrDexSave: true,
+    lines: ["Incapacitated; can't move or speak.",
+            "Automatically fails Strength and Dexterity saving throws.",
+            "Attack rolls against it have advantage.",
+            "Any hit from within 5 feet is a critical hit."],
+  },
+  "Petrified": {
+    includes: ["Incapacitated"], autoFailStrDexSave: true,
+    lines: ["Transformed into a solid substance; incapacitated, can't move or speak, unaware of surroundings.",
+            "Attack rolls against it have advantage.",
+            "Automatically fails Strength and Dexterity saving throws.",
+            "Resistance to all damage; immune to poison and disease (existing ones suspended, not neutralised)."],
+  },
+  "Poisoned": {
+    selfAttackDis: true, selfCheckDis: true,
+    lines: ["Disadvantage on attack rolls and ability checks."],
+  },
+  "Prone": {
+    selfAttackDis: true,
+    lines: ["Only movement option is to crawl, unless it stands up (ending the condition).",
+            "Disadvantage on its attack rolls.",
+            "Attacks against it have advantage from within 5 feet, otherwise disadvantage."],
+  },
+  "Restrained": {
+    speedZero: true, selfAttackDis: true, dexSaveDis: true,
+    lines: ["Speed becomes 0; can't benefit from any bonus to its speed.",
+            "Attack rolls against it have advantage; its attack rolls have disadvantage.",
+            "Disadvantage on Dexterity saving throws."],
+  },
+  "Stunned": {
+    includes: ["Incapacitated"], autoFailStrDexSave: true,
+    lines: ["Incapacitated; can't move, and can speak only falteringly.",
+            "Automatically fails Strength and Dexterity saving throws.",
+            "Attack rolls against it have advantage."],
+  },
+  "Unconscious": {
+    includes: ["Incapacitated"], speedZero: true, autoFailStrDexSave: true,
+    lines: ["Incapacitated; can't move or speak, unaware of surroundings.",
+            "Drops whatever it's holding and falls Prone.",
+            "Automatically fails Strength and Dexterity saving throws.",
+            "Attack rolls against it have advantage.",
+            "Any hit from within 5 feet is a critical hit."],
+  },
+};
+
+// Resolve a condition's full effect, folding in any `includes` (e.g. Paralyzed
+// pulls in Incapacitated's disabled sections).
+function condEffect(cn) {
+  const e = CONDITION_EFFECTS[cn];
+  if (!e) return null;
+  const disables = new Set(e.disables || []);
+  (e.includes || []).forEach(inc => {
+    const ie = CONDITION_EFFECTS[inc];
+    if (ie) (ie.disables || []).forEach(d => disables.add(d));
+  });
+  return { lines: e.lines || [], disables, speedZero: !!e.speedZero };
+}
+
+async function spawn(sid) { await post("/api/encounter/spawn", { statblock_id: sid }); loadTracker(); }
+async function nextTurn() { await post("/api/encounter/next"); loadTracker(); }
+async function clearEnc() { await post("/api/encounter/clear"); loadTracker(); }
+
+async function addPlayer() {
+  const name = $("pc_name").value.trim();
+  if (!name) { alert("Enter a player name."); return; }
+  await post("/api/encounter/add-player", {
+    name,
+    initiative: parseInt($("pc_init").value || "0", 10),
+    max_hp: parseInt($("pc_hp").value || "0", 10),
+  });
+  $("pc_name").value = ""; $("pc_init").value = ""; $("pc_hp").value = "";
+  loadTracker();
+}
+async function addCondition(id, name) {
+  if (!name) return;
+  await post("/api/encounter/condition", { combatant_id: id, name, action: "add" });
+  loadTracker();
+}
+async function removeCondition(id, name) {
+  await post("/api/encounter/condition", { combatant_id: id, name, action: "remove" });
+  loadTracker();
+}
+
+async function saveEncounter() {
+  const name = prompt("Save this encounter as:", "Encounter");
+  if (!name) return;
+  await post("/api/encounter/save", { name });
+  loadEncounterList();
+}
+async function loadEncounterList() {
+  const list = await api("/api/encounters");
+  $("encsel").innerHTML = '<option value="">Load Encounter…</option>' +
+    list.map(e => `<option value="${e.id}">${esc(e.name)} (${e.combatants})</option>`).join("");
+}
+async function onEncSelect(id) {
+  if (!id) return;
+  await post("/api/encounter/load", { encounter_id: id });
+  loadTracker();
+}
+async function deleteSelectedEncounter() {
+  const id = $("encsel").value;
+  if (!id) { alert("Pick a saved encounter from the list first."); return; }
+  if (!await uiConfirm("Delete this saved encounter?")) return;
+  await fetch("/api/encounters/" + id, { method: "DELETE" });
+  loadEncounterList();
+}
+async function applyDmg(cid, inputId, sign) {
+  const amt = parseInt($(inputId).value || "0", 10) * sign;
+  if (!amt) return;
+  await post("/api/encounter/damage", { combatant_id: cid, amount: amt });
+  loadTracker();
+}
+
+// ---- encounter: compact planner (right) vs expanded run view (centre) ----
+let encounterExpanded = false;
+
+async function loadTracker() {
+  const enc = await api("/api/encounter");
+  renderPlannerList(enc);
+  if (encounterExpanded) renderRunCards(enc);
+}
+
+// compact list for the collapsed planner: just who's in the fight
+function renderPlannerList(enc) {
+  const el = $("plannerlist");
+  if (!el) return;
+  if (!enc.combatants.length) {
+    el.innerHTML = '<div class="planner-empty">Empty — add creatures from a stat block, then Expand to run it.</div>';
+    return;
+  }
+  el.innerHTML = enc.combatants.map(c => `
+    <div class="planner-row">
+      <span class="pname">${esc(c.display_name)}${c.is_player?'<span class="pcbadge">PC</span>':''}</span>
+      <button class="x" title="Remove" onclick="removeCombatant('${c.id}')">✕</button>
+    </div>`).join("");
+}
+
+// full run view (HP / initiative / conditions) for the expanded centre panel
+function renderRunCards(enc) {
+  const rt = $("runtracker");
+  if (rt === null) return;
+  const round = $("round");
+  if (round) round.textContent = enc.combatants.length ? "Round " + Math.max(1, enc.round+1) : "";
+  rt.innerHTML = enc.combatants.map((c, i) => {
+    const pct = Math.max(0, Math.round(100 * c.current_hp / Math.max(1, c.max_hp)));
+    const iid = "dmg_" + c.id;
+    const conds = (c.conditions || []).map(cn =>
+      `<span class="cond" title="Remove ${esc(cn)}"
+         onclick="removeCondition('${c.id}', '${esc(cn)}')">${esc(cn)} ✕</span>`).join("");
+    // how the active conditions affect this creature
+    const effNotes = (c.conditions || [])
+      .filter(cn => CONDITION_EFFECTS[cn])
+      .map(cn => `<div class="condeffect"><b>${esc(cn)}:</b> ${esc(condEffect(cn).lines.join(" "))}</div>`)
+      .join("");
+    const sbBtn = c.statblock_id
+      ? `<button class="btn tiny" title="Open Stat Block"
+           onclick="openCombatantSheet('${c.statblock_id}','${c.id}')">Stat Block</button>` : "";
+    return `<div class="cb ${i===enc.active_index && enc.combatants.length?'active':''}">
+      <div class="top"><b>${esc(c.display_name)}${c.is_player?'<span class="pcbadge">PC</span>':''}</b>
+        <span>${sbBtn}<span class="init">${c.initiative ?? "-"}</span>
+        <button class="x" title="Remove" onclick="removeCombatant('${c.id}')">✕</button></span></div>
+      <div class="hpbar"><div class="${c.is_player ? "hp-pc" : "hp-mob"}" style="width:${pct}%"></div></div>
+      <div class="hprow"><span>${c.current_hp}/${c.max_hp} HP · AC ${c.armor_class}</span>
+        <input id="${iid}" type="number" placeholder="0" />
+        <button class="btn" onclick="applyDmg('${c.id}','${iid}',1)">−HP</button>
+        <button class="btn" onclick="applyDmg('${c.id}','${iid}',-1)">+HP</button>
+      </div>
+      <div class="conds">${conds}
+        <select class="condsel" onchange="addCondition('${c.id}', this.value); this.value='';">
+          <option value="">＋ Condition</option>
+          ${CONDITIONS.map(x => `<option>${x}</option>`).join("")}
+        </select>
+      </div>${effNotes}</div>`;
+  }).join("") || '<div class="planner-empty">No combatants yet. Add creatures from a stat block.</div>';
+}
+
+function toggleEncounterExpand() {
+  encounterExpanded = !encounterExpanded;
+  const run = $("encounterrun"), planner = $("plannerpanel");
+  if (encounterExpanded) {
+    // take over the centre: hide the scroll / label, hide the planner; log fills
+    if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+    _wrap().style.display = "none";
+    $("emptylabel").style.display = "none";
+    run.style.display = "flex";
+    planner.style.display = "none";
+    loadTracker();
+  } else {
+    run.style.display = "none";
+    planner.style.display = "";
+    // restore the centre to the selected stat block (or the empty label)
+    if (selected) showSheet(selected); else showEmptyLabel();
+    loadTracker();
+  }
+}
+
+// open a combatant's stat block from the run view, carrying its active
+// conditions (so their effects show) and a "Back to Encounter" button
+async function openCombatantSheet(sid, cid) {
+  const enc = await api("/api/encounter");
+  const c = enc.combatants.find(x => x.id === cid);
+  await showSheet(sid, { conditions: c ? c.conditions : [], fromCombatant: cid });
+}
+function backToEncounter() {
+  if (!encounterExpanded) toggleEncounterExpand();   // re-expand the run view
+}
+
+async function clearLog() {
+  const r = await fetch("/api/rolls", { method: "DELETE" });
+  if (!r.ok) { alert("Clear log failed (" + r.status + ")."); return; }
+  loadLog();
+}
+
+async function loadLog() {
+  const rolls = await api("/api/rolls");
+  const log = $("log");
+  log.innerHTML = rolls.map(r => `
+    <div class="roll">
+      <div class="rollinfo">
+        <div class="src">${esc(r.source)}</div>
+        <div class="rtitle">${esc(r.label)}${r.advantage ? ` <span class="advtag">(${r.advantage === "advantage" ? "Adv" : "Disadv"})</span>` : ""}</div>
+        <div class="det">${esc(r.expression)} → [${r.dice_results.join(", ")}]</div>
+      </div>
+      <div class="tot">${r.total}</div>
+    </div>`).join("");
+  log.scrollTop = log.scrollHeight;   // keep the newest roll (bottom) in view
+}
+
+// ---- PDF import (drag-and-drop or browse) ----
+const drop = $("drop"), fileInput = $("file");
+drop.addEventListener("click", () => fileInput.click());
+["dragenter", "dragover"].forEach(e =>
+  drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(e =>
+  drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", ev => {
+  const f = ev.dataTransfer.files[0];
+  if (f) uploadPdf(f);
+});
+fileInput.addEventListener("change", () => {
+  if (fileInput.files[0]) uploadPdf(fileInput.files[0]);
+});
+
+// Web build: parse the PDF entirely in the browser (pdfimport.js), no upload.
+async function uploadPdf(file) {
+  if (window.sfImportPdf) return window.sfImportPdf(file);
+  const msg = $("importmsg"); if (msg) { msg.className = ""; msg.textContent = "PDF import unavailable."; }
+}
+
+async function pollImport(jobId, name) {
+  const msg = $("importmsg");
+  let s;
+  try {
+    s = await (await fetch("/api/import/status/" + jobId)).json();
+  } catch (e) {
+    msg.className = ""; msg.textContent = "Lost contact with the import."; return;
+  }
+  if (!s.finished) {
+    const pct = s.total ? Math.round(100 * s.current / s.total) : 0;
+    const label = s.total
+      ? `Reading ${esc(name)}… page ${s.current}/${s.total}`
+      : `Reading ${esc(name)}…`;
+    msg.className = "busy";
+    msg.innerHTML = `${label}<div class="pbar"><div style="width:${pct}%"></div></div>`;
+    setTimeout(() => pollImport(jobId, name), 600);
+    return;
+  }
+  msg.className = "";
+  if (s.error) { msg.textContent = "Import failed: " + s.error; return; }
+  const imported = s.imported || [];
+  const count = imported.length;
+  const names = imported.map(x => x.name).join(", ") || "(nothing recognised)";
+  const low = imported.some(x => x.confidence < 0.6);
+  // Show only the count; the full named list lives in the hover tooltip to keep things clean.
+  const noun = count === 1 ? "creature" : "creatures";
+  msg.innerHTML = `Imported <b class="impcount" title="${escAttr(names)}">${count}</b> ${noun} `
+    + `from ${esc(name)} <span style="color:var(--dim)">(${s.input_kind || ""})</span>`
+    + (low ? ' <span class="warn">(low confidence, check the sheet)</span>' : '');
+  fileInput.value = "";
+  loadLibrary();
+}
+
+// ---- light / dark mode toggle ----
+function toggleMode() {
+  // freeze element transitions for this frame so every panel switches at once
+  document.body.classList.add('no-anim');
+  const dark = document.body.classList.toggle('dark');
+  localStorage.setItem('sf-dark', dark ? '1' : '0');
+  // re-enable transitions after the colour change has painted
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.body.classList.remove('no-anim')));
+  // icon + knob position handled entirely by CSS (::after on #modetoggle)
+}
+// restore saved preference
+(function() {
+  if (localStorage.getItem('sf-dark') === '1') {
+    document.body.classList.add('dark');
+  }
+})();
+
+// Boot sequence: wallpaper only → title card (in 1.5s / hold 2s / out 1.5s = 5s)
+// → full UI fades in over 1s.
+(function() {
+  const sp = $("splash");
+  setTimeout(() => document.body.classList.remove("booting"), 5000);  // UI fades in (CSS 1s)
+  setTimeout(() => { if (sp) sp.remove(); }, 5200);                   // card has faded out
+})();
+
+// Heartbeat: lets the windowless launcher's server auto-close when this page is
+// closed. Starts immediately (independent of the splash). If the server isn't
+// running with --shutdown-on-idle (e.g. dev `serve`), the pings are harmless.
+(function() {
+  const ping = () => fetch("/api/ping", { method: "POST" }).catch(() => {});
+  ping();
+  setInterval(ping, 4000);
+})();
+
+loadLibrary(); loadTracker(); loadLog(); loadEncounterList();
+</script>
+</body>
+</html>
