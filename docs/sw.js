@@ -1,6 +1,6 @@
 /* StatForge service worker — caches the app shell for offline use.
  * Bump CACHE when you change any cached asset to force an update. */
-const CACHE = "statforge-v3";
+const CACHE = "statforge-v4";
 const ASSETS = [
   "./", "index.html", "engine.js", "pdfimport.js", "manifest.webmanifest",
   "vendor/pdf.min.js", "vendor/pdf.worker.min.js",

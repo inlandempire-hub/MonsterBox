@@ -607,12 +607,91 @@
   body.dark .hpbar { background: #3a2820; }
   /* dark: entry body text was hardcoded dark — override to a readable warm grey */
   body.dark .entry .txt { color: #c0b8ac; }
+
+  /* =====================================================================
+     MOBILE LAYOUT — narrow screens. The 3-column desktop grid collapses to
+     a single full-screen scroll; the two side columns become slide-out
+     drawers reached from a fixed top bar. Desktop styles above are unchanged.
+     ===================================================================== */
+  #mtopbar, #mscrim { display: none; }
+  @media (max-width: 820px) {
+    /* fixed top app bar: menu · title · tracker */
+    #mtopbar {
+      display: flex; align-items: center; justify-content: space-between;
+      position: fixed; top: 0; left: 0; right: 0; height: 50px; z-index: 300;
+      padding: 0 8px; gap: 8px;
+      background: color-mix(in srgb, var(--bg) 80%, transparent);
+      backdrop-filter: blur(18px) saturate(125%);
+      -webkit-backdrop-filter: blur(18px) saturate(125%);
+      border-bottom: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
+      box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    }
+    .mbtn {
+      width: 40px; height: 40px; flex-shrink: 0; padding: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; line-height: 1; cursor: pointer;
+      color: var(--red); border-radius: 10px;
+      background: color-mix(in srgb, var(--panel) 55%, transparent);
+      border: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
+      transition: background .12s, color .12s;
+    }
+    .mbtn:active { background: var(--red); color: #fff; }
+    .mtitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .mtitle img { width: 26px; height: 26px; flex-shrink: 0;
+          filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+    .mtitle span { font: 700 19px/1 var(--serif); color: var(--red); letter-spacing: .3px;
+          text-shadow: 0 1px 2px rgba(255,255,255,.4); overflow: hidden;
+          text-overflow: ellipsis; white-space: nowrap; }
+
+    /* dim backdrop behind an open drawer */
+    #mscrim { display: block; position: fixed; inset: 0; z-index: 150;
+          background: rgba(0,0,0,.45); opacity: 0; pointer-events: none;
+          transition: opacity .28s; }
+    #mscrim.show { opacity: 1; pointer-events: auto; }
+
+    /* single column: only the centre scroll stays in flow */
+    .layout { display: block; height: 100vh; height: 100dvh; padding: 0; gap: 0; }
+    .titlebar { display: none; }            /* replaced by the top bar */
+    #sheet { height: 100%; padding: 58px 0 8px; }
+    .scroll-wrap, #encounterrun { width: 94%; }
+
+    /* side columns become off-canvas drawers */
+    .side {
+      position: fixed; top: 0; bottom: 0; z-index: 200;
+      width: 88vw; max-width: 380px; height: 100vh; height: 100dvh;
+      padding: 58px 12px 14px; gap: 12px; overflow: hidden;
+      background: color-mix(in srgb, var(--bg) 84%, transparent);
+      backdrop-filter: blur(24px) saturate(125%);
+      -webkit-backdrop-filter: blur(24px) saturate(125%);
+      box-shadow: 0 0 44px rgba(0,0,0,.55);
+      transition: transform .28s cubic-bezier(.4,0,.2,1);
+    }
+    #leftside  { left: 0;  transform: translateX(-106%); border-radius: 0 16px 16px 0; }
+    #rightside { right: 0; transform: translateX(106%);  border-radius: 16px 0 0 16px; }
+    #leftside.open, #rightside.open { transform: translateX(0); }
+
+    /* planner cap is desktop-only; let it size to content in the drawer */
+    #plannerpanel { max-height: 50%; }
+    /* dark-mode toggle floats bottom-right of the scroll, clear of the top bar */
+    #modetoggle { top: auto; bottom: 16px; right: 16px; z-index: 120; }
+
+    /* splash scaled down for phones */
+    #splash .card { padding: 8px 18px 14px; border-width: 4px; }
+    #splash .card span { font-size: 54px; }
+  }
 </style>
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
 <div id="splash"><div class="card"><span class="t1">Stat</span><span class="t2">Forge</span></div></div>
 <div id="app">
+<!-- mobile top bar (hidden on desktop via CSS) -->
+<div id="mtopbar">
+  <button class="mbtn" onclick="toggleDrawer('left')" aria-label="Open Compendium">&#9776;</button>
+  <div class="mtitle"><img src="StatForge.ico" alt=""><span>StatForge</span></div>
+  <button class="mbtn" onclick="toggleDrawer('right')" aria-label="Open Tracker and Roll Log">&#9876;</button>
+</div>
+<div id="mscrim" onclick="closeDrawers()"></div>
 <div class="layout">
   <!-- LEFT: title (atop background) + import panel + compendium panel -->
   <div class="side" id="leftside">
@@ -770,6 +849,10 @@ function showEmptyLabel() {
   _restorePlannerLayout();
   const w = _wrap();
   if (w) w.style.display = "none";
+  // mobile has no visible compendium — point the user at the ☰ menu instead
+  $("emptylabel").textContent = window.matchMedia("(max-width: 820px)").matches
+    ? "Tap ☰ to open the Compendium"
+    : "← Select a monster from the Compendium";
   $("emptylabel").style.display = "flex";
 }
 
@@ -1007,6 +1090,7 @@ const ABILS = [["STR","str","strength"],["DEX","dex","dexterity"],
 
 async function showSheet(id, opts = {}) {
   selected = id;
+  closeDrawers();          // mobile: reveal the scroll after picking a monster
   loadLibrary();
   const sb = await api("/api/statblocks/" + id);
   currentSb = sb;
@@ -1747,6 +1831,21 @@ async function pollImport(jobId, name) {
 }
 
 // ---- light / dark mode toggle ----
+// ---- mobile slide-out drawers (no-ops visually on desktop) ----
+function toggleDrawer(side) {
+  const el = $(side === 'left' ? 'leftside' : 'rightside');
+  const other = $(side === 'left' ? 'rightside' : 'leftside');
+  const opening = !el.classList.contains('open');
+  other.classList.remove('open');
+  el.classList.toggle('open', opening);
+  $('mscrim').classList.toggle('show', opening);
+}
+function closeDrawers() {
+  $('leftside').classList.remove('open');
+  $('rightside').classList.remove('open');
+  $('mscrim').classList.remove('show');
+}
+
 function toggleMode() {
   // freeze element transitions for this frame so every panel switches at once
   document.body.classList.add('no-anim');
@@ -1779,6 +1878,17 @@ function toggleMode() {
   const ping = () => fetch("/api/ping", { method: "POST" }).catch(() => {});
   ping();
   setInterval(ping, 4000);
+})();
+
+// keep the empty-state hint correct for the current viewport (and on rotate)
+(function() {
+  const m = window.matchMedia("(max-width: 820px)");
+  const set = () => { const e = $("emptylabel");
+    if (e) e.textContent = m.matches
+      ? "Tap ☰ to open the Compendium"
+      : "← Select a monster from the Compendium"; };
+  set();
+  m.addEventListener("change", set);
 })();
 
 loadLibrary(); loadTracker(); loadLog(); loadEncounterList();
