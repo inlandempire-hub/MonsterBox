@@ -1,11 +1,11 @@
 {
   "name": "StatForge",
   "short_name": "StatForge",
-  "description": "A D&D 5e stat block and encounter tool for DMs.",
+  "description": "A 5e-compatible stat block and encounter tool for DMs.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "orientation": "landscape",
+  "orientation": "any",
   "background_color": "#0e0c0a",
   "theme_color": "#a4191c",
   "icons": [

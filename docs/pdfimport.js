@@ -403,7 +403,7 @@
     // text-layer check (scanned PDFs have ~no text)
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length) {
-      show("No text layer found — this looks like a scanned PDF, which the web app can't read. (The desktop app can OCR / use the vision parser.)");
+      show("No text layer found — this looks like a scanned or image-only PDF, which StatForge can't read. Try a digital (text-layer) PDF.");
       return;
     }
     show("Parsing stat blocks…", true);
