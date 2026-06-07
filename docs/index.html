@@ -184,6 +184,16 @@
   .mon .cr { display: inline-block; font: 700 11px/1.4 var(--serif); color: var(--red);
         background: var(--red-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; }
   .warn { color: #b07400; }
+  /* parse-quality: per-block confidence dot + "needs review" controls */
+  .cdot { font-size: 11px; cursor: help; vertical-align: baseline; margin-left: 5px; }
+  .cdot.amber { color: #b07400; }
+  .cdot.red { color: var(--bad); }
+  .reviewbtn { flex-shrink: 0; cursor: pointer; font-size: 11px; white-space: nowrap;
+        background: var(--panel); color: var(--dim); border: 1px solid var(--line);
+        border-radius: 6px; padding: 5px 8px; transition: background .12s, color .12s, border-color .12s; }
+  .reviewbtn:hover { border-color: var(--red); }
+  .reviewbtn.on { background: var(--red); color: #fff; border-color: var(--red); }
+  .reviewlink { color: var(--bad); text-decoration: underline; cursor: pointer; }
   .libhead { display: flex; align-items: baseline; justify-content: space-between; }
   .x { background: none; border: none; color: var(--dim); cursor: pointer;
        font-size: 13px; padding: 2px 4px; border-radius: 5px; line-height: 1; }
@@ -754,6 +764,8 @@
         <div class="filters">
           <select id="filterCR" onchange="onFilter()"><option value="">All CR</option></select>
           <select id="filterType" onchange="onFilter()"><option value="">All Types</option></select>
+          <button id="filterReview" class="reviewbtn" onclick="toggleReviewFilter()"
+                  title="Show only blocks that may need review">⚠ Review</button>
         </div>
         <button class="newentry" onclick="newEntry()">＋ New Compendium Entry</button>
         <div id="totalcount" class="totalcount"></div>
@@ -978,7 +990,11 @@ async function loadLibrary() {
 
   // running total (shown below the import box, still inside the frozen pane)
   const tc = $("totalcount");
-  if (tc) tc.innerHTML = mons.length ? `<b>${mons.length}</b> <span class="mword">monsters</span>` : "";
+  const flaggedN = mons.filter(isFlagged).length;
+  if (tc) tc.innerHTML = mons.length
+    ? `<b>${mons.length}</b> <span class="mword">monsters</span>`
+      + (flaggedN ? ` · <a class="reviewlink" onclick="toggleReviewFilter()">${flaggedN} need review</a>` : "")
+    : "";
 
   if (!mons.length) {
     $("monlist").innerHTML = '<div class="sub">No monsters yet. Drop a PDF above.</div>';
@@ -994,6 +1010,7 @@ async function loadLibrary() {
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
     if (filterCR && (m.challenge_rating || "?") !== filterCR) return false;
     if (filterType && (m.creature_type || "") !== filterType) return false;
+    if (filterFlagged && !isFlagged(m)) return false;
     return true;
   });
 
@@ -1026,9 +1043,8 @@ async function loadLibrary() {
       <div class="mon ${selected===m.id?'sel':''}" onclick="showSheet('${m.id}')">
         <button class="x" title="Delete"
           onclick="event.stopPropagation(); delMon('${m.id}')">✕</button>
-        <div class="nm">${esc(m.name)}</div>
-        <div class="sub">${esc(m.size||"")} ${esc(m.creature_type||"")}
-          ${m.parse_confidence < 0.6 ? '<span class="warn">⚠ check</span>' : ''}</div>
+        <div class="nm">${esc(m.name)}${confDot(m)}</div>
+        <div class="sub">${esc(m.size||"")} ${esc(m.creature_type||"")}</div>
       </div>`).join("");
     return `<div class="crgroup ${open?'open':''}" onclick="toggleCR('${cr}')">
         <span><span class="caret">▸</span>CR ${esc(cr)}</span>
@@ -1045,11 +1061,28 @@ function toggleCR(cr) {
 
 function onSearch(v) { searchTerm = v; loadLibrary(); }
 
-let filterCR = "", filterType = "";
+let filterCR = "", filterType = "", filterFlagged = false;
 function onFilter() {
   filterCR = $("filterCR").value;
   filterType = $("filterType").value;
   loadLibrary();
+}
+function toggleReviewFilter() {
+  filterFlagged = !filterFlagged;
+  $("filterReview").classList.toggle("on", filterFlagged);
+  loadLibrary();
+}
+// ---- parse-quality helpers ----
+// A block "needs review" below the green threshold (0.85). Tiers: red < 0.6,
+// amber 0.6–0.85, green ≥ 0.85. Older blocks without a score are treated green.
+function confLevel(c) { return (c == null) ? "green" : c < 0.6 ? "red" : c < 0.85 ? "amber" : "green"; }
+function isFlagged(m) { return confLevel(m.parse_confidence) !== "green"; }
+function confDot(m) {
+  const lv = confLevel(m.parse_confidence);
+  if (lv === "green") return "";
+  const reasons = (m.parse_warnings && m.parse_warnings.length)
+    ? m.parse_warnings.join("; ") : "Some fields may be incomplete";
+  return ` <span class="cdot ${lv}" title="${esc(reasons)}">⚠</span>`;
 }
 // (re)build the CR + Type dropdown options from the current library
 function populateFilters(mons) {

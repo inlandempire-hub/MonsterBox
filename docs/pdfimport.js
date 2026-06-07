@@ -294,11 +294,12 @@
       if (lm) { sb.creature_type = titleCase(lm[1]); sb.alignment = lm[2].trim(); break; }
     }
     let m;
-    if ((m = RE_AC.exec(text))) { sb.armor_class = +m[1]; sb.armor_desc = (m[2] || "").replace(/^[()\s]+|[()\s]+$/g, "") || null; found++; }
-    if ((m = RE_HP.exec(text))) { sb.hit_points = +m[1]; sb.hit_dice = (m[2] || "").trim() || null; found++; }
-    if ((m = RE_SPEED.exec(text))) { sb.speed = parseSpeed(m[1]); found++; }
-    const ab = parseAbilities(text); if (ab) { sb.abilities = ab; found++; }
-    if ((m = RE_CHALLENGE.exec(text))) { sb.challenge_rating = m[1]; if (m[2]) sb.xp = +m[2].replace(/,/g, ""); found++; }
+    let acF = false, hpF = false, spdF = false, abF = false, crF = false;
+    if ((m = RE_AC.exec(text))) { sb.armor_class = +m[1]; sb.armor_desc = (m[2] || "").replace(/^[()\s]+|[()\s]+$/g, "") || null; found++; acF = true; }
+    if ((m = RE_HP.exec(text))) { sb.hit_points = +m[1]; sb.hit_dice = (m[2] || "").trim() || null; found++; hpF = true; }
+    if ((m = RE_SPEED.exec(text))) { sb.speed = parseSpeed(m[1]); found++; spdF = true; }
+    const ab = parseAbilities(text); if (ab) { sb.abilities = ab; found++; abF = true; }
+    if ((m = RE_CHALLENGE.exec(text))) { sb.challenge_rating = m[1]; if (m[2]) sb.xp = +m[2].replace(/,/g, ""); found++; crF = true; }
     if ((m = RE_PROF.exec(text))) sb.proficiency_bonus = +m[1];
     if ((m = RE_SAVES.exec(text))) sb.saving_throws = parseBonuses(m[1]);
     if ((m = RE_SKILLS.exec(text))) sb.skills = parseBonuses(m[1]);
@@ -318,7 +319,24 @@
     sb.legendary_actions = parseEntries(legText, "legendary");
     const lm = RE_LEG_COUNT.exec(legText); if (lm) sb.legendary_action_count = +lm[1];
 
-    sb.parse_confidence = Math.round((found / 5) * 100) / 100;
+    // ---- quality scoring: weighted confidence + human-readable warnings ----
+    // Unlike a raw field count, this catches the failure modes that matter:
+    // a block missing its actions, or with ability scores that never parsed.
+    const warns = [];
+    const hasName = sb.name && sb.name !== "Unknown Creature" && sb.name.trim().length > 1;
+    const bodyCount = sb.actions.length + sb.traits.length + sb.reactions.length
+                    + sb.bonus_actions.length + sb.legendary_actions.length;
+    if (!hasName) warns.push("No name parsed");
+    if (!acF)     warns.push("No armor class");
+    if (!hpF)     warns.push("No hit points");
+    if (!abF)     warns.push("Ability scores look unparsed");
+    if (!crF)     warns.push("No challenge rating");
+    if (!bodyCount) warns.push("No actions or traits");
+    const score = (hasName ? 0.12 : 0) + (acF ? 0.15 : 0) + (hpF ? 0.15 : 0)
+                + (abF ? 0.20 : 0) + (crF ? 0.10 : 0) + (spdF ? 0.08 : 0)
+                + (bodyCount ? 0.20 : 0);
+    sb.parse_confidence = Math.round(score * 100) / 100;
+    sb.parse_warnings = warns;
     return sb;
   }
 
@@ -414,9 +432,13 @@
       sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + n;
       try { await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) }); n++; } catch (e) {}
     }
-    const low = blocks.filter(b => b.parse_confidence < 0.6).length;
+    const red = blocks.filter(b => b.parse_confidence < 0.6).length;
+    const amber = blocks.filter(b => b.parse_confidence >= 0.6 && b.parse_confidence < 0.85).length;
+    const flagged = red + amber;
     show("Imported <b>" + n + "</b> " + (n === 1 ? "monster" : "monsters") + " from " + escapeHtml(file.name) +
-      (low ? ' <span class="warn">(' + low + " low-confidence — check them)</span>" : ""));
+      (flagged
+        ? ' — <span class="warn">' + flagged + " need review</span> (" + red + " red, " + amber + " amber)"
+        : " — all parsed cleanly"));
     if (typeof window.loadLibrary === "function") window.loadLibrary();
   }
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }

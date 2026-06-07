@@ -85,7 +85,8 @@
     const items = all.map(sb => ({
       id: sb.id, name: sb.name, challenge_rating: sb.challenge_rating,
       armor_class: sb.armor_class, hit_points: sb.hit_points,
-      creature_type: sb.creature_type, size: sb.size, parse_confidence: sb.parse_confidence,
+      creature_type: sb.creature_type, size: sb.size,
+      parse_confidence: sb.parse_confidence, parse_warnings: sb.parse_warnings || [],
     }));
     items.sort((a, b) => (crValue(a.challenge_rating) - crValue(b.challenge_rating)) ||
       (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase()));
