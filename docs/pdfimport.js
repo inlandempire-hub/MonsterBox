@@ -36,12 +36,22 @@
     return lines;
   }
 
-  function pageLines(words, pageWidth) {
-    if (!words.length) return [];
+  // Return the page as an array of COLUMNS (each a list of lines). A stat block
+  // that flows from the bottom of one column to the top of the next is then
+  // handled by the same continuation logic that joins a block across a page break
+  // — far more reliable than mashing both columns into one text and guessing
+  // boundaries. Single-column pages return one column.
+  function pageColumns(words, pageWidth) {
+    if (!words.length) return [[]];
     const mid = pageWidth / 2;
+    // Only treat as two columns when there's a real centre gutter that almost no
+    // word crosses. Splitting a single-column page would shred every wide line.
+    const straddlers = words.filter(w => w.x0 < mid - 2 && w.x1 > mid + 2).length;
+    const twoCol = (straddlers / words.length) < 0.06;
+    if (!twoCol) return [linesFromWords(words)];
     const left = words.filter(w => (w.x0 + w.x1) / 2 < mid);
     const right = words.filter(w => (w.x0 + w.x1) / 2 >= mid);
-    return linesFromWords(left).concat(linesFromWords(right));
+    return [linesFromWords(left), linesFromWords(right)];
   }
 
   async function extractColumnLinePages(arrayBuffer, progress) {
@@ -64,7 +74,7 @@
         const fam = (styles[it.fontName] && styles[it.fontName].fontFamily) || it.fontName || "";
         words.push({ text: s, x0, x1: x0 + (it.width || 0), top, font: normFont(fam) + "#" + Math.round(size) });
       }
-      pages.push(pageLines(words, vp.width));
+      for (const col of pageColumns(words, vp.width)) pages.push(col);
       page.cleanup && page.cleanup();
       if (progress) progress(p, pdf.numPages);
     }
@@ -74,16 +84,20 @@
 
   // ===================================================================== regexes
   const TYPES = "aberration|beast|celestial|construct|dragon|elemental|fey|fiend|giant|humanoid|monstrosity|ooze|plant|undead";
-  const RE_META = new RegExp("^(Tiny|Small|Medium|Large|Huge|Gargantuan)\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
+  const SIZE_ALT = "Tiny|Small|Medium|Large|Huge|Gargantuan";
+  // allow a dual size like "Medium or Small" (2024 SRD) — capture the first size
+  const RE_META = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
   const RE_META_LOOSE = new RegExp("^\\w+\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
-  const RE_AC = /Armor Class\s+(\d+)\s*(\([^)]*\))?/i;
-  const RE_HP = /Hit Points\s+(\d+)\s*(?:\(([^)]*)\))?/i;
+  const RE_META_SIZETYPE = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*$", "i");
+  const RE_AC = /(?:Armor Class|AC)\s+(\d+)\s*(\([^)]*\))?/i;
+  const RE_HP = /(?:Hit Points|HP)\s+(\d+)\s*(?:\(([^)]*)\))?/i;
   const RE_SPEED = /Speed\s+(.+)/i;
   const RE_ABILITY_PAIR = /(\d+)\s*\(\s*[^)\d]*?(\d+)\s*\)/g;
-  const RE_CHALLENGE = /Challenges?\s+([0-9/]+)\s*(?:\(([\d,]+)\s*XP\)?)?/i;
+  // matches 2014 "Challenge 5 (1,800 XP)", Free5e "Challenge 21", and 2024 "CR 2 (XP 450; PB +2)"
+  const RE_CHALLENGE = /(?:Challenges?|\bCR)\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
   const RE_PROF = /Proficiency Bonus\s+\+?(\d+)/i;
   const RE_SPEED_PART = /(?:(\w+)\s+)?(\d+)\s*ft/gi;
-  const RE_AC_LINE = /^\s*Armor Class\b/i;
+  const RE_AC_LINE = /^\s*(?:Armor Class|AC)\s+\d/i;
   const RE_SAVES = /Saving Throws\s+(.+)/i;
   const RE_SKILLS = /Skills\s+(.+)/i;
   const RE_SENSES = /Senses\s+(.+)/i;
@@ -93,10 +107,12 @@
   const RE_COND = /Condition Immunities\s+(.+)/i;
   const RE_BONUS_PAIR = /(.+?)\s*([+-]\d+)/;
   const RE_ATTACK = /(Melee|Ranged)\s+(Weapon|Spell)\s+Attack:\s*\+?(\d+)\s*to hit(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
+  // 2024 form: "Melee Attack Roll: +5, reach 5 ft." / "Ranged Attack Roll: +5, range 30/90 ft."
+  const RE_ATTACK_2024 = /(Melee|Ranged)\s+Attack Roll:\s*\+?(\d+)(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
   const RE_DAMAGE = /(\d+)\s*\(\s*(\d+d\d+)\s*([+-]\s*\d+)?\s*\)\s*([a-zA-Z]+)?\s*damage/gi;
   const RE_SAVE = /DC\s*(\d+)\s*(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\s*saving throw/i;
   const RE_LEG_COUNT = /(\d+)\s+legendary action/i;
-  const SECTION_SRC = "^[ \\t]*(LEGENDARY ACTIONS|BONUS ACTIONS|REACTIONS|ACTIONS)[ \\t]*$";
+  const SECTION_SRC = "^[ \\t]*(LEGENDARY ACTIONS?|BONUS ACTIONS?|REACTIONS?|ACTIONS?)[ \\t]*$";
   const RE_SECTION_LINE = new RegExp(SECTION_SRC, "i");
   const reSectionG = () => new RegExp(SECTION_SRC, "gim");
   const RE_ENTRY_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9:\\u2019'/\\-]+(?:\\s+[A-Za-z0-9:\\u2019'/\\-]+){0,5}?(?:\\s*\\([^)]*\\))?)[ \\t]*\\.[ \\t]+(?=[A-Z(])";
@@ -108,9 +124,10 @@
   const NON_NAME_WORDS = new Set(["alignment", "actions", "reactions", "traits", "description"]);
   const NON_HEADER_NAMES = new Set(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]);
   const NAME_CONNECTORS = new Set(["of", "with", "and", "the", "to", "a", "an", "in", "or", "from", "by", "for", "on", "at", "as", "into", "upon", "but"]);
-  const STAT_FIELD_PREFIXES = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency"];
+  const STAT_FIELD_PREFIXES = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency",
+    "ac ", "hp ", "cr ", "initiative", "immunities", "resistances", "vulnerabilities", "gear ", "mod save"];
   const SENTENCE_END = ".!?\"')’”";
-  const HEADER_TO_CAT = { ACTIONS: "action", "BONUS ACTIONS": "bonus_action", REACTIONS: "reaction", "LEGENDARY ACTIONS": "legendary" };
+  const HEADER_TO_CAT = { ACTIONS: "action", ACTION: "action", "BONUS ACTIONS": "bonus_action", "BONUS ACTION": "bonus_action", REACTIONS: "reaction", REACTION: "reaction", "LEGENDARY ACTIONS": "legendary", "LEGENDARY ACTION": "legendary" };
 
   // ===================================================================== helpers
   const titleCase = (s) => String(s || "").toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
@@ -119,11 +136,27 @@
 
   function parseSpeed(text) { const out = {}; let m; RE_SPEED_PART.lastIndex = 0; while ((m = RE_SPEED_PART.exec(text))) out[(m[1] || "walk").toLowerCase()] = +m[2]; return out; }
   function parseSenses(text) { const out = {}; let m; RE_SPEED_PART.lastIndex = 0; while ((m = RE_SPEED_PART.exec(text))) if (m[1]) out[m[1].toLowerCase()] = +m[2]; return out; }
+  const ABIL_KEY = { str: "strength", dex: "dexterity", con: "constitution", int: "intelligence", wis: "wisdom", cha: "charisma" };
   function parseAbilities(text) {
+    // 2014 / Free5e: "18 (+4)" pairs, six in a row (score then modifier in parens)
     const pairs = []; let m; RE_ABILITY_PAIR.lastIndex = 0;
     while ((m = RE_ABILITY_PAIR.exec(text))) pairs.push(+m[1]);
-    if (pairs.length < 6) return null;
-    return { strength: pairs[0], dexterity: pairs[1], constitution: pairs[2], intelligence: pairs[3], wisdom: pairs[4], charisma: pairs[5] };
+    if (pairs.length >= 6) return { strength: pairs[0], dexterity: pairs[1], constitution: pairs[2], intelligence: pairs[3], wisdom: pairs[4], charisma: pairs[5] };
+    return parseAbilities2024(text);
+  }
+  // 2024 SRD ability TABLE: "Str 15 +2 +4 Dex 16 +3 +5 Con 14 +2 +2" over two rows.
+  // pdf.js often splits the first letter ("S tr", "W IS"), so allow inner spaces.
+  function parseAbilities2024(text) {
+    const norm = text
+      .replace(/\bS[ \t]*tr\b/gi, "Str").replace(/\bD[ \t]*ex\b/gi, "Dex")
+      .replace(/\bC[ \t]*on\b/gi, "Con").replace(/\bI[ \t]*nt\b/gi, "Int")
+      .replace(/\bW[ \t]*is\b/gi, "Wis").replace(/\bC[ \t]*ha\b/gi, "Cha");
+    // mod + save follow the score; pdf.js sometimes drops a +/− sign, so keep them optional
+    const re = /\b(Str|Dex|Con|Int|Wis|Cha)\b\s+(\d{1,2})\s+[+\-−]?\d+\s+[+\-−]?\d+/gi;
+    const out = {}; let m;
+    while ((m = re.exec(norm))) { const k = ABIL_KEY[m[1].toLowerCase()]; if (k && !(k in out)) out[k] = +m[2]; }
+    if (Object.keys(out).length >= 6) return out;
+    return null;
   }
   function parseBonuses(text) { const out = {}; for (const part of String(text).split(",")) { const m = RE_BONUS_PAIR.exec(part); if (m && m[1].trim()) out[m[1].trim()] = +m[2]; } return out; }
   function parseList(text) { text = String(text).trim(); if (["none", "-", "—", "–", ""].includes(text.toLowerCase())) return []; return text.split(/[,;]/).map(s => s.trim()).filter(Boolean); }
@@ -139,6 +172,8 @@
     if (".,:;".includes(s[s.length - 1])) return false;
     if (!isUpper(s[0])) return false;
     if (SECTION_HEADER_WORDS.has(s.toLowerCase())) return false;
+    // reject stat-field lines (e.g. "Challenge 21", "AC 17") — not creature names
+    if (STAT_FIELD_PREFIXES.some(k => s.toLowerCase().startsWith(k))) return false;
     return !RE_AC_LINE.test(s);
   }
   function nameLike(line) {
@@ -159,15 +194,36 @@
     const sig = words.filter(w => !NAME_CONNECTORS.has(w.toLowerCase()));
     return sig.length > 0 && sig.every(w => !/[A-Za-z]/.test(w[0]) || isUpper(w[0]));
   }
+  // Resolve a creature name from the 1–2 title lines above the meta line. Layouts
+  // that print a family/group header above the name produce "Aboleth Aboleth",
+  // "Air Elemental Air Elemental", "Bandits Bandit", "Black Dragons Black Dragon
+  // Wyrmling" — collapse those, but still join a genuinely wrapped two-line name.
+  function resolveName(titles) {
+    titles = titles.map(t => t.trim()).filter(Boolean);
+    if (titles.length <= 1) return titles[0] || "";
+    const a = titles[0], b = titles[1], al = a.toLowerCase(), bl = b.toLowerCase();
+    if (al === bl) return a;                                   // exact doubling
+    const aLast = a.split(/\s+/).pop();
+    if (/s$/i.test(aLast) && aLast.length > 3) return b;       // plural family header above the name
+    if (bl.startsWith(al + " ")) return b;                     // "Azer" + "Azer Sentinel"
+    if (al.startsWith(bl + " ")) return a;
+    return a + " " + b;                                        // a genuinely wrapped name
+  }
   function findName(lines, metaI, lower) {
     lower = lower || 0;
     const titles = [];
     let j = metaI - 1;
-    while (j >= lower && lines[j].trim() && looksLikeTitle(lines[j]) && titles.length < 3) { titles.unshift(lines[j].trim()); j--; }
-    if (titles.length) return titles.join(" ");
+    // cap at 2 lines: the creature name sits directly above the meta line; grabbing
+    // more pulls in family/running headers ("Monsters A–Z", "Bronze Dragons")
+    while (j >= lower && lines[j].trim() && looksLikeTitle(lines[j]) && titles.length < 2) { titles.unshift(lines[j].trim()); j--; }
+    // title path: titles sit directly above the meta line, so the body starts at meta
+    if (titles.length) return { name: resolveName(titles), bodyStart: metaI };
+    // fallback: name is further up (e.g. a flavour line or a "Challenge N" line sits
+    // between it and the meta line). Include those in-between lines in the body so
+    // fields printed above the meta line (some layouts put Challenge there) aren't lost.
     j = metaI - 1; let steps = 0;
-    while (j >= lower && steps < 30) { const s = lines[j].trim(); if (s && nameLike(s)) return s; j--; steps++; }
-    return "";
+    while (j >= lower && steps < 30) { const s = lines[j].trim(); if (s && nameLike(s)) return { name: s, bodyStart: j + 1 }; j--; steps++; }
+    return { name: "", bodyStart: metaI };
   }
   function stripFooter(body) { return body.replace(/[ \t\r\n]+\d{1,4}\s*$/, "").replace(/\s+$/, ""); }
   const hasActionsSection = (text) => reSectionG().test(text);
@@ -193,6 +249,7 @@
     }
     const am = RE_ATTACK.exec(body);
     if (am) action.attack = { kind: am[1].toLowerCase() + "_" + am[2].toLowerCase(), to_hit: +am[3], reach_ft: am[4] ? +am[4] : null, range_ft: am[5] || null, targets: "one target" };
+    else { const a2 = RE_ATTACK_2024.exec(body); if (a2) action.attack = { kind: a2[1].toLowerCase() + "_weapon", to_hit: +a2[2], reach_ft: a2[3] ? +a2[3] : null, range_ft: a2[4] || null, targets: "one target" }; }
     action.damage = parseDamage(body);
     const sm = RE_SAVE.exec(body);
     if (sm) action.save = { ability: ABIL_BY_NAME[sm[2].toLowerCase()], dc: +sm[1], on_success: /half/i.test(body) ? "half damage" : null };
@@ -251,7 +308,8 @@
     for (let k = 0; k < specs.length; k++) {
       const [metaI, ac] = specs[k];
       const lower = k > 0 ? specs[k - 1][1] + 1 : 0;
-      const name = findName(lines, metaI, lower) || "Unknown Creature";
+      const nm = findName(lines, metaI, lower);
+      const name = nm.name || "Unknown Creature";
       const hardEnd = k + 1 < specs.length ? specs[k + 1][0] : lines.length;
       let rest;
       if (fonts) {
@@ -264,7 +322,7 @@
         const kept = [lines[metaI]];
         for (let i = metaI + 1; i < hardEnd; i++) if (i === ac || fonts[i] === sbFont || RE_SECTION_LINE.test(lines[i])) kept.push(lines[i]);
         rest = kept.join("\n");
-      } else rest = lines.slice(metaI, hardEnd).join("\n");
+      } else rest = lines.slice(nm.bodyStart, hardEnd).join("\n");
       const body = stripFooter((name + "\n" + rest).trim());
       if (body) blocks.push(body);
     }
@@ -287,11 +345,15 @@
       spellcasting: null, source: source || null, source_page: sourcePage || null,
       raw_text: text || null, parse_confidence: 0, parse_warnings: [],
     };
-    for (const ln of lines.slice(1, 5)) {
-      let m = RE_META.exec(ln.trim());
+    for (const ln of lines.slice(1, 7)) {
+      const t = ln.trim();
+      let m = RE_META.exec(t);
       if (m) { sb.size = SIZES[m[1].toLowerCase()] || null; sb.creature_type = titleCase(m[2]); sb.alignment = m[3].trim(); break; }
-      const lm = RE_META_LOOSE.exec(ln.trim());
+      const lm = RE_META_LOOSE.exec(t);
       if (lm) { sb.creature_type = titleCase(lm[1]); sb.alignment = lm[2].trim(); break; }
+      // size + type with no alignment, e.g. "Large Celestial" (Free5e layout)
+      const sm = RE_META_SIZETYPE.exec(t);
+      if (sm) { sb.size = SIZES[sm[1].toLowerCase()] || null; sb.creature_type = titleCase(sm[2]); break; }
     }
     let m;
     let acF = false, hpF = false, spdF = false, abF = false, crF = false;
@@ -299,7 +361,7 @@
     if ((m = RE_HP.exec(text))) { sb.hit_points = +m[1]; sb.hit_dice = (m[2] || "").trim() || null; found++; hpF = true; }
     if ((m = RE_SPEED.exec(text))) { sb.speed = parseSpeed(m[1]); found++; spdF = true; }
     const ab = parseAbilities(text); if (ab) { sb.abilities = ab; found++; abF = true; }
-    if ((m = RE_CHALLENGE.exec(text))) { sb.challenge_rating = m[1]; if (m[2]) sb.xp = +m[2].replace(/,/g, ""); found++; crF = true; }
+    if ((m = RE_CHALLENGE.exec(text))) { sb.challenge_rating = m[1]; const xp = m[2] || m[3]; if (xp) sb.xp = +xp.replace(/,/g, ""); found++; crF = true; }
     if ((m = RE_PROF.exec(text))) sb.proficiency_bonus = +m[1];
     if ((m = RE_SAVES.exec(text))) sb.saving_throws = parseBonuses(m[1]);
     if ((m = RE_SKILLS.exec(text))) sb.skills = parseBonuses(m[1]);
@@ -342,7 +404,11 @@
 
   // ============================================================= page chrome strip
   const SIZE_WORDS = new Set(["tiny", "small", "medium", "large", "huge", "gargantuan"]);
-  const CHROME_PROTECT = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency"];
+  // Never strip stat-block field lines as "page furniture" — identical field
+  // lines legitimately repeat across creatures (every CR-2 monster prints the
+  // same "CR 2 (XP 450; PB +2)"), so they must be protected from the chrome strip.
+  const CHROME_PROTECT = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency",
+    "ac ", "hp ", "cr ", "initiative", "immunities", "resistances", "vulnerabilities", "gear "];
   function isStructuralLine(s) {
     if (RE_SECTION_LINE.test(s)) return true;
     const toks = s.toUpperCase().split(/\s+/);
@@ -365,7 +431,7 @@
   }
 
   // ============================================================ blocks from pages
-  const RE_AC_PLAIN = /^\s*Armor Class\b/i;
+  const RE_AC_PLAIN = /^\s*(?:Armor Class|AC)\s+\d/i;
   // NOTE: unlike the desktop parser, we do NOT font-filter blocks. pdf.js gives
   // much coarser font info than pdfplumber (it doesn't cluster a stat block's
   // body into one font), so a majority-font filter wrongly discards the ability
@@ -373,27 +439,53 @@
   // each stat block from its lore, so a font-less split is both simpler and far
   // more reliable in the browser (ToB3: 12/406 with actions -> 405/406).
   const pageAllText = (page) => page.map(([t]) => t).join("\n");
-  function preAcText(page) { const kept = []; for (const [t] of page) { if (RE_AC_PLAIN.test(t)) break; kept.push(t); } return kept.join("\n"); }
+  function preAcTextLines(lines) { const kept = []; for (const t of lines) { if (RE_AC_PLAIN.test(t)) break; kept.push(t); } return kept.join("\n"); }
+
+  // A creature name stranded at the bottom of a column (its stat block starts in
+  // the NEXT column). Detect a trailing title line with no AC after it so we can
+  // carry it forward instead of losing the name / polluting the previous block.
+  function orphanStart(lines) {
+    // Scan the last few lines for a creature name that has no Armor Class after it
+    // in this column (its stat block starts in the next column). The lead-in may
+    // include flavour and a "Challenge N" line (Free5e prints it before the block),
+    // so don't stop at stat-field lines — only stop at an actual stat block (AC).
+    let found = -1;
+    for (let i = lines.length - 1; i >= 0 && i >= lines.length - 6; i--) {
+      const s = (lines[i] || "").trim();
+      if (!s) continue;
+      if (RE_AC_LINE.test(s)) break;
+      if (looksLikeTitle(s)) found = i;
+    }
+    return found;
+  }
+  const allTen = (ab) => ab.strength === 10 && ab.dexterity === 10 && ab.constitution === 10 && ab.intelligence === 10 && ab.wisdom === 10 && ab.charisma === 10;
+  // a "block" with no name, no real AC, no real abilities and no real HP is a false
+  // anchor (e.g. an "AC" mentioned in rules prose), not a creature — drop it
+  const isFalseAnchor = (sb) => (!sb.name || sb.name === "Unknown Creature") && sb.armor_class === 10 && sb.hit_points === 1 && allTen(sb.abilities);
 
   function blocksFromPages(linePages, source) {
     linePages = stripPageChrome(linePages);
     const results = [];
-    let pending = null;
-    const flush = () => { if (pending !== null) { try { results.push(parseText(pending.body, pending.page, source)); } catch (e) {} pending = null; } };
+    let pending = null, carry = [];
+    const push = (sb) => { if (sb && !isFalseAnchor(sb)) results.push(sb); };
+    const flush = () => { if (pending !== null) { try { push(parseText(pending.body, pending.page, source)); } catch (e) {} pending = null; } };
     for (let i = 0; i < linePages.length; i++) {
-      const page = linePages[i];
-      const pageText = pageAllText(page);
+      let lines = carry.concat(linePages[i].map(([t]) => t));
+      carry = [];
+      // peel a stranded trailing name off this column to prepend to the next one
+      const oi = orphanStart(lines);
+      if (oi >= 0) { carry = lines.slice(oi); lines = lines.slice(0, oi); }
+      const pageText = lines.join("\n");
       const blocks = splitIntoBlocks(pageText);   // font-less
       if (!blocks.length) {
-        // whole page is continuation of a block truncated at the previous page break
         if (pending !== null && pageText.trim()) pending.body += "\n" + pageText;
         continue;
       }
-      if (pending !== null) { const pre = preAcText(page); if (pre.trim()) pending.body += "\n" + pre; flush(); }
+      if (pending !== null) { const pre = preAcTextLines(lines); if (pre.trim()) pending.body += "\n" + pre; flush(); }
       for (let j = 0; j < blocks.length; j++) {
         const isLast = j === blocks.length - 1;
         if (isLast && !hasActionsSection(blocks[j])) pending = { body: blocks[j], page: i + 1 };
-        else { try { results.push(parseText(blocks[j], i + 1, source)); } catch (e) {} }
+        else { try { push(parseText(blocks[j], i + 1, source)); } catch (e) {} }
       }
     }
     flush();

@@ -24,3 +24,6 @@ venv/
 .pytest_cache/
 dist/
 build/
+
+# parser test harness (dev only)
+docs/_harness.html

@@ -64,6 +64,27 @@ This is the core of the next stretch. Parser hardening and the free-content test
 **the same project** — you can't harden what you can't measure. Run the testing workflow as
 the engine that drives 0.1–0.3.
 
+**Progress so far (2026-06-07) — the parser now reads three very different book styles.**
+In plain terms: before, the importer only understood books laid out like Tome of Beasts 3.
+Two new books were tried and both came out blank. They're fixed now:
+
+- **The new 2024 D&D rules book (SRD 5.2.1):** brand-new stat-block style — "AC"/"HP"
+  instead of "Armor Class"/"Hit Points", a different ability-score table, "CR 2 (XP…)", and
+  two columns per page. **Result: 331 of 336 monsters perfect.** The other 5 aren't errors —
+  they're the unusual "summon" stat blocks that genuinely have no CR, and the app correctly
+  flags them for review.
+- **Free5e (a community re-style of the core rules):** single-column, names and the
+  "Challenge" line printed above the stat block, yet another ability-table style.
+  **Result: 374 of 375 monsters perfect.**
+- **Tome of Beasts 3 (the original target):** still works — no backsliding (and bonus
+  actions now read correctly).
+
+What made them work: detect 1-column vs 2-column pages instead of assuming 2; read the
+new "AC/HP/CR" wording and both new ability tables; stop throwing away repeated lines like
+"CR 2 (XP 450)" as if they were page headers; clean up doubled/Family-header names; and
+carry a creature's name across a column break so it isn't lost. All of this is in the same
+importer used by the live app, so it works on the web and the desktop build alike.
+
 | # | Item | Tag | Effort |
 |---|---|---|---|
 | 6 | **Build the regression corpus — ground-truth pass.** Parse **SRD 5.1** then **SRD 5.2** (CC-BY-4.0; two official layouts, and 5.2 deliberately omits Beholder/Strahd/Orcus/Tiamat — that's expected, *not* a bug). Diff every field against the clean web references (5thsrd.org, a5esrd.com). Commit the **expected JSON**, not the PDFs (see note 🆕-A). | 🧪⚙ | M |
