@@ -310,6 +310,9 @@
   .about-body p { margin: 0 0 10px; }
   .about-body b { color: var(--ink); }
   .about-link { color: var(--red); text-decoration: underline; cursor: pointer; }
+  .about-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
+  .about-dontshow { font-size: 12px; color: var(--dim); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .about-dontshow input { cursor: pointer; }
   /* backup reminder (compendium lives only on this device) */
   .backupnag { display: none; align-items: center; gap: 8px; margin: 2px 0 8px;
         background: var(--red-soft); border: 1px solid var(--red);
@@ -750,7 +753,7 @@
       </div>
       <div class="impnote">Your PDF is parsed <b>on your device</b> and never uploaded.
         Export/Import Compendium to back up or move your library.
-        <a class="about-link" onclick="showAbout()">About &amp; legal</a></div>
+        <a class="about-link" onclick="showAbout()">About &amp; Legal</a></div>
       <div id="importmsg"></div>
     </div>
     <div class="glass" id="library">
@@ -844,11 +847,11 @@
   </div>
 </div>
 
-<!-- about / legal notice (shown once on first run; reopenable from the import panel) -->
+<!-- about / legal notice (shown on every startup unless dismissed; reopenable from the import panel) -->
 <div id="aboutModal" class="modal-overlay" style="display:none">
   <div class="modal-box about-box">
     <div class="about-h">StatForge</div>
-    <div class="about-sub">About &amp; legal</div>
+    <div class="about-sub">About &amp; Legal</div>
     <div class="about-body">
       <p><b>Bring your own content.</b> StatForge ships empty and is a tool for working
          with stat-block PDFs you are legally entitled to use. You are solely
@@ -862,7 +865,8 @@
       <p><b>Disclosure:</b> This app was created using AI-assisted code, however, it
          does not contain any AI-generated content or artwork.</p>
     </div>
-    <div class="modal-btns">
+    <div class="about-foot">
+      <label class="about-dontshow"><input type="checkbox" id="aboutDontShow"> Don't show this information again</label>
       <button class="btn save" id="aboutOk">Got it</button>
     </div>
   </div>
@@ -1967,10 +1971,16 @@ function toggleMode() {
 })();
 
 // ---- about / legal notice + on-device backup reminder ----
-function showAbout() { $("aboutModal").style.display = "flex"; }
+function showAbout() {
+  // reflect the saved preference when reopened from the import-panel link
+  $("aboutDontShow").checked = !!localStorage.getItem("sf-hide-about");
+  $("aboutModal").style.display = "flex";
+}
 $("aboutOk").onclick = () => {
   $("aboutModal").style.display = "none";
-  localStorage.setItem("sf-ack", "1");   // first-run acknowledgement
+  // shows on every startup unless the user ticks "Don't show this again"
+  if ($("aboutDontShow").checked) localStorage.setItem("sf-hide-about", "1");
+  else localStorage.removeItem("sf-hide-about");
 };
 const BACKUP_GAP = 14 * 864e5;            // 14 days
 function refreshBackupNag() {
@@ -1986,9 +1996,9 @@ function snoozeBackup() {
   refreshBackupNag();
 }
 window.refreshBackupNag = refreshBackupNag;
-// first-run notice: after the splash, show the about/legal panel once
-if (!localStorage.getItem("sf-ack")) {
-  setTimeout(() => { if (!localStorage.getItem("sf-ack")) showAbout(); }, 5200);
+// show the about/legal panel after the splash on every startup, unless dismissed
+if (!localStorage.getItem("sf-hide-about")) {
+  setTimeout(() => showAbout(), 5200);
 }
 
 // keep the empty-state hint correct for the current viewport (and on rotate)
