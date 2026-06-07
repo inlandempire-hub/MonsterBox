@@ -194,6 +194,16 @@
   .reviewbtn:hover { border-color: var(--red); }
   .reviewbtn.on { background: var(--red); color: #fff; border-color: var(--red); }
   .reviewlink { color: var(--bad); text-decoration: underline; cursor: pointer; }
+  /* "needs review" banner on a flagged stat block + flagged-field highlight in the editor */
+  .reviewbanner { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px;
+        background: var(--red-soft); border: 1px solid var(--red); border-radius: 7px;
+        padding: 6px 10px; font-size: 12px; line-height: 1.35; color: var(--ink); }
+  .reviewbanner .rb-txt { flex: 1; min-width: 0; }
+  .reviewbanner .rb-txt b { color: var(--red); }
+  .reviewbanner .btn { margin: 0; flex-shrink: 0; padding: 4px 11px; }
+  .ef input.needfix, .ef textarea.needfix { border-color: var(--red);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 22%, transparent); }
+  .fixhint { font-size: 11.5px; color: var(--red); margin: 6px 0 2px; }
   .libhead { display: flex; align-items: baseline; justify-content: space-between; }
   .x { background: none; border: none; color: var(--dim); cursor: pointer;
        font-size: 13px; padding: 2px 4px; border-radius: 5px; line-height: 1; }
@@ -1249,6 +1259,10 @@ async function showSheet(id, opts = {}) {
         </div>
       </div>
       <div class="meta">${esc(sb.size||"")} ${esc(sb.creature_type||"")}${sb.alignment?", "+esc(sb.alignment):""}</div>
+      ${(sb.parse_warnings && sb.parse_warnings.length) ? `<div class="reviewbanner">
+        <div class="rb-txt"><b>Needs review:</b> ${sb.parse_warnings.map(esc).join(" · ")}. The PDF didn't give a clear value here — fix it in a couple of clicks.</div>
+        <button class="btn" onclick="startEdit()">✎ Fix</button>
+      </div>` : ""}
       <div class="defenses">
         <div class="d"><div class="k">Armor Class</div><div class="v">${sb.armor_class}</div></div>
         <div class="d"><div class="k">Hit Points</div><div class="v">${sb.hit_points}</div></div>
@@ -1371,12 +1385,16 @@ function addEntry(cat) {
 
 function renderEdit(animate = false) {
   const sb = editState, ab = sb.abilities;
-  const inp = (id, val) => `<input id="${id}" value="${escAttr(val)}">`;
-  const num = (id, val) => `<input id="${id}" type="number" value="${val == null ? "" : val}">`;
+  // flagged-field highlighting: outline the fields the parser was unsure about
+  const warns = sb.parse_warnings || [];
+  const fix = (sub) => warns.some(w => w.toLowerCase().includes(sub)) ? "needfix" : "";
+  const inp = (id, val, cls) => `<input id="${id}"${cls ? ` class="${cls}"` : ""} value="${escAttr(val)}">`;
+  const num = (id, val, cls) => `<input id="${id}"${cls ? ` class="${cls}"` : ""} type="number" value="${val == null ? "" : val}">`;
   const bonusText = (o) => Object.entries(o||{}).map(([k,v]) => `${k} ${v>=0?'+':''}${v}`).join(", ");
   const sensesText = [...Object.entries(sb.senses||{}).map(([k,v]) => `${k} ${v}`),
     sb.passive_perception != null ? `passive Perception ${sb.passive_perception}` : null].filter(Boolean).join(", ");
-  const abInputs = ABILS.map(([l,c,f]) => `<div><label>${l}</label>${num("e_ab_"+f, ab[f])}</div>`).join("");
+  const abFix = fix("ability");
+  const abInputs = ABILS.map(([l,c,f]) => `<div><label>${l}</label>${num("e_ab_"+f, ab[f], abFix)}</div>`).join("");
   const entries = (cat) => (sb[cat]||[]).map((a,i) => {
     const isAct = cat !== "traits";
     return `<div class="editrow">
@@ -1400,16 +1418,17 @@ function renderEdit(animate = false) {
     ${editButtons("top")}
     <div class="sheet-scroll"><div class="ef">
     <div class="sheethead"><h2 class="title">${isNewEntry ? "New Compendium Entry" : "Editing"}</h2></div>
-    <label>Name</label>${inp("e_name", sb.name)}
+    ${warns.length ? `<div class="fixhint">⚠ Fields the importer was unsure about are outlined in red — give them a quick check. Saving marks this creature reviewed.</div>` : ""}
+    <label>Name</label>${inp("e_name", sb.name, fix("name"))}
     <div class="row">
       <div><label>Size</label>${inp("e_size", sb.size||"")}</div>
       <div><label>Type</label>${inp("e_type", sb.creature_type||"")}</div>
     </div>
     <label>Alignment</label>${inp("e_align", sb.alignment||"")}
     <div class="row">
-      <div><label>Armor Class</label>${num("e_ac", sb.armor_class)}</div>
-      <div><label>Hit Points</label>${num("e_hp", sb.hit_points)}</div>
-      <div><label>Challenge</label>${inp("e_cr", sb.challenge_rating||"")}</div>
+      <div><label>Armor Class</label>${num("e_ac", sb.armor_class, fix("armor"))}</div>
+      <div><label>Hit Points</label>${num("e_hp", sb.hit_points, fix("hit points"))}</div>
+      <div><label>Challenge</label>${inp("e_cr", sb.challenge_rating||"", fix("challenge"))}</div>
     </div>
     <label>Abilities</label><div class="ab6">${abInputs}</div>
     <label>Saving Throws (e.g. Con +10, Wis +6)</label>${inp("e_saves", bonusText(sb.saving_throws))}
@@ -1459,6 +1478,10 @@ async function saveEdit() {
   sb.skills = parseBonuses($("e_skills").value);
   const sen = parseSenses($("e_senses").value); sb.senses = sen.senses; sb.passive_perception = sen.passive;
   sb.languages = parseList($("e_langs").value);
+  // a manual save means a human has checked this block — mark it reviewed so it
+  // turns green and drops out of the "needs review" list
+  sb.parse_confidence = 1;
+  sb.parse_warnings = [];
   const r = await fetch("/api/statblocks/" + sb.id, {
     method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(sb) });
   if (!r.ok) { let m=""; try { m = (await r.json()).error || ""; } catch(e){} alert("Save failed (" + r.status + "). " + m); return; }
