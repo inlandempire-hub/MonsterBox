@@ -278,6 +278,8 @@
     a.download = "statforge-compendium.json";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    try { localStorage.setItem("sf-last-export", String(Date.now())); } catch (e) {}
+    if (window.refreshBackupNag) window.refreshBackupNag();
   };
   window.sfImport = async function (file) {
     if (!file) return;

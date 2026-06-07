@@ -44,19 +44,19 @@ than listed separately:
 Read top-to-bottom. Tags: 🛡 Legal · ⚙ Parser · ✦ Feature · 🧪 Testing · 🆕 my added note.
 Effort: **S** <1wk · **M** 1–3wk · **L** 1mo+.
 
-### ▸ P0 — Do now (you're already distributing the link)
+### ▸ P0 — Do now (you're already distributing the link) — ✅ COMPLETE (2026-06-07)
 
-These are cheap, mostly non-code, and they are **live exposure today** because the PWA is
-already in DMs' hands without any disclaimer or use notice. Highest risk-reduction per hour
-of work in the whole roadmap.
+These were cheap, mostly non-code, and **live exposure** because the PWA was already in DMs'
+hands without any disclaimer or use notice. All five are now shipped (plus the local app was
+converged onto the PWA build — `StatForge.bat` and the desktop shortcut now launch the PWA).
 
-| # | Item | Tag | Effort |
-|---|---|---|---|
-| 1 | **WotC trademark disclaimer + "5e-compatible" framing.** Add "Not affiliated with, endorsed, or sponsored by Wizards of the Coast" to the About/footer of both the app and the Pages site. Prefer "5e-compatible" over leaning on the D&D brand. | 🛡 | S |
-| 2 | **First-run acceptable-use notice.** One-time dialog (and a copy in About): "Intended for content you are legally entitled to use; you are solely responsible for the legality of what you import." | 🛡 | S |
-| 3 | **Marketing-copy audit.** Sweep README, Pages copy, and any tutorial text so all framing is "import stat blocks from PDFs you own" — never name commercial books, never imply bypassing payment. Demo media uses SRD/CC-BY content only. | 🛡 | S |
-| 4 | **Decide the AI-disclosure line now.** itch.io *requires* an AI field at upload, and "said nothing, got found out" plays badly with this crowd. If true of the build, foreground the human parts: *"parsing engine and design by a DM; no AI-generated art or monster content."* Decide before any wider launch. | 🛡 | S |
-| 5 | 🆕 **Persistent storage + backup nag.** Local-only storage means a browser cache-clear or storage eviction **wipes a DM's whole library**. Call `navigator.storage.persist()`, and prompt an "Export your compendium" reminder periodically / after large imports. This protects hours of import work and turns a hidden liability into a trust feature. | 🆕✦ | S |
+| # | Item | Tag | Effort | Status |
+|---|---|---|---|---|
+| 1 | **WotC trademark disclaimer + "5e-compatible" framing.** | 🛡 | S | ✅ In the About & legal panel + README. |
+| 2 | **First-run acceptable-use notice.** One-time dialog (+ a copy in About): intended for content you're legally entitled to use; you're solely responsible for legality. | 🛡 | S | ✅ First-run About modal (`sf-ack` flag), reopenable from the import panel. |
+| 3 | **Marketing-copy audit.** All framing "import stat blocks from PDFs you own" — never name commercial books, never imply bypassing payment. | 🛡 | S | ✅ README rewritten; removed old "D&D Beyond"/"3rd-party book scan"/vision-LLM framing. The Pages copy *is* this build (About panel). |
+| 4 | **AI-disclosure line.** | 🛡 | S | ✅ Locked (see resolved decisions) — in About panel + README. |
+| 5 | 🆕 **Persistent storage + backup reminder.** | 🆕✦ | S | ✅ `navigator.storage.persist()` on boot; on-device backup reminder banner appears when the library is non-empty and not exported in 14 days (snooze / Export inline; cleared on export). |
 
 ### ▸ P1 — Harden the moat (Feature-Spec Tier 0, powered by the test content)
 
@@ -102,7 +102,7 @@ alternatives during the moment that matters most — live combat.
 
 | # | Item | Tag | Effort |
 |---|---|---|---|
-| 20 | **3.2 Encounter-difficulty calculator.** Party level/size vs creatures → difficulty bands. Note: 2014 and 2024 rulesets use different maths — support both or pick one explicitly. | ✦ | S |
+| 20 | **3.2 Encounter-difficulty calculator.** Party level/size vs creatures → difficulty bands. **Use the 5e 2014 encounter-building maths** (decided). | ✦ | S |
 | 21 | **3.3 Saved encounter presets.** *Largely already done* (save/load exists). Audit for gaps (naming, duplication, reorder) and close them. | ✦ | S |
 
 > **Milestone C — "Rounding out":** remaining Tier 3 polish.
@@ -144,14 +144,10 @@ Every feature now ships twice (Python `src/` + JS `docs/`). Without a shared tes
 they *will* diverge silently. #11 addresses testing; flag a longer-term decision on whether the
 PWA's JS parser becomes the single source of truth and the desktop calls into it.
 
-**C. "Empty compendium" is a cold-start UX problem — and the SRD can solve it.**
-A brand-new DM opens StatForge to *nothing*, and we (correctly) can't bundle content. A
-one-click **"Get the free SRD 5.1"** onboarding step — *linking to* the official CC-BY
-download rather than bundling it — gives instant legitimate content and doubles as the
-"works on a real book" proof. ⚠ Tension: actually *bundling/serving* the SRD re-triggers
-CC-BY attribution duties and breaks the "never bundle content" commitment (Legal §1/§7) —
-so **link out, don't embed**, unless you deliberately document it as an attributed exception.
-Worth an explicit decision.
+**C. "Empty compendium" cold-start — ❌ decided: leave empty.** *(Resolved.)*
+Considered a one-click "Get the free SRD" onboarding step, but **declined**: StatForge is the
+tool, not a signpost to free material, and won't advertise or link any content. First-run
+stays empty by design; the About panel explains the bring-your-own-content model instead.
 
 **D. PWA update-notification.**
 Updates currently rely on a manual `sw.js` cache bump; DMs can run stale cached builds
@@ -179,12 +175,19 @@ expectation into the fixtures so nobody "fixes" a non-bug.
 
 ---
 
-## Open decisions that need your call
+## Resolved decisions (2026-06-07)
 
-1. **Onboarding SRD (note C):** link-out vs. documented attributed bundle vs. leave empty?
-2. **Parser source of truth (note B):** keep dual parsers, or converge on the JS engine?
-3. **Ruleset for difficulty calc (#20):** support both 2014 + 2024, or pick one?
-4. **AI-disclosure wording (#4):** confirm the exact line so it's consistent everywhere.
+1. **Onboarding SRD (note C):** ❌ **Declined.** No link to or mention of the SRD or any
+   free material — StatForge is the tool, not a content signpost. First-run stays empty.
+2. **Parser / build source of truth (note B):** ✅ **Converge on the PWA.** The client-side
+   build in `docs/` is now the single product for **both web and desktop**; the local
+   launcher (`StatForge.bat`) and the desktop shortcut run the PWA. The `src/` Flask app is
+   legacy and may be retired. New work lands in the PWA only.
+3. **Ruleset for difficulty calc (#20):** ✅ **5e 2014.** Build the difficulty calculator on
+   the 2014 encounter-building maths.
+4. **AI-disclosure wording (#4):** ✅ **Locked:** *"StatForge's code is AI-assisted. It
+   contains zero AI-generated art or content, and that will never change."* Now shown in
+   the app's About & legal panel and the README.
 
 > *Legal items are an organisational checklist, not legal advice. Before charging money or
 > distributing widely, consult an IP lawyer familiar with the games industry (Legal §8).*
