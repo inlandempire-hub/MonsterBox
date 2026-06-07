@@ -56,8 +56,7 @@ system is nominative, to describe compatibility only.
 
 ## AI disclosure
 
-StatForge's **code** is AI-assisted. It contains **zero AI-generated art or
-content**, and that will never change.
+**AI-Assisted code only, No AI-generated Content or Artwork.**
 
 ## Layout
 
