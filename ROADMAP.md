@@ -185,8 +185,9 @@ expectation into the fixtures so nobody "fixes" a non-bug.
    legacy and may be retired. New work lands in the PWA only.
 3. **Ruleset for difficulty calc (#20):** ✅ **5e 2014.** Build the difficulty calculator on
    the 2014 encounter-building maths.
-4. **AI-disclosure wording (#4):** ✅ **Locked:** *"AI-Assisted code only, No AI-generated
-   Content or Artwork."* Now shown in the app's About & legal panel and the README.
+4. **AI-disclosure wording (#4):** ✅ **Locked:** *"This app was created using AI-assisted
+   code, however, it does not contain any AI-generated content or artwork."* Shown in the
+   app's About & legal panel and the README.
 
 > *Legal items are an organisational checklist, not legal advice. Before charging money or
 > distributing widely, consult an IP lawyer familiar with the games industry (Legal §8).*

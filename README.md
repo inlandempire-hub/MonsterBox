@@ -50,13 +50,14 @@ clearing browser data will otherwise remove it.
 
 ## Trademarks
 
-StatForge is an independent, **5e-compatible** tool. It is **not affiliated with,
-endorsed by, or sponsored by Wizards of the Coast**. Any reference to the game
-system is nominative, to describe compatibility only.
+StatForge is an independent 5e-compatible tool; **it is not affiliated, endorsed,
+or sponsored by Wizards of the Coast.** Any reference to the game system is
+nominative, to describe compatibility and intended usage only.
 
-## AI disclosure
+## Disclosure
 
-**AI-Assisted code only, No AI-generated Content or Artwork.**
+This app was created using AI-assisted code, however, it does not contain any
+AI-generated content or artwork.
 
 ## Layout
 
