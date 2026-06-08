@@ -43,15 +43,35 @@
   // boundaries. Single-column pages return one column.
   function pageColumns(words, pageWidth) {
     if (!words.length) return [[]];
-    const mid = pageWidth / 2;
-    // Only treat as two columns when there's a real centre gutter that almost no
-    // word crosses. Splitting a single-column page would shred every wide line.
-    const straddlers = words.filter(w => w.x0 < mid - 2 && w.x1 > mid + 2).length;
-    const twoCol = (straddlers / words.length) < 0.06;
-    if (!twoCol) return [linesFromWords(words)];
-    const left = words.filter(w => (w.x0 + w.x1) / 2 < mid);
-    const right = words.filter(w => (w.x0 + w.x1) / 2 >= mid);
-    return [linesFromWords(left), linesFromWords(right)];
+    // Detect a real two-column layout by finding a vertical GUTTER: a central x
+    // position where most text rows have a gap. This is robust to a full-width
+    // header sitting above a two-column body (which defeats a simple straddle
+    // ratio), and it splits at the actual gutter rather than the page midpoint.
+    const sorted = words.slice().sort((a, b) => a.top - b.top);
+    const rows = []; let cur = [], curTop = null;
+    for (const w of sorted) {
+      if (curTop === null || Math.abs(w.top - curTop) <= 4) { cur.push(w); if (curTop === null) curTop = w.top; }
+      else { rows.push(cur); cur = [w]; curTop = w.top; }
+    }
+    if (cur.length) rows.push(cur);
+    const left = Math.min(...words.map(w => w.x0));
+    const right = Math.max(...words.map(w => w.x1));
+    const span = right - left;
+    if (span < 80 || rows.length < 6) return [linesFromWords(words)];
+    let bestX = -1, bestEmpty = -1;
+    for (let f = 0.34; f <= 0.66; f += 0.02) {
+      const gx = left + span * f;
+      let empty = 0;
+      for (const row of rows) if (!row.some(w => w.x0 <= gx && w.x1 >= gx)) empty++;
+      const frac = empty / rows.length;
+      if (frac > bestEmpty) { bestEmpty = frac; bestX = gx; }
+    }
+    // need a clear gutter (most rows gap here) AND real content on both sides
+    if (bestEmpty < 0.60) return [linesFromWords(words)];
+    const L = words.filter(w => (w.x0 + w.x1) / 2 < bestX);
+    const R = words.filter(w => (w.x0 + w.x1) / 2 >= bestX);
+    if (L.length / words.length < 0.12 || R.length / words.length < 0.12) return [linesFromWords(words)];
+    return [linesFromWords(L), linesFromWords(R)];
   }
 
   async function extractColumnLinePages(arrayBuffer, progress) {
@@ -89,24 +109,28 @@
   const RE_META = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
   const RE_META_LOOSE = new RegExp("^\\w+\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
   const RE_META_SIZETYPE = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*$", "i");
-  const RE_AC = /(?:Armor Class|AC)\s+(\d+)\s*(\([^)]*\))?/i;
-  const RE_HP = /(?:Hit Points|HP)\s+(\d+)\s*(?:\(([^)]*)\))?/i;
-  const RE_SPEED = /Speed\s+(.+)/i;
+  // Compact layouts print the NAME and the size/type/alignment on ONE line, e.g.
+  // "Kyanos B'lot Large Aberration (Shapechanger), Chaotic" — split name off the meta.
+  const RE_NAME_META = new RegExp("^(.+?)\\s+(" + SIZE_ALT + ")\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,?\\s*(.*)$", "i");
+  // an optional ":" after every field label — some books write "Armor Class: 16"
+  const RE_AC = /(?:Armor Class|AC):?\s+(\d+)\s*(\([^)]*\))?/i;
+  const RE_HP = /(?:Hit Points|HP):?\s+(\d+)\s*(?:\(([^)]*)\))?/i;
+  const RE_SPEED = /Speed:?\s+(.+)/i;
   const RE_ABILITY_PAIR = /(\d+)\s*\(\s*[^)\d]*?(\d+)\s*\)/g;
   // matches 2014 "Challenge 5 (1,800 XP)", Free5e "Challenge 21", and 2024 "CR 2 (XP 450; PB +2)"
-  const RE_CHALLENGE = /(?:Challenges?|\bCR)\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
-  const RE_PROF = /Proficiency Bonus\s+\+?(\d+)/i;
+  const RE_CHALLENGE = /(?:Challenges?|\bCR):?\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
+  const RE_PROF = /Proficiency Bonus:?\s+\+?(\d+)/i;
   const RE_SPEED_PART = /(?:(\w+)\s+)?(\d+)\s*ft/gi;
-  const RE_AC_LINE = /^\s*(?:Armor Class|AC)\s+\d/i;
-  const RE_SAVES = /Saving Throws\s+(.+)/i;
-  const RE_SKILLS = /Skills\s+(.+)/i;
-  const RE_SENSES = /Senses\s+(.+)/i;
-  const RE_LANGS = /Languages\s+(.+)/i;
-  const RE_PASSIVE = /passive Perception\s+(\d+)/i;
-  const RE_DMG = /Damage (Vulnerabilities|Resistances|Immunities)\s+(.+)/gi;
-  const RE_COND = /Condition Immunities\s+(.+)/i;
+  const RE_AC_LINE = /^\s*[•▪◦·*\-]?\s*(?:Armor Class|AC):?\s+\d/i;
+  const RE_SAVES = /Saving Throws:?\s+(.+)/i;
+  const RE_SKILLS = /Skills:?\s+(.+)/i;
+  const RE_SENSES = /Senses:?\s+(.+)/i;
+  const RE_LANGS = /Languages:?\s+(.+)/i;
+  const RE_PASSIVE = /passive Perception:?\s+(\d+)/i;
+  const RE_DMG = /Damage (Vulnerabilities|Resistances|Immunities):?\s+(.+)/gi;
+  const RE_COND = /Condition Immunities:?\s+(.+)/i;
   const RE_BONUS_PAIR = /(.+?)\s*([+-]\d+)/;
-  const RE_ATTACK = /(Melee|Ranged)\s+(Weapon|Spell)\s+Attack:\s*\+?(\d+)\s*to hit(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
+  const RE_ATTACK = /(Melee|Ranged)\s+(Weapon|Spell)\s+Attack[.:]?\s*\+?(\d+)\s*to hit(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
   // 2024 form: "Melee Attack Roll: +5, reach 5 ft." / "Ranged Attack Roll: +5, range 30/90 ft."
   const RE_ATTACK_2024 = /(Melee|Ranged)\s+Attack Roll:\s*\+?(\d+)(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
   const RE_DAMAGE = /(\d+)\s*\(\s*(\d+d\d+)\s*([+-]\s*\d+)?\s*\)\s*([a-zA-Z]+)?\s*damage/gi;
@@ -355,6 +379,29 @@
       const sm = RE_META_SIZETYPE.exec(t);
       if (sm) { sb.size = SIZES[sm[1].toLowerCase()] || null; sb.creature_type = titleCase(sm[2]); break; }
     }
+    // compact layout: the name line itself carries the size/type (alignment may
+    // wrap to the next line), e.g. "Kyanos B'lot Large Aberration (Shapechanger), Chaotic"
+    if (!sb.creature_type) {
+      const nmeta = RE_NAME_META.exec(sb.name);
+      if (nmeta && SIZES[nmeta[2].toLowerCase()]) {
+        sb.name = nmeta[1].trim();
+        sb.size = SIZES[nmeta[2].toLowerCase()] || null;
+        sb.creature_type = titleCase(nmeta[3]);
+        let align = (nmeta[4] || "").trim();
+        const nxt = (lines[1] || "").trim();   // alignment often wraps: "...Chaotic" / "Neutral"
+        if (/^(Lawful|Chaotic|Neutral|Any)$/i.test(align) && /^(Good|Evil|Neutral)$/i.test(nxt)) align += " " + nxt;
+        if (align) sb.alignment = align;
+      }
+    }
+    // strip a single-word family-header prefix written as "FAMILY - Name"
+    // (e.g. "BUGBEAR - BUGBEAR ASCETIC" -> "BUGBEAR ASCETIC", "LYCANTHROPE - WEREBAT" -> "WEREBAT")
+    sb.name = sb.name.replace(/^[A-Za-z][\w'’]*\s+[-–—]\s+(?=[A-Za-z])/, "");
+    // strip a running-header prefix glued to the name, e.g.
+    // "Z-Coin | Crystalline Dragons | Agate Adult Agate Dragon"
+    if (sb.name.includes(" | ")) sb.name = sb.name.replace(/^.*\s\|\s/, "").trim();
+    // drop a leading family word that repeats later ("Agate Adult Agate Dragon" -> "Adult Agate Dragon")
+    { const w = sb.name.split(/\s+/);
+      if (w.length > 2 && w.slice(1).some(x => x.toLowerCase() === w[0].toLowerCase())) sb.name = w.slice(1).join(" "); }
     let m;
     let acF = false, hpF = false, spdF = false, abF = false, crF = false;
     if ((m = RE_AC.exec(text))) { sb.armor_class = +m[1]; sb.armor_desc = (m[2] || "").replace(/^[()\s]+|[()\s]+$/g, "") || null; found++; acF = true; }
@@ -431,7 +478,7 @@
   }
 
   // ============================================================ blocks from pages
-  const RE_AC_PLAIN = /^\s*(?:Armor Class|AC)\s+\d/i;
+  const RE_AC_PLAIN = /^\s*[•▪◦·*\-]?\s*(?:Armor Class|AC):?\s+\d/i;
   // NOTE: unlike the desktop parser, we do NOT font-filter blocks. pdf.js gives
   // much coarser font info than pdfplumber (it doesn't cluster a stat block's
   // body into one font), so a majority-font filter wrongly discards the ability
