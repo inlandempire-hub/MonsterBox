@@ -495,35 +495,41 @@
   // ================================================================ public: import
   async function sfImportPdf(file) {
     const msg = document.getElementById("importmsg");
+    const prog = document.getElementById("importprogress");
+    // final/result messages go in the import panel; live progress is centred in the sheet
     const show = (html, busy) => { if (msg) { msg.className = busy ? "busy" : ""; msg.innerHTML = html; } };
+    const showProg = (html) => { if (prog) { prog.innerHTML = html || ""; prog.classList.toggle("show", !!html); } };
     if (!file) return;
     if (!/\.pdf$/i.test(file.name)) { show("Please choose a .pdf file."); return; }
     if (!window.pdfjsLib) { show("PDF engine failed to load."); return; }
-    show("Reading " + escapeHtml(file.name) + "…", true);
+    show("");
+    showProg("Importing " + escapeHtml(file.name) + "…");
     let buf;
-    try { buf = await file.arrayBuffer(); } catch (e) { show("Couldn't read the file."); return; }
+    try { buf = await file.arrayBuffer(); } catch (e) { showProg(""); show("Couldn't read the file."); return; }
     let pages;
     try {
       pages = await extractColumnLinePages(buf, (cur, total) => {
         const pct = total ? Math.round((100 * cur) / total) : 0;
-        show("Reading " + escapeHtml(file.name) + "… page " + cur + "/" + total +
-          '<div class="pbar"><div style="width:' + pct + '%"></div></div>', true);
+        showProg("Importing " + escapeHtml(file.name) + "<br>" + cur + "/" + total + " pages complete" +
+          '<div class="pbar"><div style="width:' + pct + '%"></div></div>');
       });
-    } catch (e) { show("Couldn't parse the PDF: " + escapeHtml(String(e))); return; }
+    } catch (e) { showProg(""); show("Couldn't parse the PDF: " + escapeHtml(String(e))); return; }
     // text-layer check (scanned PDFs have ~no text)
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length) {
+      showProg("");
       show("No text layer found — this looks like a scanned or image-only PDF, which StatForge can't read. Try a digital (text-layer) PDF.");
       return;
     }
-    show("Parsing stat blocks…", true);
+    showProg("Importing " + escapeHtml(file.name) + "<br>parsing stat blocks…");
     let blocks;
-    try { blocks = blocksFromPages(pages, file.name); } catch (e) { show("Parse error: " + escapeHtml(String(e))); return; }
+    try { blocks = blocksFromPages(pages, file.name); } catch (e) { showProg(""); show("Parse error: " + escapeHtml(String(e))); return; }
     let n = 0;
     for (const sb of blocks) {
       sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + n;
       try { await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) }); n++; } catch (e) {}
     }
+    showProg("");
     const red = blocks.filter(b => b.parse_confidence < 0.6).length;
     const amber = blocks.filter(b => b.parse_confidence >= 0.6 && b.parse_confidence < 0.85).length;
     const flagged = red + amber;

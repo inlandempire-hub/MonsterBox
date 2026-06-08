@@ -115,7 +115,7 @@ alternatives during the moment that matters most — live combat.
 | # | Item | Tag | Effort |
 |---|---|---|---|
 | 18 | **2.1 Second-screen / player view.** Cast-able player-facing view (initiative order, names, visible status, bloodied <50% HP) while the DM keeps stat blocks private. The feature most likely to make someone *switch* to StatForge — treat it as the launch headline. High effort/complexity (multi-window state sync, audience-facing layout); it sits *after* table-stakes so a player view doesn't just expose an unpolished tracker to more eyes. | ✦ | L |
-| 19 | **3.1 Full-library compendium search & filter.** Powerful search across the whole library — CR, type, environment, source book, free-text on traits/actions. At 400+ monsters this is a selling point tools without bulk import *literally cannot match*. Extends the existing search/filters. | ✦ | M |
+| 19 | **3.1 Full-library compendium search & filter.** 🟡 **Mostly done.** Filter panel now covers: creature type, size, **AC** range slider, **HP** range slider, **per-ability "> N"** tickboxes, damage resistance/immunity, condition immunity, has-legendary-resistance, has-multiattack, has-spellcasting — plus the existing free-text search and CR dropdown. Remaining: environment + source-book facets, and free-text over traits/actions. | ✦ | M |
 
 > **Milestone B — "Talked about":** ship 2.1 as the headline, supported by 3.1 to showcase what bulk import uniquely unlocks.
 

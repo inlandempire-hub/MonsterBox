@@ -57,6 +57,9 @@
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
   .title-text { font: 700 23px/1 var(--serif); color: var(--red); letter-spacing: .3px;
         text-shadow: 0 1px 2px rgba(255,255,255,.5), 0 2px 10px rgba(0,0,0,.4); }
+  /* dark mode: a white halo greys out badly — use a black shadow for readability */
+  body.dark .title-text { text-shadow: 0 1px 2px rgba(0,0,0,.95), 0 2px 10px rgba(0,0,0,.7); }
+  body.dark .mtitle span { text-shadow: 0 1px 2px rgba(0,0,0,.95); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -109,7 +112,16 @@
   #library { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   /* right side: tracker on top, roll log below, each scrolls internally */
   /* compact encounter planner — small; the roll log takes the rest of the column */
-  #plannerpanel { flex: 0 0 auto; max-height: 38%; overflow: hidden; display: flex; flex-direction: column; padding: 14px 16px; }
+  #plannerpanel { flex: 0 0 auto; max-height: 38%; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px; }
+  /* planner: bigger heading, equal-height controls, equal-width Expand/Delete */
+  #plannerpanel > .libhead h2 { font-size: 15px; }
+  #plannerpanel .ctrls { gap: 6px; }
+  #plannerpanel .ctrls > .btn,
+  #plannerpanel .ctrls > select { height: 30px; box-sizing: border-box; display: flex;
+        align-items: center; justify-content: center; }
+  #plannerpanel .ctrls > select { flex: 1; min-width: 0; }
+  .encbtn-eq { width: 92px; flex: 0 0 92px; height: 30px; box-sizing: border-box;
+        display: inline-flex; align-items: center; justify-content: center; }
   #logpanel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px 14px; }
   .log-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
   .planner-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
@@ -137,12 +149,15 @@
   /* compendium: frozen top (search + filters), scrolling monster list below */
   .lib-frozen { padding: 14px 16px 10px; flex-shrink: 0; border-bottom: 1px solid var(--line); }
   .lib-scroll { flex: 1; overflow-y: auto; padding: 12px 16px 16px; }
-  .impnote { font-size: 11px; color: var(--dim); margin: 8px 2px 0; line-height: 1.4; }
+  .impnote { font-size: 11px; color: var(--dim); margin: 8px 0 0; line-height: 1.4;
+        background: color-mix(in srgb, var(--panel) 78%, transparent); border: 1px solid var(--line);
+        border-radius: 7px; padding: 7px 9px; }
   .impnote b { color: var(--ink); }
   /* import-panel buttons: a uniform full-width stack (Import PDF / Export+Import Compendium) */
   .impbtns { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; }
-  .impbtns .btn { display: block; width: 100%; margin: 0; padding: 7px 10px;
-        text-align: center; font-size: 12px; }
+  .impbtns .btn { display: flex; align-items: center; justify-content: center; width: 100%;
+        height: 32px; margin: 0; padding: 0 10px; box-sizing: border-box;
+        text-align: center; font-size: 12px; white-space: nowrap; line-height: 1; }
   .impbtns .btn.primary { border-color: var(--red); background: var(--red); color: #fff; }
   .impbtns .btn.primary:hover { background: var(--red-dark); }
   .totalcount { font-size: 12px; color: var(--ink); margin-top: 6px; }
@@ -153,6 +168,27 @@
         margin: 8px 0; }
   #search:focus { outline: none; border-color: var(--red); }
   .filters { display: flex; gap: 6px; margin-bottom: 8px; }
+  .filterbtn { flex-shrink: 0; cursor: pointer; font-size: 12px; white-space: nowrap;
+        background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 6px; padding: 5px 12px; transition: background .12s, border-color .12s; }
+  .filterbtn:hover { border-color: var(--red); }
+  /* advanced filter panel */
+  .filterpanel { background: color-mix(in srgb, var(--panel) 60%, transparent); border: 1px solid var(--line);
+        border-radius: 8px; padding: 10px 11px; margin-bottom: 8px; font-size: 12px; }
+  .filterpanel .frow { margin-bottom: 9px; }
+  .filterpanel .frow > label { display: block; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .filterpanel select { width: 100%; background: var(--panel); color: var(--ink);
+        border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; }
+  .filterpanel input[type="range"] { width: 100%; margin: 2px 0; accent-color: var(--red); }
+  .rangelbl { font-weight: 400; color: var(--red); }
+  .abilfilters { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+  .abrow { display: flex; align-items: center; gap: 5px; font-weight: 400 !important; color: var(--ink); }
+  .abrow .abnum { width: 48px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 12px; }
+  .abrow input[type="checkbox"] { accent-color: var(--red); }
+  .fchecks { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
+  .fchecks label { display: flex; align-items: center; gap: 6px; color: var(--ink); cursor: pointer; }
+  .fchecks input[type="checkbox"] { accent-color: var(--red); }
   .filters select { flex: 1; min-width: 0; background: var(--panel); color: var(--ink);
         border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font: inherit; font-size: 12px; }
   .filters select:focus { outline: none; border-color: var(--red); }
@@ -223,6 +259,15 @@
   #importmsg { font-size: 12px; color: var(--dim); margin-bottom: 10px; min-height: 1em; }
   #importmsg.busy { color: var(--red); }
   .impcount { border-bottom: 1px dotted currentColor; cursor: help; }
+  /* import progress — centred in the sheet, under the empty-state label */
+  #importprogress { display: none; position: absolute; left: 50%; top: 58%;
+        transform: translate(-50%, -50%); z-index: 3; width: min(360px, 70%);
+        text-align: center; font: 600 14px/1.4 var(--serif); color: #fff;
+        background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
+        border-radius: 10px; padding: 14px 18px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+        backdrop-filter: blur(4px); }
+  #importprogress.show { display: block; }
+  #importprogress .pbar { margin-top: 10px; }
   .pbar { height: 8px; background: var(--panel2); border: 1px solid var(--line);
         border-radius: 4px; overflow: hidden; margin-top: 5px; }
   .pbar > div { height: 100%; background: var(--red); transition: width .2s; }
@@ -420,7 +465,7 @@
   .roll .src { color: var(--red); font: 700 14px/1.2 var(--serif); }
   .roll .rtitle { color: var(--ink); font-size: 12px; margin-top: 1px; }
   .roll .det { color: var(--dim); font-size: 12px; margin-top: 1px; }
-  .roll .tot { font: 700 26px/1 var(--serif); color: var(--ink); flex-shrink: 0; }
+  .roll .tot { font: 700 30px/1 var(--serif); color: var(--ink); flex-shrink: 0; }
   .roll .advtag { color: var(--red); font-weight: 700; font-size: 11px; }
 
   /* brief toast (e.g. auto-fail save notice) */
@@ -663,6 +708,12 @@
         padding: 1px 7px; border-radius: 4px; }
   .dtag.stable { color: #fff; background: var(--good); }
   .dtag.dead { color: #fff; background: var(--bad); }
+  .lrrow { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 12px; }
+  .lrrow .dlbl { color: var(--dim); }
+  .lrdot { width: 12px; height: 12px; border-radius: 3px; cursor: pointer; border: 1.5px solid var(--scroll-edge);
+        background: var(--panel); transition: background .1s; }
+  .lrdot.on { background: var(--scroll-rod); border-color: var(--scroll-rod); }
+  .lrcount { color: var(--dim); margin-left: 2px; }
   /* dark: entry body text was hardcoded dark — override to a readable warm grey */
   body.dark .entry .txt { color: #c0b8ac; }
 
@@ -763,7 +814,6 @@
         <input type="file" id="file" accept="application/pdf" hidden>
       </div>
       <div class="impbtns">
-        <button class="btn primary" onclick="document.getElementById('file').click()">Import PDF</button>
         <button class="btn" onclick="sfExport()">Export Compendium</button>
         <label class="btn">Import Compendium
           <input type="file" accept="application/json,.json" hidden
@@ -790,10 +840,9 @@
                oninput="onSearch(this.value)" />
         <div class="filters">
           <select id="filterCR" onchange="onFilter()"><option value="">All CR</option></select>
-          <select id="filterType" onchange="onFilter()"><option value="">All Types</option></select>
-          <button id="filterReview" class="reviewbtn" onclick="toggleReviewFilter()"
-                  title="Show only blocks that may need review">⚠ Review</button>
+          <button id="filterToggle" class="filterbtn" onclick="toggleFilterPanel()">Filters ▾</button>
         </div>
+        <div id="filterpanel" class="filterpanel" style="display:none"></div>
         <button class="newentry" onclick="newEntry()">＋ New Compendium Entry</button>
         <div id="totalcount" class="totalcount"></div>
       </div>
@@ -805,6 +854,7 @@
   <div class="col sheet" id="sheet">
     <button id="modetoggle" title="Toggle light / dark mode" onclick="toggleMode()"></button>
     <div id="emptylabel">← Select a monster from the Compendium</div>
+    <div id="importprogress"></div>
     <div class="scroll-wrap" style="display:none">
       <div class="scroll-rod"></div>
       <div class="scroll-content" id="scrollcontent"></div>
@@ -838,14 +888,14 @@
     <div class="glass" id="plannerpanel">
       <div class="libhead">
         <h2>Encounter</h2>
-        <button class="btn" onclick="toggleEncounterExpand()" title="Expand into the centre to run it">⤢ Expand</button>
+        <button class="btn encbtn-eq" onclick="toggleEncounterExpand()" title="Expand into the centre to run it">⤢ Expand</button>
       </div>
       <div class="ctrls">
         <button class="btn" onclick="saveEncounter()">Save</button>
         <select id="encsel" onchange="onEncSelect(this.value)">
           <option value="">Load Encounter…</option>
         </select>
-        <button class="btn" onclick="deleteSelectedEncounter()" title="Delete saved encounter">Delete</button>
+        <button class="btn encbtn-eq" onclick="deleteSelectedEncounter()" title="Delete saved encounter">Delete</button>
       </div>
       <div id="plannerlist" class="planner-list"></div>
     </div>
@@ -875,11 +925,7 @@
 <div id="concModal" class="modal-overlay" style="display:none">
   <div class="modal-box">
     <div class="modal-msg"><b>Concentration — <span id="concName"></span></b><div id="concBody" style="margin-top:8px;font-weight:400"></div></div>
-    <div class="modal-btns">
-      <button class="btn" id="concRoll" onclick="concRollSave()">Roll CON save</button>
-      <button class="btn" onclick="closeConc()">Held</button>
-      <button class="btn save" onclick="concBroken()">Broken</button>
-    </div>
+    <div class="modal-btns" id="concBtns"></div>
   </div>
 </div>
 
@@ -1043,14 +1089,27 @@ async function loadLibrary() {
 
   populateFilters(mons);
 
-  // combined filters: free-text search + CR dropdown + type dropdown
+  // combined filters: free-text search + CR dropdown + advanced filter panel
   const q = searchTerm.trim().toLowerCase();
   const shown = mons.filter(m => {
     if (q && !(m.name||"").toLowerCase().includes(q)
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
     if (filterCR && (m.challenge_rating || "?") !== filterCR) return false;
-    if (filterType && (m.creature_type || "") !== filterType) return false;
     if (filterFlagged && !isFlagged(m)) return false;
+    if (adv.type && (m.creature_type||"") !== adv.type) return false;
+    if (adv.size && (m.size||"") !== adv.size) return false;
+    if (adv.acMin != null && (m.armor_class ?? 0) < adv.acMin) return false;
+    if (adv.acMax != null && (m.armor_class ?? 0) > adv.acMax) return false;
+    if (adv.hpMin != null && (m.hit_points ?? 0) < adv.hpMin) return false;
+    if (adv.hpMax != null && (m.hit_points ?? 0) > adv.hpMax) return false;
+    for (const k in adv.abil) { if (adv.abil[k] != null) { const v = m.abilities && m.abilities[k]; if (v == null || v <= adv.abil[k]) return false; } }
+    if (adv.damage) { const d = adv.damage.toLowerCase();
+      if (![...(m.damage_resistances||[]), ...(m.damage_immunities||[])].some(x => String(x).toLowerCase().includes(d))) return false; }
+    if (adv.cond) { const c = adv.cond.toLowerCase();
+      if (!(m.condition_immunities||[]).some(x => String(x).toLowerCase().includes(c))) return false; }
+    if (adv.lr && !(m.legendary_resistances > 0)) return false;
+    if (adv.multi && !m.has_multiattack) return false;
+    if (adv.spell && !m.has_spellcasting) return false;
     return true;
   });
 
@@ -1101,15 +1160,80 @@ function toggleCR(cr) {
 
 function onSearch(v) { searchTerm = v; loadLibrary(); }
 
-let filterCR = "", filterType = "", filterFlagged = false;
-function onFilter() {
-  filterCR = $("filterCR").value;
-  filterType = $("filterType").value;
-  loadLibrary();
+let filterCR = "", filterFlagged = false;
+function onFilter() { filterCR = $("filterCR").value; loadLibrary(); }
+function toggleReviewFilter() { filterFlagged = !filterFlagged; loadLibrary(); }
+
+// ---- advanced filter panel ----
+const ABIL6 = [["STR","strength"],["DEX","dexterity"],["CON","constitution"],["INT","intelligence"],["WIS","wisdom"],["CHA","charisma"]];
+let adv = { type:"", size:"", acMin:null, acMax:null, hpMin:null, hpMax:null,
+  abil:{ strength:null, dexterity:null, constitution:null, intelligence:null, wisdom:null, charisma:null },
+  damage:"", cond:"", lr:false, multi:false, spell:false };
+let filterPanelOpen = false;
+const SIZE_ORDER = ["Tiny","Small","Medium","Large","Huge","Gargantuan"];
+
+function toggleFilterPanel() {
+  filterPanelOpen = !filterPanelOpen;
+  $("filterToggle").textContent = filterPanelOpen ? "Filters ▴" : "Filters ▾";
+  $("filterpanel").style.display = filterPanelOpen ? "block" : "none";
+  if (filterPanelOpen) populateFilterPanel(library);
 }
-function toggleReviewFilter() {
-  filterFlagged = !filterFlagged;
-  $("filterReview").classList.toggle("on", filterFlagged);
+function clearAdvFilters() {
+  adv = { type:"", size:"", acMin:null, acMax:null, hpMin:null, hpMax:null,
+    abil:{ strength:null, dexterity:null, constitution:null, intelligence:null, wisdom:null, charisma:null },
+    damage:"", cond:"", lr:false, multi:false, spell:false };
+  populateFilterPanel(library); loadLibrary();
+}
+function populateFilterPanel(mons) {
+  const el = $("filterpanel"); if (!el) return;
+  const opts = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(o)}</option>`).join("");
+  const types = [...new Set(mons.map(m => m.creature_type).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const sizes = [...new Set(mons.map(m => m.size).filter(Boolean))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b));
+  const acs = mons.map(m => m.armor_class).filter(v => v != null); const hps = mons.map(m => m.hit_points).filter(v => v != null);
+  const acLo = acs.length ? Math.min(...acs) : 0, acHi = acs.length ? Math.max(...acs) : 30;
+  const hpLo = hps.length ? Math.min(...hps) : 0, hpHi = hps.length ? Math.max(...hps) : 500;
+  const dmgTypes = [...new Set(mons.flatMap(m => [...(m.damage_resistances||[]), ...(m.damage_immunities||[])]).map(x=>String(x).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const conds = [...new Set(mons.flatMap(m => (m.condition_immunities||[]).map(x=>String(x).trim())).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  if (adv.acMin == null) adv.acMin = acLo; if (adv.acMax == null) adv.acMax = acHi;
+  if (adv.hpMin == null) adv.hpMin = hpLo; if (adv.hpMax == null) adv.hpMax = hpHi;
+  el.innerHTML = `
+    <div class="frow"><label>Creature Type</label><select id="f_type" onchange="onAdvFilter()">${opts(types, adv.type)}</select></div>
+    <div class="frow"><label>Creature Size</label><select id="f_size" onchange="onAdvFilter()">${opts(sizes, adv.size)}</select></div>
+    <div class="frow"><label>Armor Class <span class="rangelbl" id="f_aclbl"></span></label>
+      <input type="range" id="f_acmin" min="${acLo}" max="${acHi}" value="${adv.acMin}" oninput="onAdvFilter()">
+      <input type="range" id="f_acmax" min="${acLo}" max="${acHi}" value="${adv.acMax}" oninput="onAdvFilter()"></div>
+    <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>
+      <input type="range" id="f_hpmin" min="${hpLo}" max="${hpHi}" value="${adv.hpMin}" oninput="onAdvFilter()">
+      <input type="range" id="f_hpmax" min="${hpLo}" max="${hpHi}" value="${adv.hpMax}" oninput="onAdvFilter()"></div>
+    <div class="frow"><label>Attributes above…</label>
+      <div class="abilfilters">${ABIL6.map(([L,k]) =>
+        `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"> ${L} &gt;
+          <input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
+    <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${opts(dmgTypes, adv.damage)}</select></div>
+    <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${opts(conds, adv.cond)}</select></div>
+    <div class="fchecks">
+      <label><input type="checkbox" id="f_lr" ${adv.lr?"checked":""} onchange="onAdvFilter()"> Legendary Resistance</label>
+      <label><input type="checkbox" id="f_multi" ${adv.multi?"checked":""} onchange="onAdvFilter()"> Multiattack</label>
+      <label><input type="checkbox" id="f_spell" ${adv.spell?"checked":""} onchange="onAdvFilter()"> Spellcasting</label>
+    </div>
+    <button class="btn" onclick="clearAdvFilters()">Clear filters</button>`;
+  updateRangeLabels();
+}
+function updateRangeLabels() {
+  const al = $("f_aclbl"), hl = $("f_hplbl");
+  if (al) al.textContent = `${adv.acMin}–${adv.acMax}`;
+  if (hl) hl.textContent = `${adv.hpMin}–${adv.hpMax}`;
+}
+function onAdvFilter() {
+  adv.type = $("f_type").value; adv.size = $("f_size").value;
+  let acMin = +$("f_acmin").value, acMax = +$("f_acmax").value; if (acMin > acMax) { const t = acMin; acMin = acMax; acMax = t; }
+  let hpMin = +$("f_hpmin").value, hpMax = +$("f_hpmax").value; if (hpMin > hpMax) { const t = hpMin; hpMin = hpMax; hpMax = t; }
+  adv.acMin = acMin; adv.acMax = acMax; adv.hpMin = hpMin; adv.hpMax = hpMax;
+  ABIL6.forEach(([L,k]) => { const on = $("f_ab_"+k+"_on").checked; const n = $("f_ab_"+k).value;
+    adv.abil[k] = (on && n !== "") ? +n : null; });
+  adv.damage = $("f_damage").value; adv.cond = $("f_cond").value;
+  adv.lr = $("f_lr").checked; adv.multi = $("f_multi").checked; adv.spell = $("f_spell").checked;
+  updateRangeLabels();
   loadLibrary();
 }
 // ---- parse-quality helpers ----
@@ -1124,18 +1248,14 @@ function confDot(m) {
     ? m.parse_warnings.join("; ") : "Some fields may be incomplete";
   return ` <span class="cdot ${lv}" title="${esc(reasons)}">⚠</span>`;
 }
-// (re)build the CR + Type dropdown options from the current library
+// (re)build the CR dropdown options from the current library
 function populateFilters(mons) {
-  const crSel = $("filterCR"), tySel = $("filterType");
-  if (!crSel || !tySel) return;
+  const crSel = $("filterCR");
+  if (!crSel) return;
   const crs = [...new Set(mons.map(m => m.challenge_rating || "?"))]
     .sort((a, b) => crValue(a) - crValue(b));
-  const types = [...new Set(mons.map(m => m.creature_type).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
   crSel.innerHTML = '<option value="">All CR</option>' +
     crs.map(c => `<option value="${esc(c)}" ${c===filterCR?"selected":""}>CR ${esc(c)}</option>`).join("");
-  tySel.innerHTML = '<option value="">All Types</option>' +
-    types.map(t => `<option value="${esc(t)}" ${t===filterType?"selected":""}>${esc(t)}</option>`).join("");
 }
 function crValue(cr) {
   if (cr === "?" || cr == null) return Infinity;
@@ -1806,19 +1926,58 @@ async function applyDmg(cid, inputId, sign) {
 async function undoHp(cid) { await post("/api/encounter/undo-hp", { combatant_id: cid }); loadTracker(); }
 async function deathSave(cid, result) { await post("/api/encounter/death-save", { combatant_id: cid, result }); loadTracker(); }
 
-// ---- concentration check prompt (auto DC = max 10, half the damage) ----
-let _concCid = null, _concSid = null;
-function promptConcentration(c, dmg) {
-  const dc = Math.max(10, Math.floor(dmg / 2));
-  _concCid = c.id; _concSid = c.statblock_id || "";
-  $("concName").textContent = c.display_name;
-  $("concBody").innerHTML = `Took <b>${dmg}</b> damage — <b>Constitution save DC ${dc}</b> to hold concentration.`;
-  $("concRoll").style.display = _concSid ? "" : "none";
+// ---- concentration check (auto DC = max 10, half the damage; proactive) ----
+// Rolls the CON save itself and decides the outcome. If it would fail and the
+// creature has a Legendary Resistance left, it asks whether to spend one.
+let _concCid = null;
+function showConc(name, html, btns) {
+  $("concName").textContent = name;
+  $("concBody").innerHTML = html;
+  $("concBtns").innerHTML = btns;
   $("concModal").style.display = "flex";
 }
-function closeConc() { $("concModal").style.display = "none"; _concCid = _concSid = null; }
-function concRollSave() { if (_concSid) rollAbility(_concSid, "con", "save"); }   // logs the save in the roll log
-async function concBroken() { if (_concCid) await post("/api/encounter/condition", { combatant_id: _concCid, name: "Concentration", action: "remove" }); closeConc(); loadTracker(); }
+function closeConc() { $("concModal").style.display = "none"; _concCid = null; }
+async function promptConcentration(c, dmg) {
+  const dc = Math.max(10, Math.floor(dmg / 2));
+  _concCid = c.id;
+  if (!c.statblock_id) {   // PC / no stat block — DM rolls; offer a manual decision
+    return showConc(c.display_name,
+      `Took <b>${dmg}</b> damage — <b>Constitution save DC ${dc}</b> to hold concentration.`,
+      `<button class="btn" onclick="closeConc()">Held</button><button class="btn save" onclick="concBreak()">Broken</button>`);
+  }
+  const ev = await post("/api/roll", { statblock_id: c.statblock_id, kind: "save", ability: "con" });
+  loadLog();
+  const total = ev && ev.total != null ? Number(ev.total) : null;
+  if (total == null || Number.isNaN(total)) {
+    return showConc(c.display_name, `Constitution save <b>DC ${dc}</b> to hold concentration.`,
+      `<button class="btn" onclick="closeConc()">Held</button><button class="btn save" onclick="concBreak()">Broken</button>`);
+  }
+  if (total >= dc) { toast(`${c.display_name} holds concentration — rolled ${total} vs DC ${dc}.`); _concCid = null; return; }
+  // failed the save
+  if ((c.lr || 0) > 0) {
+    return showConc(c.display_name,
+      `Failed the save — <b>${total}</b> vs DC ${dc}. Spend a <b>Legendary Resistance</b> to hold concentration? (${c.lr} left)`,
+      `<button class="btn save" onclick="concUseLR()">Use Legendary Resistance</button><button class="btn" onclick="concBreak()">Let it break</button>`);
+  }
+  await post("/api/encounter/condition", { combatant_id: c.id, name: "Concentration", action: "remove" });
+  toast(`${c.display_name} loses concentration — rolled ${total} vs DC ${dc}.`);
+  _concCid = null; loadTracker();
+}
+async function concBreak() {
+  if (_concCid) await post("/api/encounter/condition", { combatant_id: _concCid, name: "Concentration", action: "remove" });
+  closeConc(); loadTracker();
+}
+async function concUseLR() {
+  if (_concCid) await post("/api/encounter/legendary-resist", { combatant_id: _concCid, delta: -1 });
+  toast("Legendary Resistance spent — concentration holds.");
+  closeConc(); loadTracker();
+}
+async function toggleLR(cid, k) {
+  const c = (_lastEnc.combatants || []).find(x => x.id === cid); if (!c) return;
+  const target = k < (c.lr || 0) ? k : k + 1;     // click to set how many remain
+  await post("/api/encounter/legendary-resist", { combatant_id: cid, delta: target - (c.lr || 0) });
+  loadTracker();
+}
 
 // ---- encounter: compact planner (right) vs expanded run view (centre) ----
 let encounterExpanded = false;
@@ -1844,6 +2003,15 @@ function renderPlannerList(enc) {
       <span class="pname">${esc(c.display_name)}${c.is_player?'<span class="pcbadge">PC</span>':''}</span>
       <button class="x" title="Remove" onclick="removeCombatant('${c.id}')">✕</button>
     </div>`).join("");
+}
+
+// legendary-resistance tracker — shown for creatures that have it
+function lrHtml(c) {
+  if (!(c.lr_max > 0)) return "";
+  const dots = [...Array(c.lr_max)].map((_, k) =>
+    `<span class="lrdot ${k < c.lr ? 'on' : ''}" title="Toggle" onclick="toggleLR('${c.id}',${k})"></span>`).join("");
+  return `<div class="lrrow"><span class="dlbl">Legendary Resist.</span>${dots}
+    <span class="lrcount">${c.lr}/${c.lr_max}</span></div>`;
 }
 
 // death-save tracker — shown for a downed PC (3 successes / 3 failures)
@@ -1894,6 +2062,7 @@ function renderRunCards(enc) {
         <button class="btn" onclick="applyDmg('${c.id}','${iid}',-1)">+HP</button>
         <button class="btn undo" title="Undo last HP change" onclick="undoHp('${c.id}')"${c.can_undo?'':' disabled'}>↶</button>
       </div>
+      ${lrHtml(c)}
       ${deathSaveHtml(c)}
       <div class="conds">${conds}
         <select class="condsel" onchange="addCondition('${c.id}', this.value); this.value='';">

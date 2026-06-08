@@ -80,12 +80,25 @@
     try { if (cr.includes("/")) { const [a, b] = cr.split("/"); return (+a) / (+b); } return parseFloat(cr); }
     catch (e) { return Infinity; }
   }
+  // count of legendary resistances from a "Legendary Resistance (N/Day)" trait
+  function lrCount(sb) {
+    for (const t of (sb.traits || [])) { const m = /legendary resistance\s*\((\d+)\s*\/\s*day/i.exec(t.name || ""); if (m) return +m[1]; }
+    return 0;
+  }
+  const hasMultiattack = (sb) => (sb.actions || []).some(a => /multiattack/i.test(a.name || ""));
+  const hasSpellcasting = (sb) => !!sb.spellcasting
+    || (sb.traits || []).some(t => /spellcasting/i.test(t.name || ""))
+    || (sb.actions || []).some(a => /spellcasting/i.test(a.name || ""));
   async function listStatblocks() {
     const all = await dbAll("statblocks");
     const items = all.map(sb => ({
       id: sb.id, name: sb.name, challenge_rating: sb.challenge_rating,
       armor_class: sb.armor_class, hit_points: sb.hit_points,
       creature_type: sb.creature_type, size: sb.size,
+      abilities: sb.abilities || null,
+      damage_resistances: sb.damage_resistances || [], damage_immunities: sb.damage_immunities || [],
+      condition_immunities: sb.condition_immunities || [],
+      legendary_resistances: lrCount(sb), has_multiattack: hasMultiattack(sb), has_spellcasting: hasSpellcasting(sb),
       parse_confidence: sb.parse_confidence, parse_warnings: sb.parse_warnings || [],
     }));
     items.sort((a, b) => (crValue(a.challenge_rating) - crValue(b.challenge_rating)) ||
@@ -110,6 +123,7 @@
         is_player: !!c.is_player, conditions: (c.conditions || []).slice(),
         death_saves: c.death_saves || { successes: 0, failures: 0, stable: false, dead: false },
         can_undo: (c.hp_history || []).length > 0,
+        lr: c.lr || 0, lr_max: c.lr_max || 0,
       })),
     };
   }
@@ -133,6 +147,7 @@
         max_hp: sb.hit_points || 1, temp_hp: 0, armor_class: sb.armor_class || 10,
         is_player: false, conditions: [],
         hp_history: [], death_saves: { successes: 0, failures: 0, stable: false, dead: false },
+        lr_max: lrCount(sb), lr: lrCount(sb),
       });
     }
     renumber(); sortEnc(); await saveEnc();
@@ -173,7 +188,7 @@
       let modifier = mod, label;
       if (kind === "save") {
         const ov = (() => { for (const [k, v] of Object.entries(sb.saving_throws || {})) if (k.toLowerCase() === ab) return v; return null; })();
-        modifier = ov != null ? ov : mod; label = `${ab.toUpperCase()} save`;
+        modifier = ov != null ? (parseInt(ov, 10) || 0) : mod; label = `${ab.toUpperCase()} save`;   // ov may be "+13" (string)
       } else label = `${ab.toUpperCase()} check`;
       const r = rollD20(modifier, adv);
       ev = makeEvent({ source, roll_type: kind === "save" ? "save" : "check", label, expression: `1d20${signed(modifier)}`, dice_results: r.dice, modifier, total: r.total, advantage: adv });
@@ -224,6 +239,13 @@
       if (!c) return jsonResp({ error: "combatant not found" }, 404);
       const h = c.hp_history || [];
       if (h.length) { const p = h.pop(); c.current_hp = p.current_hp; c.temp_hp = p.temp_hp || 0; if (p.death_saves) c.death_saves = p.death_saves; }
+      await saveEnc(); return jsonResp(encDump());
+    }
+    if (path === "/api/encounter/legendary-resist" && method === "POST") {
+      const c = currentEnc.combatants.find(x => x.id === body.combatant_id);
+      if (!c) return jsonResp({ error: "combatant not found" }, 404);
+      const delta = body.delta != null ? +body.delta : -1;   // default: spend one
+      c.lr = Math.max(0, Math.min(c.lr_max || 0, (c.lr || 0) + delta));
       await saveEnc(); return jsonResp(encDump());
     }
     if (path === "/api/encounter/death-save" && method === "POST") {
