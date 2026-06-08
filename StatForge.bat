@@ -2,21 +2,20 @@
 REM ===  StatForge launcher (PWA build)  ===
 REM Double-click this (or the desktop shortcut to it) to start StatForge.
 REM
-REM StatForge is now the same client-side PWA that runs on the web: the local
-REM app and the web app are one and the same build (in docs\). Everything runs
-REM in your browser and is stored locally (IndexedDB) — no Python server, no
-REM Flask, nothing uploaded.
+REM StatForge is the same client-side PWA that runs on the web: the local app
+REM and the web app are one and the same build (in docs\). Everything runs in
+REM your browser and is stored locally (IndexedDB) — nothing uploaded.
 REM
-REM This serves the docs\ folder on a fixed local port (8077) so the browser
-REM treats it as a stable app origin (your compendium is tied to that origin),
-REM and opens it in a clean Chrome app-window. Close the small "StatForge
-REM server" window to stop it.
+REM The local file server runs INVISIBLY (no console window) via "pyw"
+REM (pythonw), and shuts itself down a few seconds after you close the app
+REM window — the page sends a heartbeat while open and serve_local.py exits once
+REM the heartbeats stop. Nothing is left running in the background.
 title StatForge
 cd /d "%~dp0"
 
-REM Static file server for the PWA build. Fixed port 8077 keeps the IndexedDB
-REM origin stable across launches so your library persists.
-start "StatForge server" /min py -m http.server 8077 --directory "%~dp0docs"
+REM Static file server for the PWA build, hidden (no console). Fixed port 8077
+REM keeps the IndexedDB origin stable across launches so your library persists.
+start "" pyw "%~dp0serve_local.py"
 
 REM Give the server a moment to come up before opening the browser.
 ping -n 2 127.0.0.1 >nul

@@ -2220,11 +2220,12 @@ function toggleMode() {
   setTimeout(() => { if (sp) sp.remove(); }, 5200);                   // card has faded out
 })();
 
-// Heartbeat: lets the windowless launcher's server auto-close when this page is
-// closed. Starts immediately (independent of the splash). If the server isn't
-// running with --shutdown-on-idle (e.g. dev `serve`), the pings are harmless.
+// Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
+// this page is closed. /__ping is NOT an /api/ route, so it bypasses the
+// in-page fetch shim and actually reaches the local server. On the hosted PWA
+// (no local server) the POST just fails and is ignored — harmless.
 (function() {
-  const ping = () => fetch("/api/ping", { method: "POST" }).catch(() => {});
+  const ping = () => fetch("/__ping", { method: "POST" }).catch(() => {});
   ping();
   setInterval(ping, 4000);
 })();
