@@ -102,9 +102,9 @@ alternatives during the moment that matters most — live combat.
 
 | # | Item | Tag | Effort |
 |---|---|---|---|
-| 13 | **1.1 Auto concentration-check prompts.** On damage to a concentrating creature, auto-calc DC (max(10, ½ damage)) and prompt. Concentration already exists as a condition — this wires the trigger. Small build, high perceived polish. | ✦ | S |
-| 14 | **1.3 Death-save workflow.** Track successes/failures for downed PCs/creatures, with stabilise/revive states. Well-understood, contained. | ✦ | S |
-| 15 | **1.5 Damage/healing history with undo.** Per-combatant log so a misclick in a tense round is recoverable. Removes a common in-play frustration. | ✦ | S |
+| 13 | **1.1 Auto concentration-check prompts.** ✅ **Done.** Damaging a creature that has the Concentration condition pops a prompt with the right save DC (max 10 / half the damage), a "Roll CON save" button (logs it), and Held / Broken (Broken removes the condition). | ✦ | S |
+| 14 | **1.3 Death-save workflow.** ✅ **Done.** A downed PC (0 HP) shows a 3-success / 3-failure tracker; 3 failures = Dead, 3 successes = Stable; healing above 0 clears it automatically. | ✦ | S |
+| 15 | **1.5 Damage/healing history with undo.** ✅ **Done.** Every HP change is snapshotted; a per-combatant ↶ Undo button reverts the last change (HP, temp HP, and death saves). Damage now also absorbs temporary HP first. | ✦ | S |
 | 16 | **1.2 Auto-decrementing conditions.** Conditions that count down each round and clear themselves. Build on the existing condition framework. Complexity is in edge cases (start- vs end-of-turn expiry, save-tied conditions) — budget for fiddliness. | ✦ | M |
 | 17 | **1.4 Smart auto-grouping of identical monsters.** Collapse "Goblin 1–8" into an expandable initiative group. Pairs directly with the parser's strength (big imports are what make grouping necessary). Complexity: keep individual HP/conditions correct under a grouped view. | ✦ | M |
 

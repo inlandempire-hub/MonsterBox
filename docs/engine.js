@@ -108,6 +108,8 @@
         current_hp: c.current_hp, max_hp: c.max_hp, temp_hp: c.temp_hp || 0,
         armor_class: c.armor_class, statblock_id: c.statblock_id,
         is_player: !!c.is_player, conditions: (c.conditions || []).slice(),
+        death_saves: c.death_saves || { successes: 0, failures: 0, stable: false, dead: false },
+        can_undo: (c.hp_history || []).length > 0,
       })),
     };
   }
@@ -130,6 +132,7 @@
         initiative: rollD20(dex).total, current_hp: sb.hit_points || 1,
         max_hp: sb.hit_points || 1, temp_hp: 0, armor_class: sb.armor_class || 10,
         is_player: false, conditions: [],
+        hp_history: [], death_saves: { successes: 0, failures: 0, stable: false, dead: false },
       });
     }
     renumber(); sortEnc(); await saveEnc();
@@ -200,15 +203,43 @@
     if (path === "/api/encounter/damage" && method === "POST") {
       const c = currentEnc.combatants.find(x => x.id === body.combatant_id);
       if (!c) return jsonResp({ error: "combatant not found" }, 404);
-      const amt = +body.amount;
-      if (amt >= 0) c.current_hp = Math.max(0, c.current_hp - amt);
-      else c.current_hp = Math.min(c.max_hp, c.current_hp - amt);
+      const amt = +body.amount;   // positive = damage, negative = healing
+      // snapshot for undo (keep last 25)
+      c.hp_history = c.hp_history || [];
+      c.hp_history.push({ current_hp: c.current_hp, temp_hp: c.temp_hp || 0, death_saves: JSON.parse(JSON.stringify(c.death_saves || {})) });
+      if (c.hp_history.length > 25) c.hp_history.shift();
+      if (amt >= 0) {
+        let dmg = amt;                                  // temporary HP absorbs first
+        const t = c.temp_hp || 0;
+        if (t > 0) { const used = Math.min(t, dmg); c.temp_hp = t - used; dmg -= used; }
+        c.current_hp = Math.max(0, c.current_hp - dmg);
+      } else {
+        c.current_hp = Math.min(c.max_hp, c.current_hp - amt);   // -amt = heal
+        if (c.current_hp > 0 && c.death_saves) c.death_saves = { successes: 0, failures: 0, stable: false, dead: false };
+      }
+      await saveEnc(); return jsonResp(encDump());
+    }
+    if (path === "/api/encounter/undo-hp" && method === "POST") {
+      const c = currentEnc.combatants.find(x => x.id === body.combatant_id);
+      if (!c) return jsonResp({ error: "combatant not found" }, 404);
+      const h = c.hp_history || [];
+      if (h.length) { const p = h.pop(); c.current_hp = p.current_hp; c.temp_hp = p.temp_hp || 0; if (p.death_saves) c.death_saves = p.death_saves; }
+      await saveEnc(); return jsonResp(encDump());
+    }
+    if (path === "/api/encounter/death-save" && method === "POST") {
+      const c = currentEnc.combatants.find(x => x.id === body.combatant_id);
+      if (!c) return jsonResp({ error: "combatant not found" }, 404);
+      const ds = c.death_saves = c.death_saves || { successes: 0, failures: 0, stable: false, dead: false };
+      const r = body.result;
+      if (r === "success") { ds.successes = Math.min(3, ds.successes + 1); if (ds.successes >= 3) { ds.stable = true; } }
+      else if (r === "failure") { ds.failures = Math.min(3, ds.failures + 1); ds.dead = ds.failures >= 3; }
+      else if (r === "reset") { ds.successes = 0; ds.failures = 0; ds.stable = false; ds.dead = false; }
       await saveEnc(); return jsonResp(encDump());
     }
     if (path === "/api/encounter/remove" && method === "POST") { currentEnc.combatants = currentEnc.combatants.filter(c => c.id !== body.combatant_id); renumber(); await saveEnc(); return jsonResp(encDump()); }
     if (path === "/api/encounter/add-player" && method === "POST") {
       const hp = parseInt(body.max_hp || 0, 10) || 1;
-      currentEnc.combatants.push({ id: uuid(), statblock_id: "", base: body.name || "Player", display_name: body.name || "Player", initiative: parseInt(body.initiative || 0, 10), current_hp: hp, max_hp: hp, temp_hp: 0, armor_class: 10, is_player: true, conditions: [] });
+      currentEnc.combatants.push({ id: uuid(), statblock_id: "", base: body.name || "Player", display_name: body.name || "Player", initiative: parseInt(body.initiative || 0, 10), current_hp: hp, max_hp: hp, temp_hp: 0, armor_class: 10, is_player: true, conditions: [], hp_history: [], death_saves: { successes: 0, failures: 0, stable: false, dead: false } });
       sortEnc(); await saveEnc(); return jsonResp(encDump());
     }
     if (path === "/api/encounter/condition" && method === "POST") {

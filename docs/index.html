@@ -649,6 +649,20 @@
   body.dark .drop { background: var(--panel); }
   /* dark: roll log and tracker match dark panel */
   body.dark .hpbar { background: #3a2820; }
+  /* HP undo + death-save tracker (combat run view) */
+  .btn.undo { padding: 4px 8px; }
+  .btn[disabled] { opacity: .4; cursor: default; pointer-events: none; }
+  .deathrow { display: flex; align-items: center; gap: 7px; margin-top: 7px; font-size: 12px; }
+  .deathrow .dlbl { color: var(--dim); }
+  .deathrow .dmarks { display: inline-flex; gap: 4px; }
+  .ddot { width: 13px; height: 13px; border-radius: 50%; cursor: pointer; border: 1.5px solid var(--line2);
+        background: var(--panel); transition: background .1s, border-color .1s; }
+  .ddot.succ.on { background: var(--good); border-color: var(--good); }
+  .ddot.fail.on { background: var(--bad); border-color: var(--bad); }
+  .dtag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+        padding: 1px 7px; border-radius: 4px; }
+  .dtag.stable { color: #fff; background: var(--good); }
+  .dtag.dead { color: #fff; background: var(--bad); }
   /* dark: entry body text was hardcoded dark — override to a readable warm grey */
   body.dark .entry .txt { color: #c0b8ac; }
 
@@ -853,6 +867,18 @@
     <div class="modal-btns">
       <button class="btn" id="confirmCancel">Cancel</button>
       <button class="btn save" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- concentration check prompt (fires when a concentrating creature takes damage) -->
+<div id="concModal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-msg"><b>Concentration — <span id="concName"></span></b><div id="concBody" style="margin-top:8px;font-weight:400"></div></div>
+    <div class="modal-btns">
+      <button class="btn" id="concRoll" onclick="concRollSave()">Roll CON save</button>
+      <button class="btn" onclick="closeConc()">Held</button>
+      <button class="btn save" onclick="concBroken()">Broken</button>
     </div>
   </div>
 </div>
@@ -1768,17 +1794,39 @@ async function deleteSelectedEncounter() {
   loadEncounterList();
 }
 async function applyDmg(cid, inputId, sign) {
-  const amt = parseInt($(inputId).value || "0", 10) * sign;
-  if (!amt) return;
+  const raw = parseInt($(inputId).value || "0", 10);
+  if (!raw) return;
+  const amt = raw * sign;   // positive = damage, negative = healing
+  const before = (_lastEnc.combatants || []).find(x => x.id === cid);
   await post("/api/encounter/damage", { combatant_id: cid, amount: amt });
-  loadTracker();
+  await loadTracker();
+  // concentration: a creature concentrating that takes damage must make a CON save
+  if (amt > 0 && before && (before.conditions || []).includes("Concentration")) promptConcentration(before, amt);
 }
+async function undoHp(cid) { await post("/api/encounter/undo-hp", { combatant_id: cid }); loadTracker(); }
+async function deathSave(cid, result) { await post("/api/encounter/death-save", { combatant_id: cid, result }); loadTracker(); }
+
+// ---- concentration check prompt (auto DC = max 10, half the damage) ----
+let _concCid = null, _concSid = null;
+function promptConcentration(c, dmg) {
+  const dc = Math.max(10, Math.floor(dmg / 2));
+  _concCid = c.id; _concSid = c.statblock_id || "";
+  $("concName").textContent = c.display_name;
+  $("concBody").innerHTML = `Took <b>${dmg}</b> damage — <b>Constitution save DC ${dc}</b> to hold concentration.`;
+  $("concRoll").style.display = _concSid ? "" : "none";
+  $("concModal").style.display = "flex";
+}
+function closeConc() { $("concModal").style.display = "none"; _concCid = _concSid = null; }
+function concRollSave() { if (_concSid) rollAbility(_concSid, "con", "save"); }   // logs the save in the roll log
+async function concBroken() { if (_concCid) await post("/api/encounter/condition", { combatant_id: _concCid, name: "Concentration", action: "remove" }); closeConc(); loadTracker(); }
 
 // ---- encounter: compact planner (right) vs expanded run view (centre) ----
 let encounterExpanded = false;
 
+let _lastEnc = { combatants: [] };
 async function loadTracker() {
   const enc = await api("/api/encounter");
+  _lastEnc = enc;
   renderPlannerList(enc);
   if (encounterExpanded) renderRunCards(enc);
 }
@@ -1796,6 +1844,23 @@ function renderPlannerList(enc) {
       <span class="pname">${esc(c.display_name)}${c.is_player?'<span class="pcbadge">PC</span>':''}</span>
       <button class="x" title="Remove" onclick="removeCombatant('${c.id}')">✕</button>
     </div>`).join("");
+}
+
+// death-save tracker — shown for a downed PC (3 successes / 3 failures)
+function deathSaveHtml(c) {
+  if (!c.is_player || c.current_hp > 0) return "";
+  const ds = c.death_saves || { successes: 0, failures: 0, stable: false, dead: false };
+  const dots = (n, on, kind) => [0,1,2].map(k =>
+    `<span class="ddot ${kind} ${n>k?'on':''}" onclick="deathSave('${c.id}','${on}')"></span>`).join("");
+  const tag = ds.dead ? '<span class="dtag dead">Dead</span>'
+            : ds.stable ? '<span class="dtag stable">Stable</span>' : '';
+  return `<div class="deathrow">
+    <span class="dlbl">Death saves</span>
+    <span class="dmarks">${dots(ds.successes,'success','succ')}</span>
+    <span class="dmarks">${dots(ds.failures,'failure','fail')}</span>
+    ${tag}
+    <button class="x" title="Reset death saves" onclick="deathSave('${c.id}','reset')">↺</button>
+  </div>`;
 }
 
 // full run view (HP / initiative / conditions) for the expanded centre panel
@@ -1823,11 +1888,13 @@ function renderRunCards(enc) {
         <span>${sbBtn}<span class="init">${c.initiative ?? "-"}</span>
         <button class="x" title="Remove" onclick="removeCombatant('${c.id}')">✕</button></span></div>
       <div class="hpbar"><div class="${c.is_player ? "hp-pc" : "hp-mob"}" style="width:${pct}%"></div></div>
-      <div class="hprow"><span>${c.current_hp}/${c.max_hp} HP · AC ${c.armor_class}</span>
+      <div class="hprow"><span>${c.current_hp}/${c.max_hp} HP${c.temp_hp?` (+${c.temp_hp} temp)`:''} · AC ${c.armor_class}</span>
         <input id="${iid}" type="number" placeholder="0" />
         <button class="btn" onclick="applyDmg('${c.id}','${iid}',1)">−HP</button>
         <button class="btn" onclick="applyDmg('${c.id}','${iid}',-1)">+HP</button>
+        <button class="btn undo" title="Undo last HP change" onclick="undoHp('${c.id}')"${c.can_undo?'':' disabled'}>↶</button>
       </div>
+      ${deathSaveHtml(c)}
       <div class="conds">${conds}
         <select class="condsel" onchange="addCondition('${c.id}', this.value); this.value='';">
           <option value="">＋ Condition</option>
