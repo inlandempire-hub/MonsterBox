@@ -85,11 +85,18 @@
       const tc = await page.getTextContent();
       const styles = tc.styles || {};
       const words = [];
+      const seen = new Set();   // drop double-rendered text (shadow/stroke "LAIR LAIR")
       for (const it of tc.items) {
         const s = it.str;
         if (!s || !s.trim()) continue;
+        // skip rotated / vertical text — sidebar watermarks (e.g. "WYRMLING",
+        // "SUMMER") that pdf.js interleaves into the stat-block lines
+        if (Math.abs(it.transform[1]) > 0.5 * Math.abs(it.transform[0] || 1)) continue;
         const x0 = it.transform[4];
         const top = vp.height - it.transform[5];
+        const key = s + "@" + Math.round(x0 / 2) + "," + Math.round(top / 2);
+        if (seen.has(key)) continue;     // same glyphs drawn twice at one spot
+        seen.add(key);
         const size = Math.hypot(it.transform[0], it.transform[1]) || (it.height || 10);
         const fam = (styles[it.fontName] && styles[it.fontName].fontFamily) || it.fontName || "";
         words.push({ text: s, x0, x1: x0 + (it.width || 0), top, font: normFont(fam) + "#" + Math.round(size) });
@@ -146,7 +153,10 @@
   const ABIL_BY_NAME = { strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha" };
   const SECTION_HEADER_WORDS = new Set(["aberrations", "beasts", "celestials", "constructs", "dragons", "elementals", "fey", "fiends", "giants", "humanoids", "monstrosities", "oozes", "plants", "undead"]);
   const NON_NAME_WORDS = new Set(["alignment", "actions", "reactions", "traits", "description"]);
-  const NON_HEADER_NAMES = new Set(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]);
+  const NON_HEADER_NAMES = new Set(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma",
+    // stat-field labels that get absorbed from interleaved rules/archetype text
+    "skills", "senses", "languages", "hd", "cr", "hit dice", "proficiency bonus", "ability score increase",
+    "natural armor", "damage vulnerabilities", "damage immunities", "damage resistances", "condition immunities"]);
   const NAME_CONNECTORS = new Set(["of", "with", "and", "the", "to", "a", "an", "in", "or", "from", "by", "for", "on", "at", "as", "into", "upon", "but"]);
   const STAT_FIELD_PREFIXES = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency",
     "ac ", "hp ", "cr ", "initiative", "immunities", "resistances", "vulnerabilities", "gear ", "mod save"];
@@ -427,6 +437,16 @@
     const legText = sections["legendary"] || "";
     sb.legendary_actions = parseEntries(legText, "legendary");
     const lm = RE_LEG_COUNT.exec(legText); if (lm) sb.legendary_action_count = +lm[1];
+
+    // Some books (e.g. Fey Dragons) omit the "Actions" header, so attacks land in
+    // the traits bucket. If there are no actions, split the traits at the first
+    // action-like entry (Multiattack / an attack roll) and move the rest across.
+    if (!sb.actions.length && sb.traits.length > 1) {
+      const isAct = (e) => /^multiattack\b/i.test(e.name) || e.attack
+        || RE_ATTACK.test(e.raw_text || "") || RE_ATTACK_2024.test(e.raw_text || "");
+      const idx = sb.traits.findIndex(isAct);
+      if (idx >= 0) { sb.actions = sb.traits.slice(idx).map(e => (e.category = "action", e)); sb.traits = sb.traits.slice(0, idx); }
+    }
 
     // ---- quality scoring: weighted confidence + human-readable warnings ----
     // Unlike a raw field count, this catches the failure modes that matter:
