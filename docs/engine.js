@@ -40,7 +40,7 @@
   const kvPut = (k, v) => dbPut("kv", { k, v });
 
   // ------------------------------------------------------------- live state
-  let currentEnc = { round: 0, active_index: 0, combatants: [] };
+  let currentEnc = { round: 0, active_index: 0, combatants: [], started: false };
   let rolls = [];
   const saveEnc = () => kvPut("currentEncounter", currentEnc);
   const saveRolls = () => kvPut("rolls", rolls);
@@ -127,7 +127,21 @@
       })),
     };
   }
-  function sortEnc() { currentEnc.combatants.sort((a, b) => (b.initiative ?? -99) - (a.initiative ?? -99)); }
+  // initiative as a number (a stray string like "21" or a NaN would corrupt the sort)
+  function initVal(c) { const n = Number(c && c.initiative); return Number.isFinite(n) ? n : -Infinity; }
+  function sortEnc() {
+    // remember whose turn it is so a re-sort (e.g. adding a creature mid-fight)
+    // keeps the SAME creature active instead of pointing at a new array position
+    const cur = currentEnc.combatants[currentEnc.active_index];
+    const activeId = cur && cur.id;
+    currentEnc.combatants.sort((a, b) => initVal(b) - initVal(a));
+    if (currentEnc.started && activeId) {
+      const i = currentEnc.combatants.findIndex(c => c.id === activeId);
+      currentEnc.active_index = i >= 0 ? i : 0;
+    } else {
+      currentEnc.active_index = 0;   // not started yet → highest initiative goes first
+    }
+  }
   function renumber() {
     const groups = {};
     currentEnc.combatants.forEach(c => { if (c.is_player) return; (groups[c.statblock_id] = groups[c.statblock_id] || []).push(c); });
@@ -274,10 +288,10 @@
     }
     if (path === "/api/encounter/next" && method === "POST") {
       const n = currentEnc.combatants.length;
-      if (n) { currentEnc.active_index++; if (currentEnc.active_index >= n) { currentEnc.active_index = 0; currentEnc.round++; } }
+      if (n) { currentEnc.started = true; currentEnc.active_index++; if (currentEnc.active_index >= n) { currentEnc.active_index = 0; currentEnc.round++; } }
       await saveEnc(); return jsonResp(encDump());
     }
-    if (path === "/api/encounter/clear" && method === "POST") { currentEnc = { round: 0, active_index: 0, combatants: [] }; await saveEnc(); return jsonResp(encDump()); }
+    if (path === "/api/encounter/clear" && method === "POST") { currentEnc = { round: 0, active_index: 0, combatants: [], started: false }; await saveEnc(); return jsonResp(encDump()); }
     if (path === "/api/encounter/save" && method === "POST") {
       const rec = { id: uuid(), owner_id: OWNER, name: body.name || "Encounter", round: currentEnc.round, active_index: currentEnc.active_index, combatants: JSON.parse(JSON.stringify(currentEnc.combatants)) };
       await dbPut("encounters", rec); return jsonResp({ id: rec.id, name: rec.name });
@@ -285,7 +299,8 @@
     if (path === "/api/encounters" && method === "GET") { const all = await dbAll("encounters"); return jsonResp(all.map(e => ({ id: e.id, name: e.name, combatants: e.combatants.length, round: e.round }))); }
     if (path === "/api/encounter/load" && method === "POST") {
       const e = await dbGet("encounters", body.encounter_id);
-      if (e) { currentEnc = { round: e.round, active_index: e.active_index || 0, combatants: JSON.parse(JSON.stringify(e.combatants)) }; await saveEnc(); }
+      // loading an encounter starts it fresh at the top of initiative
+      if (e) { currentEnc = { round: 0, active_index: 0, combatants: JSON.parse(JSON.stringify(e.combatants)), started: false }; sortEnc(); await saveEnc(); }
       return jsonResp(encDump());
     }
     if ((m = path.match(/^\/api\/encounters\/([^/]+)$/)) && method === "DELETE") { await dbDel("encounters", decodeURIComponent(m[1])); return jsonResp({ deleted: true }); }
@@ -302,7 +317,13 @@
   // ------------------------------------------------------------ fetch shim
   const dbReady = (async function init() {
     _db = await openDB();
-    currentEnc = (await kvGet("currentEncounter", null)) || { round: 0, active_index: 0, combatants: [] };
+    currentEnc = (await kvGet("currentEncounter", null)) || { round: 0, active_index: 0, combatants: [], started: false };
+    // Reopening the app restarts the turn order at the top of initiative (HP,
+    // conditions and combatants are kept). This guarantees a session never
+    // begins on a stale "current turn" pointer left over from before.
+    currentEnc.started = false;
+    currentEnc.active_index = 0;
+    if (typeof currentEnc.round !== "number") currentEnc.round = 0;
     rolls = (await kvGet("rolls", null)) || [];
     // No stat blocks ship with the app — each DM imports their own PDF locally.
     if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch (e) {} }
