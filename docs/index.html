@@ -123,7 +123,11 @@
         display: inline-flex; align-items: center; justify-content: center; }
   #plannerpanel .ctrls > select { height: 30px; margin: 0; box-sizing: border-box; flex: 1; min-width: 0;
         padding: 0 8px; line-height: 28px; vertical-align: middle; }
-  .encbtn-eq { width: 92px; flex: 0 0 92px; padding: 0 !important; }
+  /* Expand (in the header row) and Delete (in the controls row) must match in
+     size so they line up on the right edge — give BOTH the same box here. */
+  .encbtn-eq { width: 92px; flex: 0 0 92px; height: 30px; box-sizing: border-box; padding: 0 !important;
+        display: inline-flex; align-items: center; justify-content: center; }
+  #plannerpanel > .libhead { align-items: center; }
   #logpanel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; padding: 12px 16px 14px; }
   .log-scroll { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
   .planner-list { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
@@ -136,13 +140,30 @@
   .planner-empty { color: var(--dim); font-size: 12px; font-style: italic; margin-top: 8px; }
 
   /* expanded encounter "run" view in the centre — same width as the scroll */
-  #encounterrun {
+  #encounterrun, #reviewpanel {
     width: 96%; max-width: 1100px; min-width: 280px; max-height: 100%;
     display: flex; flex-direction: column; overflow: hidden; padding: 0;
   }
-  #encounterrun .run-frozen { flex-shrink: 0; padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
-  #encounterrun .run-frozen .title { font: 700 22px/1.1 var(--serif); color: var(--red); }
-  #runtracker { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 18px 16px; }
+  #encounterrun .run-frozen, #reviewpanel .run-frozen { flex-shrink: 0; padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
+  #encounterrun .run-frozen .title, #reviewpanel .run-frozen .title { font: 700 22px/1.1 var(--serif); color: var(--red); }
+  #runtracker, #reviewlist { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 18px 16px; }
+  /* review panel cards */
+  .review-note { font-size: 12px; line-height: 1.45; color: var(--ink); margin-top: 8px;
+        background: var(--red-soft); border: 1px solid var(--red); border-radius: 7px; padding: 8px 10px; }
+  .rev-card { background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line);
+        border-radius: 9px; padding: 11px 13px; margin-bottom: 10px; }
+  .rev-top { display: flex; align-items: center; gap: 9px; }
+  .rev-top b { font: 700 16px/1.1 var(--serif); color: var(--ink); }
+  .rev-tier { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+        padding: 2px 7px; border-radius: 4px; color: #fff; }
+  .rev-tier.amber { background: #c98a00; } .rev-tier.red { background: var(--bad); }
+  .rev-meta { font-size: 12px; color: var(--dim); margin-top: 3px; }
+  .rev-reasons { margin-top: 8px; }
+  .rev-rh { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--red); }
+  .rev-reasons ul { margin: 4px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink); }
+  .rev-reasons li { margin: 2px 0; }
+  .rev-btns { display: flex; gap: 8px; margin-top: 11px; }
+  .rev-btns .btn { margin: 0; }
 
   /* cards inside the glass read as frosted tiles, still high-contrast for text */
   .mon, .cb, .drop {
@@ -174,15 +195,32 @@
         background: var(--panel); color: var(--ink); border: 1px solid var(--line);
         border-radius: 6px; padding: 5px 12px; transition: background .12s, border-color .12s; }
   .filterbtn:hover { border-color: var(--red); }
-  /* advanced filter panel */
-  .filterpanel { background: color-mix(in srgb, var(--panel) 60%, transparent); border: 1px solid var(--line);
-        border-radius: 8px; padding: 10px 11px; margin-bottom: 8px; font-size: 12px; }
-  .filterpanel .frow { margin-bottom: 9px; }
-  .filterpanel .frow > label { display: block; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  /* advanced filter panel — a scrollable pop-out (was clipped/unscrollable inline) */
+  #filterscrim { display: none; position: fixed; inset: 0; z-index: 59; background: rgba(0,0,0,.35); }
+  #filterscrim.show { display: block; }
+  .filterpanel { position: fixed; z-index: 60; left: 16px; top: 64px; width: 300px; max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 96px); overflow-y: auto;
+        background: var(--panel); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0,0,0,.45);
+        border-radius: 10px; padding: 12px 13px; font-size: 12px; }
+  .filterpanel .fp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .filterpanel .fp-head h3 { margin: 0; font: 700 14px/1 var(--serif); color: var(--ink); }
+  .filterpanel .frow { margin-bottom: 11px; }
+  .filterpanel .frow > label { display: block; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
   .filterpanel select { width: 100%; background: var(--panel); color: var(--ink);
-        border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; font-size: 12px; }
-  .filterpanel input[type="range"] { width: 100%; margin: 2px 0; accent-color: var(--red); }
+        border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font: inherit; font-size: 12px; }
   .rangelbl { font-weight: 400; color: var(--red); }
+  /* dual-thumb range slider: two range inputs overlaid on one track */
+  .dual { position: relative; height: 28px; margin-top: 6px; }
+  .dual .dual-track { position: absolute; top: 12px; left: 0; right: 0; height: 4px;
+        background: var(--line2); border-radius: 2px; }
+  .dual .dual-fill { position: absolute; top: 12px; height: 4px; background: var(--red); border-radius: 2px; }
+  .dual input[type="range"] { position: absolute; top: 0; left: 0; width: 100%; height: 28px; margin: 0;
+        -webkit-appearance: none; appearance: none; background: none; pointer-events: none; }
+  .dual input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto;
+        width: 16px; height: 16px; border-radius: 50%; background: var(--red); border: 2px solid #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: pointer; margin-top: 0; }
+  .dual input[type="range"]::-moz-range-thumb { pointer-events: auto; width: 14px; height: 14px;
+        border-radius: 50%; background: var(--red); border: 2px solid #fff; cursor: pointer; }
   .abilfilters { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
   .abrow { display: flex; align-items: center; gap: 5px; font-weight: 400 !important; color: var(--ink); }
   .abrow .abnum { width: 48px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
@@ -264,6 +302,7 @@
   /* import progress — centred in the sheet, under the empty-state label */
   #importprogress { display: none; position: absolute; left: 50%; top: 58%;
         transform: translate(-50%, -50%); z-index: 3; width: min(360px, 70%);
+        overflow-wrap: anywhere; word-break: break-word;
         text-align: center; font: 600 14px/1.4 var(--serif); color: #fff;
         background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
         border-radius: 10px; padding: 14px 18px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
@@ -844,6 +883,7 @@
           <select id="filterCR" onchange="onFilter()"><option value="">All CR</option></select>
           <button id="filterToggle" class="filterbtn" onclick="toggleFilterPanel()">Filters ▾</button>
         </div>
+        <div id="filterscrim" onclick="toggleFilterPanel()"></div>
         <div id="filterpanel" class="filterpanel" style="display:none"></div>
         <button class="newentry" onclick="newEntry()">＋ New Compendium Entry</button>
         <div id="totalcount" class="totalcount"></div>
@@ -882,6 +922,19 @@
         </div>
       </div>
       <div id="runtracker" class="run-scroll"></div>
+    </div>
+    <!-- review view (centre): entries needing review, enlarged with full reasons -->
+    <div class="glass" id="reviewpanel" style="display:none">
+      <div class="run-frozen">
+        <div class="sheethead">
+          <h2 class="title">Needs Review</h2>
+          <button class="btn" onclick="closeReview()">✕ Close</button>
+        </div>
+        <div class="review-note">⚠ These entries are <b>hidden from your compendium</b> until you fix them or mark
+          them usable. <b>Fix</b> opens the editor on the highlighted fields; <b>Mark as Usable</b> accepts the
+          entry as-is and adds it to your library.</div>
+      </div>
+      <div id="reviewlist" class="run-scroll"></div>
     </div>
   </div>
 
@@ -1076,12 +1129,14 @@ async function loadLibrary() {
   library = mons;
   if (window.refreshBackupNag) refreshBackupNag();
 
-  // running total (shown below the import box, still inside the frozen pane)
+  // running total: only USABLE monsters are counted/shown; flagged ones live in
+  // the review panel until fixed or marked usable
   const tc = $("totalcount");
   const flaggedN = mons.filter(isFlagged).length;
+  const usableN = mons.length - flaggedN;
   if (tc) tc.innerHTML = mons.length
-    ? `<b>${mons.length}</b> <span class="mword">monsters</span>`
-      + (flaggedN ? ` · <a class="reviewlink" onclick="toggleReviewFilter()">${flaggedN} need review</a>` : "")
+    ? `<b>${usableN}</b> <span class="mword">monsters</span>`
+      + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} need review</a>` : "")
     : "";
 
   if (!mons.length) {
@@ -1096,8 +1151,8 @@ async function loadLibrary() {
   const shown = mons.filter(m => {
     if (q && !(m.name||"").toLowerCase().includes(q)
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
+    if (isFlagged(m)) return false;   // entries needing review are hidden until fixed / marked usable
     if (filterCR && (m.challenge_rating || "?") !== filterCR) return false;
-    if (filterFlagged && !isFlagged(m)) return false;
     if (adv.type && (m.creature_type||"") !== adv.type) return false;
     if (adv.size && (m.size||"") !== adv.size) return false;
     if (adv.acMin != null && (m.armor_class ?? 0) < adv.acMin) return false;
@@ -1162,9 +1217,41 @@ function toggleCR(cr) {
 
 function onSearch(v) { searchTerm = v; loadLibrary(); }
 
-let filterCR = "", filterFlagged = false;
+let filterCR = "";
 function onFilter() { filterCR = $("filterCR").value; loadLibrary(); }
-function toggleReviewFilter() { filterFlagged = !filterFlagged; loadLibrary(); }
+
+// ---- review panel: flagged entries are hidden from the compendium and live here
+// until the user fixes them (editor) or marks them usable ----
+function openReview() {
+  const mons = (library || []).filter(isFlagged);
+  const rl = $("reviewlist");
+  rl.innerHTML = mons.length ? mons.map(m => {
+    const lv = confLevel(m.parse_confidence);
+    const reasons = (m.parse_warnings && m.parse_warnings.length) ? m.parse_warnings : ["Some fields may be incomplete."];
+    return `<div class="rev-card">
+      <div class="rev-top"><b>${esc(m.name)}</b><span class="rev-tier ${lv}">${lv === "red" ? "Likely broken" : "Needs a check"}</span></div>
+      <div class="rev-meta">${esc(m.size||"")} ${esc(m.creature_type||"")}${m.challenge_rating ? " · CR " + esc(m.challenge_rating) : ""} · AC ${m.armor_class} · ${m.hit_points} HP</div>
+      <div class="rev-reasons"><div class="rev-rh">Why it needs review</div><ul>${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>
+      <div class="rev-btns">
+        <button class="btn" onclick="reviewFix('${m.id}')">✎ Fix</button>
+        <button class="btn save" onclick="markUsable('${m.id}')">✓ Mark as Usable</button>
+      </div></div>`;
+  }).join("") : '<div class="sub" style="color:var(--dim);padding:8px">Nothing needs review — your whole library is usable. 🎉</div>';
+  if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+  _wrap().style.display = "none";
+  $("emptylabel").style.display = "none";
+  const ip = $("importprogress"); if (ip) ip.classList.remove("show");
+  $("reviewpanel").style.display = "flex";
+}
+function closeReview() { $("reviewpanel").style.display = "none"; if (selected) showSheet(selected); else showEmptyLabel(); }
+async function markUsable(id) {
+  const sb = await api("/api/statblocks/" + id);
+  sb.parse_confidence = 1; sb.parse_warnings = [];           // human-accepted
+  await fetch("/api/statblocks/" + id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) });
+  await loadLibrary();
+  openReview();                                              // refresh; the accepted one drops off
+}
+async function reviewFix(id) { $("reviewpanel").style.display = "none"; await showSheet(id); startEdit(); }
 
 // ---- advanced filter panel ----
 const ABIL6 = [["STR","strength"],["DEX","dexterity"],["CON","constitution"],["INT","intelligence"],["WIS","wisdom"],["CHA","charisma"]];
@@ -1174,10 +1261,12 @@ let adv = { type:"", size:"", acMin:null, acMax:null, hpMin:null, hpMax:null,
 let filterPanelOpen = false;
 const SIZE_ORDER = ["Tiny","Small","Medium","Large","Huge","Gargantuan"];
 
+let _bounds = { ac: [0, 30], hp: [0, 500] };
 function toggleFilterPanel() {
   filterPanelOpen = !filterPanelOpen;
   $("filterToggle").textContent = filterPanelOpen ? "Filters ▴" : "Filters ▾";
   $("filterpanel").style.display = filterPanelOpen ? "block" : "none";
+  $("filterscrim").classList.toggle("show", filterPanelOpen);
   if (filterPanelOpen) populateFilterPanel(library);
 }
 function clearAdvFilters() {
@@ -1198,15 +1287,17 @@ function populateFilterPanel(mons) {
   const conds = [...new Set(mons.flatMap(m => (m.condition_immunities||[]).map(x=>String(x).trim())).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   if (adv.acMin == null) adv.acMin = acLo; if (adv.acMax == null) adv.acMax = acHi;
   if (adv.hpMin == null) adv.hpMin = hpLo; if (adv.hpMax == null) adv.hpMax = hpHi;
+  _bounds = { ac: [acLo, acHi], hp: [hpLo, hpHi] };
+  const dual = (key, lo, hi, mn, mx) => `<div class="dual">
+      <div class="dual-track"></div><div class="dual-fill" id="f_${key}fill"></div>
+      <input type="range" id="f_${key}min" min="${lo}" max="${hi}" value="${mn}" oninput="onAdvFilter()">
+      <input type="range" id="f_${key}max" min="${lo}" max="${hi}" value="${mx}" oninput="onAdvFilter()"></div>`;
   el.innerHTML = `
+    <div class="fp-head"><h3>Filters</h3><button class="x" title="Close" onclick="toggleFilterPanel()">✕</button></div>
     <div class="frow"><label>Creature Type</label><select id="f_type" onchange="onAdvFilter()">${opts(types, adv.type)}</select></div>
     <div class="frow"><label>Creature Size</label><select id="f_size" onchange="onAdvFilter()">${opts(sizes, adv.size)}</select></div>
-    <div class="frow"><label>Armor Class <span class="rangelbl" id="f_aclbl"></span></label>
-      <input type="range" id="f_acmin" min="${acLo}" max="${acHi}" value="${adv.acMin}" oninput="onAdvFilter()">
-      <input type="range" id="f_acmax" min="${acLo}" max="${acHi}" value="${adv.acMax}" oninput="onAdvFilter()"></div>
-    <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>
-      <input type="range" id="f_hpmin" min="${hpLo}" max="${hpHi}" value="${adv.hpMin}" oninput="onAdvFilter()">
-      <input type="range" id="f_hpmax" min="${hpLo}" max="${hpHi}" value="${adv.hpMax}" oninput="onAdvFilter()"></div>
+    <div class="frow"><label>Armor Class <span class="rangelbl" id="f_aclbl"></span></label>${dual("ac", acLo, acHi, adv.acMin, adv.acMax)}</div>
+    <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>${dual("hp", hpLo, hpHi, adv.hpMin, adv.hpMax)}</div>
     <div class="frow"><label>Attributes above…</label>
       <div class="abilfilters">${ABIL6.map(([L,k]) =>
         `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"> ${L} &gt;
@@ -1225,6 +1316,11 @@ function updateRangeLabels() {
   const al = $("f_aclbl"), hl = $("f_hplbl");
   if (al) al.textContent = `${adv.acMin}–${adv.acMax}`;
   if (hl) hl.textContent = `${adv.hpMin}–${adv.hpMax}`;
+  const fill = (key, lo, hi, mn, mx) => { const el = $("f_" + key + "fill"); if (!el || hi <= lo) return;
+    const a = (mn - lo) / (hi - lo) * 100, b = (mx - lo) / (hi - lo) * 100;
+    el.style.left = a + "%"; el.style.width = Math.max(0, b - a) + "%"; };
+  fill("ac", _bounds.ac[0], _bounds.ac[1], adv.acMin, adv.acMax);
+  fill("hp", _bounds.hp[0], _bounds.hp[1], adv.hpMin, adv.hpMax);
 }
 function onAdvFilter() {
   adv.type = $("f_type").value; adv.size = $("f_size").value;
@@ -1338,6 +1434,7 @@ const ABILS = [["STR","str","strength"],["DEX","dex","dexterity"],
 
 async function showSheet(id, opts = {}) {
   selected = id;
+  { const rp = $("reviewpanel"); if (rp) rp.style.display = "none"; }   // opening a sheet closes review
   closeDrawers();          // mobile: reveal the scroll after picking a monster
   loadLibrary();
   const sb = await api("/api/statblocks/" + id);
@@ -2081,6 +2178,7 @@ function toggleEncounterExpand() {
   if (encounterExpanded) {
     // take over the centre: hide the scroll / label, hide the planner; log fills
     if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
+    { const rp = $("reviewpanel"); if (rp) rp.style.display = "none"; }
     _wrap().style.display = "none";
     $("emptylabel").style.display = "none";
     run.style.display = "flex";
