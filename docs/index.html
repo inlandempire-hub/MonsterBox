@@ -55,18 +55,17 @@
         padding: 2px 4px; flex-shrink: 0; }
   .title-icon { width: 34px; height: 34px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
-  /* black shadow in both light and dark mode (a white halo greys out badly) */
-  .title-text { font: 700 23px/1 var(--serif); letter-spacing: .3px; display: inline-flex; align-items: baseline; }
-  .tm-monster { color: var(--red); text-shadow: 0 1px 2px rgba(0,0,0,.9), 0 2px 10px rgba(0,0,0,.6); }
-  /* "Box" sits in an actual box — the brand mark. Light: solid red plate.
-     Dark: torch-amber outline that glows, echoing the torch-lit fortress bg. */
-  .tm-box { margin-left: 4px; padding: 1px 7px 2px; border-radius: 6px;
-        border: 2px solid var(--red); background: var(--red); color: #fff;
-        box-shadow: 0 1px 3px rgba(0,0,0,.45); }
-  body.dark .tm-monster { color: #f4d9a6; }                      /* warm parchment-ember */
-  body.dark .tm-box { background: transparent; color: #ffb454; border-color: #ffb454;
-        box-shadow: 0 0 10px rgba(255,150,40,.55), 0 1px 3px rgba(0,0,0,.6);
-        text-shadow: 0 0 8px rgba(255,150,40,.5); }
+  /* one-word wordmark.
+     Light: white, "embedded" in the water art via a bathymetry-style depth stack
+     (descending teal contour layers + a dark lift) — reads on the busy bg.
+     Dark: amber with a soft torch glow (echoes the torch-lit fortress bg). */
+  .title-text { font: 700 23px/1 var(--serif); letter-spacing: .3px; }
+  body:not(.dark) .title-text { color: #fff;
+        text-shadow: 0 0 1px rgba(0,40,55,.6),
+          0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
+          0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
+  body.dark .title-text { color: #ffb454;
+        text-shadow: 0 0 12px rgba(255,150,40,.55), 0 0 4px rgba(255,150,40,.5), 0 1px 3px rgba(0,0,0,.75); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -798,9 +797,11 @@
     .mtitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .mtitle img { width: 26px; height: 26px; flex-shrink: 0;
           filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
-    .mtitle span { font: 700 19px/1.4 var(--serif); color: var(--red); letter-spacing: .3px;
-          text-shadow: 0 1px 2px rgba(0,0,0,.9); overflow: hidden;
-          text-overflow: ellipsis; white-space: nowrap; padding-bottom: 2px; }
+    .mtitle span { font: 700 19px/1.4 var(--serif); letter-spacing: .3px; color: #fff;
+          text-shadow: 0 1px 0 rgba(8,72,92,.9), 0 2px 0 rgba(8,62,82,.5), 0 4px 7px rgba(0,24,38,.55);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-bottom: 2px; }
+    body.dark .mtitle span { color: #ffb454;
+          text-shadow: 0 0 10px rgba(255,150,40,.55), 0 1px 3px rgba(0,0,0,.75); }
 
     /* light backdrop behind an open drawer — just enough to focus the panel */
     #mscrim { display: block; position: fixed; inset: 0; z-index: 150;
@@ -856,7 +857,7 @@
   <div class="side" id="leftside">
     <div class="titlebar">
       <img class="title-icon" src="MonsterBox.ico" alt="">
-      <span class="title-text"><span class="tm-monster">Monster</span><span class="tm-box">Box</span></span>
+      <span class="title-text">MonsterBox</span>
     </div>
     <div class="glass" id="importpanel">
       <div class="drop" id="drop">
