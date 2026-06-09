@@ -604,16 +604,23 @@
   async function sfImportPdf(file) {
     const msg = document.getElementById("importmsg");
     const prog = document.getElementById("importprogress");
-    // final/result messages go in the import panel; live progress is centred in the sheet
-    const show = (html, busy) => { if (msg) { msg.className = busy ? "busy" : ""; msg.innerHTML = html; } };
+    const empty = document.getElementById("emptylabel");
+    // progress + result are centred in the sheet; the empty-state label is faded
+    // out for the duration and brought back 3s after the result shows.
+    const show = (html) => { if (msg) { msg.className = ""; msg.innerHTML = html || ""; } };
     const showProg = (html) => { if (prog) { prog.innerHTML = html || ""; prog.classList.toggle("show", !!html); } };
+    let emptyWasShown = false;
+    const hideEmpty = () => { if (empty && getComputedStyle(empty).display !== "none") { emptyWasShown = true; empty.style.display = "none"; } };
+    const showEmpty = () => { if (empty && emptyWasShown) { empty.style.display = "flex"; emptyWasShown = false;
+      if (empty.animate) try { empty.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: "ease" }); } catch (e) {} } };
+    const fail = (m) => { showProg(""); show(m); showEmpty(); };
     if (!file) return;
     if (!/\.pdf$/i.test(file.name)) { show("Please choose a .pdf file."); return; }
     if (!window.pdfjsLib) { show("PDF engine failed to load."); return; }
-    show("");
+    show(""); hideEmpty();
     showProg("Importing " + escapeHtml(file.name) + "…");
     let buf;
-    try { buf = await file.arrayBuffer(); } catch (e) { showProg(""); show("Couldn't read the file."); return; }
+    try { buf = await file.arrayBuffer(); } catch (e) { fail("Couldn't read the file."); return; }
     let pages;
     try {
       pages = await extractColumnLinePages(buf, (cur, total) => {
@@ -621,31 +628,30 @@
         showProg("Importing " + escapeHtml(file.name) + "<br>" + cur + "/" + total + " pages complete" +
           '<div class="pbar"><div style="width:' + pct + '%"></div></div>');
       });
-    } catch (e) { showProg(""); show("Couldn't parse the PDF: " + escapeHtml(String(e))); return; }
+    } catch (e) { fail("Couldn't parse the PDF: " + escapeHtml(String(e))); return; }
     // text-layer check (scanned PDFs have ~no text)
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length) {
-      showProg("");
-      show("No text layer found — this looks like a scanned or image-only PDF, which MonsterBox can't read. Try a digital (text-layer) PDF.");
+      fail("No text layer found — this looks like a scanned or image-only PDF, which MonsterBox can't read. Try a digital (text-layer) PDF.");
       return;
     }
     showProg("Importing " + escapeHtml(file.name) + "<br>parsing stat blocks…");
     let blocks;
-    try { blocks = blocksFromPages(pages, file.name); } catch (e) { showProg(""); show("Parse error: " + escapeHtml(String(e))); return; }
+    try { blocks = blocksFromPages(pages, file.name); } catch (e) { fail("Parse error: " + escapeHtml(String(e))); return; }
     let n = 0;
     for (const sb of blocks) {
       sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + n;
       try { await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) }); n++; } catch (e) {}
     }
-    showProg("");
     const red = blocks.filter(b => b.parse_confidence < 0.6).length;
     const amber = blocks.filter(b => b.parse_confidence >= 0.6 && b.parse_confidence < 0.85).length;
     const flagged = red + amber;
-    show("Imported <b>" + n + "</b> " + (n === 1 ? "monster" : "monsters") + " from " + escapeHtml(file.name) +
-      (flagged
-        ? ' — <span class="warn">' + flagged + " need review</span> (" + red + " red, " + amber + " amber)"
-        : " — all parsed cleanly"));
+    // centred result: "Imported N monsters:" (bold) / "X need review" (italic)
+    showProg('<b>Imported ' + n + ' ' + (n === 1 ? "monster" : "monsters") + ':</b><br>' +
+      '<i>' + (flagged ? flagged + " need review" : "all parsed cleanly") + "</i>");
+    show("");
     if (typeof window.loadLibrary === "function") window.loadLibrary();
+    setTimeout(() => { showProg(""); showEmpty(); }, 3000);
   }
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
