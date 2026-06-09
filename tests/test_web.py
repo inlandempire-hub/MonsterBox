@@ -10,7 +10,7 @@ pytest.importorskip("reportlab")
 from reportlab.lib.pagesizes import letter  # noqa: E402
 from reportlab.pdfgen import canvas  # noqa: E402
 
-from statforge.web import create_app  # noqa: E402
+from monsterbox.web import create_app  # noqa: E402
 
 LINES = [
     "Soulscorcher Dragon",

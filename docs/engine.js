@@ -18,7 +18,7 @@
   let _db = null;
   function openDB() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open("statforge", 1);
+      const req = indexedDB.open("monsterbox", 1);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains("statblocks")) db.createObjectStore("statblocks", { keyPath: "id" });

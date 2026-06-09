@@ -6,7 +6,7 @@ dicts, action passthrough, spellcasting folding, multiple blocks per page) is
 verified end to end.
 """
 
-from statforge.ingest.parser import (
+from monsterbox.ingest.parser import (
     VisionLLMParser,
     _NamedInt,
     _ParsedPage,
@@ -14,14 +14,14 @@ from statforge.ingest.parser import (
     _ParsedStatBlock,
     _encode_image,
 )
-from statforge.models import (
+from monsterbox.models import (
     Action,
     AttackDetail,
     AttackKind,
     DamageComponent,
     Size,
 )
-from statforge.ingest.render import PageImage
+from monsterbox.ingest.render import PageImage
 
 
 class _FakeResponse:

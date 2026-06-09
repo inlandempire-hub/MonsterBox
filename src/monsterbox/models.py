@@ -1,4 +1,4 @@
-"""Core data model for StatForge.
+"""Core data model for MonsterBox.
 
 Design principles baked in here:
 

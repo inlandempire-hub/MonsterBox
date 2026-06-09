@@ -9,7 +9,7 @@ reportlab = pytest.importorskip("reportlab")
 from reportlab.lib.pagesizes import letter  # noqa: E402
 from reportlab.pdfgen import canvas  # noqa: E402
 
-from statforge.ingest import ingest_pdf  # noqa: E402
+from monsterbox.ingest import ingest_pdf  # noqa: E402
 
 STATBLOCK_LINES = [
     "Soulscorcher Dragon",

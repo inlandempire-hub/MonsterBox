@@ -1,6 +1,6 @@
 import random
 
-from statforge.combat import dice
+from monsterbox.combat import dice
 
 
 def test_roll_is_deterministic_with_seed():

@@ -2,7 +2,7 @@
 
 Small and dependency-free. Supports ``NdM``, flat modifiers and advantage /
 disadvantage on a single d20. Returns the individual die faces so callers can
-build a structured :class:`~statforge.models.RollEvent` (we never throw away the
+build a structured :class:`~monsterbox.models.RollEvent` (we never throw away the
 breakdown — the roll log shows each die).
 """
 

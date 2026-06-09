@@ -19,7 +19,7 @@ if errorlevel 1 (
 
 echo.
 echo Loading sample monsters...
-py -m statforge --data "%~dp0data" seed --reset
+py -m monsterbox --data "%~dp0data" seed --reset
 
 echo.
 echo  Setup complete.  Double-click  MonsterBox.bat  to launch.

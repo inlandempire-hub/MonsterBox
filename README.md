@@ -71,7 +71,7 @@ docs/                    # the app — web + local are this one build
 MonsterBox.bat            # local launcher (serves docs/ and opens an app window)
 ROADMAP.md               # prioritised roadmap
 PWA.md                   # web-build / deploy notes
-src/statforge/           # legacy Python/Flask desktop build (superseded by the PWA)
+src/monsterbox/           # legacy Python/Flask desktop build (superseded by the PWA)
 ```
 
 > The `src/` Flask app is the original desktop implementation; the project has

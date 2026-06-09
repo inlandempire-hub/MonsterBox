@@ -6,7 +6,7 @@ far more robust on dense two-column stat blocks. OCR-to-text is here for
 offline / no-API operation, and because "readability is king" means we always
 want a second opinion.
 
-``pytesseract`` + Pillow are optional dependencies (``statforge[ocr]``). If they
+``pytesseract`` + Pillow are optional dependencies (``monsterbox[ocr]``). If they
 are not installed we degrade gracefully with a clear warning rather than
 crashing.
 """
@@ -78,7 +78,7 @@ def ocr_page(page: PageImage, lang: str = "eng") -> ExtractionResult:
             method="unavailable",
             warnings=[
                 "OCR fallback unavailable: install extras with "
-                "`pip install statforge[ocr]` and the Tesseract binary."
+                "`pip install monsterbox[ocr]` and the Tesseract binary."
             ],
         )
 

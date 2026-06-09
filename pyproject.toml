@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "statforge"
+name = "monsterbox"
 version = "0.1.0"
 description = "Scan a 5e stat block PDF, run it as a live, rollable encounter sheet."
 readme = "README.md"
@@ -24,11 +24,11 @@ web = ["flask>=3.0"]
 dev = ["pytest>=8.0", "reportlab>=4.0"]
 
 [project.scripts]
-statforge = "statforge.cli:main"
+monsterbox = "monsterbox.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/statforge"]
-artifacts = ["src/statforge/web/static/*"]
+packages = ["src/monsterbox"]
+artifacts = ["src/monsterbox/web/static/*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

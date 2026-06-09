@@ -1,9 +1,9 @@
 """Command-line entry point for the skeleton.
 
-    python -m statforge ingest <file.pdf> [--owner ID]
-    python -m statforge list [--owner ID]
-    python -m statforge show <statblock-id> [--owner ID]
-    python -m statforge demo
+    python -m monsterbox ingest <file.pdf> [--owner ID]
+    python -m monsterbox list [--owner ID]
+    python -m monsterbox show <statblock-id> [--owner ID]
+    python -m monsterbox demo
 
 ``demo`` runs the whole loop without needing a real PDF or OCR: it parses a
 bundled sample stat block (the kind of text OCR would yield), spawns combatants,
@@ -53,7 +53,7 @@ def _cmd_ingest(args) -> int:
         if parser is None:
             print(
                 "  ! --parser vision requested but no Anthropic client available "
-                "(install `statforge[llm]` and set ANTHROPIC_API_KEY)."
+                "(install `monsterbox[llm]` and set ANTHROPIC_API_KEY)."
             )
             return 1
     elif args.parser == "ocr":
@@ -219,13 +219,13 @@ def _cmd_serve(args) -> int:
         # Used by the windowless launcher: exit once the page stops pinging.
         start_idle_watchdog(app, float(args.shutdown_on_idle))
     url = f"http://127.0.0.1:{args.port}"
-    print(f"StatForge UI running at {url}  (Ctrl+C to stop)")
+    print(f"MonsterBox UI running at {url}  (Ctrl+C to stop)")
     app.run(host="127.0.0.1", port=args.port, debug=False)
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="statforge", description="StatForge skeleton")
+    p = argparse.ArgumentParser(prog="monsterbox", description="MonsterBox skeleton")
     p.add_argument("--data", default="data", help="data root directory")
     p.add_argument("--owner", default="local-user", help="owner/tenant id")
     sub = p.add_subparsers(dest="command", required=True)

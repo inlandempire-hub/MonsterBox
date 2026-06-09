@@ -1,6 +1,6 @@
-from statforge.combat import InitiativeTracker
-from statforge.ingest.parser import OcrHeuristicParser
-from statforge.models import Size
+from monsterbox.combat import InitiativeTracker
+from monsterbox.ingest.parser import OcrHeuristicParser
+from monsterbox.models import Size
 
 # Mirrors the structure of the real scanned sample pages.
 SAMPLE = """\
@@ -40,7 +40,7 @@ def test_ability_scores_and_modifier():
     sb = OcrHeuristicParser().parse_text(SAMPLE)
     assert sb.abilities.strength == 30
     assert sb.abilities.charisma == 20
-    from statforge.models import Ability
+    from monsterbox.models import Ability
 
     assert sb.abilities.modifier(Ability.STR) == 10
     assert sb.abilities.modifier(Ability.CHA) == 5

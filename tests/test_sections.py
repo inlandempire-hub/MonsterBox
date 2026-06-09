@@ -1,9 +1,9 @@
 """Section parsing: pull traits / actions / legendary actions out of stat-block
 text (the digital-PDF and OCR fallback path)."""
 
-from statforge.ingest.columns import _lines_from_words
-from statforge.ingest.parser import OcrHeuristicParser, split_into_blocks
-from statforge.models import Ability, AttackKind
+from monsterbox.ingest.columns import _lines_from_words
+from monsterbox.ingest.parser import OcrHeuristicParser, split_into_blocks
+from monsterbox.models import Ability, AttackKind
 
 BLACK_BIRD = """\
 Black Bird
@@ -222,7 +222,7 @@ def test_multipage_statblock_continuation_whole_page():
     into a single, fully-parsed block — pattern A: the continuation page has
     no new stat blocks at all (e.g. Iorvensiav in ToB3).
     """
-    from statforge.ingest.pipeline import IngestResult, _blocks_from_pages
+    from monsterbox.ingest.pipeline import IngestResult, _blocks_from_pages
 
     body_font = "SegoeUI"
     deco_font = "Biondi"
@@ -281,7 +281,7 @@ def test_multipage_statblock_continuation_shared_page():
     the page, then the HALADRON stat block starts (with its own Armor Class).
     Both must be parsed correctly.
     """
-    from statforge.ingest.pipeline import IngestResult, _blocks_from_pages
+    from monsterbox.ingest.pipeline import IngestResult, _blocks_from_pages
 
     body_font = "SegoeUI"
     deco_font = "Biondi"
@@ -462,7 +462,7 @@ def test_line_words_ordered_left_to_right_despite_baseline_jitter():
 # ("C TOME OF BEASTS 3 RAZORBACK CRAB"); over-stripping the repeated meta line
 # instead loses the name entirely ("Unknown Creature").
 # ---------------------------------------------------------------------------
-from statforge.ingest.pipeline import strip_page_chrome, _blocks_from_pages, IngestResult
+from monsterbox.ingest.pipeline import strip_page_chrome, _blocks_from_pages, IngestResult
 
 
 def _grolar_page(i):

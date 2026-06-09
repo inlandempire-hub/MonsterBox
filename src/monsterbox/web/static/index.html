@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>StatForge</title>
-<link rel="icon" href="/StatForge.ico" />
+<title>MonsterBox</title>
+<link rel="icon" href="/MonsterBox.ico" />
 <style>
 
   :root {
@@ -686,7 +686,7 @@
 <!-- mobile top bar (hidden on desktop via CSS) -->
 <div id="mtopbar">
   <button class="mbtn" onclick="toggleDrawer('left')" aria-label="Open Compendium">&#9776;</button>
-  <div class="mtitle"><img src="/StatForge.ico" alt=""><span>StatForge</span></div>
+  <div class="mtitle"><img src="/MonsterBox.ico" alt=""><span>MonsterBox</span></div>
   <button class="mbtn" onclick="toggleDrawer('right')" aria-label="Open Tracker and Roll Log">&#9876;</button>
 </div>
 <div id="mscrim" onclick="closeDrawers()"></div>
@@ -694,8 +694,8 @@
   <!-- LEFT: title (atop background) + import panel + compendium panel -->
   <div class="side" id="leftside">
     <div class="titlebar">
-      <img class="title-icon" src="/StatForge.ico" alt="">
-      <span class="title-text">StatForge</span>
+      <img class="title-icon" src="/MonsterBox.ico" alt="">
+      <span class="title-text">MonsterBox</span>
     </div>
     <div class="glass" id="importpanel">
       <div class="drop" id="drop">
@@ -1448,7 +1448,7 @@ async function delMon(id) {
   const name = m ? m.name : "this monster";
   if (!await uiConfirm(`Delete “${name}” from the compendium?`)) return;
   const r = await fetch("/api/statblocks/" + id, { method: "DELETE" });
-  if (!r.ok) { alert("Delete failed (" + r.status + "). Try restarting StatForge."); return; }
+  if (!r.ok) { alert("Delete failed (" + r.status + "). Try restarting MonsterBox."); return; }
   if (selected === id) { selected = null; blankSheet(); }
   loadLibrary();
 }
@@ -1457,7 +1457,7 @@ async function clearLibrary() {
   if (!await uiConfirm("Delete ALL monsters from the compendium? This cannot be undone.",
                        "Delete All")) return;
   const r = await fetch("/api/statblocks", { method: "DELETE" });
-  if (!r.ok) { alert("Clear failed (" + r.status + "). Try restarting StatForge."); return; }
+  if (!r.ok) { alert("Clear failed (" + r.status + "). Try restarting MonsterBox."); return; }
   selected = null;
   blankSheet();
   loadLibrary();
@@ -1468,7 +1468,7 @@ async function removeCombatant(id) {
     method: "POST", headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ combatant_id: id })
   });
-  if (!r.ok) { alert("Remove failed (" + r.status + "). Try restarting StatForge."); return; }
+  if (!r.ok) { alert("Remove failed (" + r.status + "). Try restarting MonsterBox."); return; }
   loadTracker();
 }
 
