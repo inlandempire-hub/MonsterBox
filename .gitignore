@@ -1,4 +1,4 @@
-# --- StatForge ---
+# --- MonsterBox ---
 # Owner-scoped local store (stat blocks, encounters, roll logs) — NEVER commit.
 data/
 # Extracted page images.

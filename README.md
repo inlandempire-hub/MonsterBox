@@ -1,10 +1,10 @@
-# StatForge
+# MonsterBox
 
 A DM-side, solo-first tool for **5e-compatible** stat blocks: point it at a
 stat-block PDF **you own**, get back a structured, *rollable* stat block, and
 run the encounter in a built-in initiative tracker.
 
-StatForge ships **empty** and stores everything **locally on your device**. It's
+MonsterBox ships **empty** and stores everything **locally on your device**. It's
 a tool for working with content you are legally entitled to use — it bundles no
 monsters, no books, and no stat blocks of its own.
 
@@ -14,7 +14,7 @@ The web app and the local app are the **same** client-side build (in `docs/`):
 
 - **On the web** — a Progressive Web App hosted on GitHub Pages. Open the link,
   optionally "Install" it from your browser, and it works offline.
-- **On your desktop** — double-click **`StatForge.bat`** (Windows). It serves the
+- **On your desktop** — double-click **`MonsterBox.bat`** (Windows). It serves the
   same build locally and opens it in a clean app window. The desktop shortcut
   points here. *(Requires Python, for a tiny local static file server.)*
 
@@ -37,7 +37,7 @@ nothing is uploaded, synced, or shared.
 
 ## Your content, your responsibility
 
-StatForge is intended for stat-block PDFs you are **legally entitled to use**.
+MonsterBox is intended for stat-block PDFs you are **legally entitled to use**.
 You are solely responsible for the legality of the content you import and store.
 The app's *About & legal* panel (shown on first run, and reopenable from the
 import panel) restates this alongside the points below.
@@ -50,7 +50,7 @@ clearing browser data will otherwise remove it.
 
 ## Trademarks
 
-StatForge is an independent 5e-compatible tool; **it is not affiliated, endorsed,
+MonsterBox is an independent 5e-compatible tool; **it is not affiliated, endorsed,
 or sponsored by Wizards of the Coast.** Any reference to the game system is
 nominative, to describe compatibility and intended usage only.
 
@@ -68,7 +68,7 @@ docs/                    # the app — web + local are this one build
   pdfimport.js           # in-browser PDF parser (pdf.js port of the ingest pipeline)
   sw.js                  # service worker (offline app shell)
   manifest.webmanifest   # PWA install metadata
-StatForge.bat            # local launcher (serves docs/ and opens an app window)
+MonsterBox.bat            # local launcher (serves docs/ and opens an app window)
 ROADMAP.md               # prioritised roadmap
 PWA.md                   # web-build / deploy notes
 src/statforge/           # legacy Python/Flask desktop build (superseded by the PWA)

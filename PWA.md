@@ -1,6 +1,6 @@
-# StatForge — Web (PWA) build
+# MonsterBox — Web (PWA) build
 
-A fully client-side version of StatForge that runs from a static host (GitHub
+A fully client-side version of MonsterBox that runs from a static host (GitHub
 Pages) with **no server**. Send a DM a link, they open it, and it works —
 including offline, "install to home screen / desktop," and **importing their own
 PDFs**. Everything lives in `docs/`.
@@ -63,7 +63,7 @@ correctly under the `/<repo>/` sub-path.
 ### When you update the build
 
 The service worker caches the app shell. Bump `CACHE` in `docs/sw.js` (e.g.
-`statforge-v2` → `v3`) whenever you change a cached asset so users get the new
+`monsterbox-v2` → `v3`) whenever you change a cached asset so users get the new
 version on next load.
 
 ## Test locally

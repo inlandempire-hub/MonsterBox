@@ -1,6 +1,6 @@
 {
-  "name": "StatForge",
-  "short_name": "StatForge",
+  "name": "MonsterBox",
+  "short_name": "MonsterBox",
   "description": "A 5e-compatible stat block and encounter tool for DMs.",
   "start_url": ".",
   "scope": ".",

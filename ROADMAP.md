@@ -1,4 +1,4 @@
-# StatForge — Master Roadmap
+# MonsterBox — Master Roadmap
 
 *Synthesised from three planning docs (Legal & Compliance, Feature Spec, Free Content
 Sources) into one priority order, plus added notes for things those docs overlooked.
@@ -48,7 +48,7 @@ Effort: **S** <1wk · **M** 1–3wk · **L** 1mo+.
 
 These were cheap, mostly non-code, and **live exposure** because the PWA was already in DMs'
 hands without any disclaimer or use notice. All five are now shipped (plus the local app was
-converged onto the PWA build — `StatForge.bat` and the desktop shortcut now launch the PWA).
+converged onto the PWA build — `MonsterBox.bat` and the desktop shortcut now launch the PWA).
 
 | # | Item | Tag | Effort | Status |
 |---|---|---|---|---|
@@ -114,7 +114,7 @@ alternatives during the moment that matters most — live combat.
 
 | # | Item | Tag | Effort |
 |---|---|---|---|
-| 18 | **2.1 Second-screen / player view.** Cast-able player-facing view (initiative order, names, visible status, bloodied <50% HP) while the DM keeps stat blocks private. The feature most likely to make someone *switch* to StatForge — treat it as the launch headline. High effort/complexity (multi-window state sync, audience-facing layout); it sits *after* table-stakes so a player view doesn't just expose an unpolished tracker to more eyes. | ✦ | L |
+| 18 | **2.1 Second-screen / player view.** Cast-able player-facing view (initiative order, names, visible status, bloodied <50% HP) while the DM keeps stat blocks private. The feature most likely to make someone *switch* to MonsterBox — treat it as the launch headline. High effort/complexity (multi-window state sync, audience-facing layout); it sits *after* table-stakes so a player view doesn't just expose an unpolished tracker to more eyes. | ✦ | L |
 | 19 | **3.1 Full-library compendium search & filter.** 🟡 **Mostly done.** Filter panel now covers: creature type, size, **AC** range slider, **HP** range slider, **per-ability "> N"** tickboxes, damage resistance/immunity, condition immunity, has-legendary-resistance, has-multiattack, has-spellcasting — plus the existing free-text search and CR dropdown. Remaining: environment + source-book facets, and free-text over traits/actions. | ✦ | M |
 
 > **Milestone B — "Talked about":** ship 2.1 as the headline, supported by 3.1 to showcase what bulk import uniquely unlocks.
@@ -166,7 +166,7 @@ they *will* diverge silently. #11 addresses testing; flag a longer-term decision
 PWA's JS parser becomes the single source of truth and the desktop calls into it.
 
 **C. "Empty compendium" cold-start — ❌ decided: leave empty.** *(Resolved.)*
-Considered a one-click "Get the free SRD" onboarding step, but **declined**: StatForge is the
+Considered a one-click "Get the free SRD" onboarding step, but **declined**: MonsterBox is the
 tool, not a signpost to free material, and won't advertise or link any content. First-run
 stays empty by design; the About panel explains the bring-your-own-content model instead.
 
@@ -199,10 +199,10 @@ expectation into the fixtures so nobody "fixes" a non-bug.
 ## Resolved decisions (2026-06-07)
 
 1. **Onboarding SRD (note C):** ❌ **Declined.** No link to or mention of the SRD or any
-   free material — StatForge is the tool, not a content signpost. First-run stays empty.
+   free material — MonsterBox is the tool, not a content signpost. First-run stays empty.
 2. **Parser / build source of truth (note B):** ✅ **Converge on the PWA.** The client-side
    build in `docs/` is now the single product for **both web and desktop**; the local
-   launcher (`StatForge.bat`) and the desktop shortcut run the PWA. The `src/` Flask app is
+   launcher (`MonsterBox.bat`) and the desktop shortcut run the PWA. The `src/` Flask app is
    legacy and may be retired. New work lands in the PWA only.
 3. **Ruleset for difficulty calc (#20):** ✅ **5e 2014.** Build the difficulty calculator on
    the 2014 encounter-building maths.

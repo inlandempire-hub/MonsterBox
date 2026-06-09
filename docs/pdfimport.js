@@ -1,4 +1,4 @@
-/* In-browser PDF import for the StatForge PWA.
+/* In-browser PDF import for the MonsterBox PWA.
  *
  * A JavaScript port of the desktop ingest pipeline (columns.py + parser.py +
  * pipeline.py), using pdf.js to extract word positions + fonts. Runs entirely
@@ -626,7 +626,7 @@
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length) {
       showProg("");
-      show("No text layer found — this looks like a scanned or image-only PDF, which StatForge can't read. Try a digital (text-layer) PDF.");
+      show("No text layer found — this looks like a scanned or image-only PDF, which MonsterBox can't read. Try a digital (text-layer) PDF.");
       return;
     }
     showProg("Importing " + escapeHtml(file.name) + "<br>parsing stat blocks…");

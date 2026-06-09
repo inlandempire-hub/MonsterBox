@@ -1,4 +1,4 @@
-/* StatForge PWA engine — a fully client-side backend.
+/* MonsterBox PWA engine — a fully client-side backend.
  *
  * The UI (index.html) talks to "/api/..." via fetch(). Here we monkey-patch
  * fetch() to answer those same routes locally, backed by IndexedDB and a small
@@ -350,7 +350,7 @@
     const blob = new Blob([JSON.stringify(all, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "statforge-compendium.json";
+    a.download = "monsterbox-compendium.json";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     try { localStorage.setItem("sf-last-export", String(Date.now())); } catch (e) {}

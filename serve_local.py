@@ -1,4 +1,4 @@
-"""StatForge local launcher server.
+"""MonsterBox local launcher server.
 
 Serves the PWA build in docs/ on 127.0.0.1:8077 with NO console window (run via
 pythonw / pyw). The app page sends a heartbeat to /__ping every few seconds; when

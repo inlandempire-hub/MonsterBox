@@ -1,8 +1,8 @@
 @echo off
-REM ===  StatForge launcher (PWA build)  ===
-REM Double-click this (or the desktop shortcut to it) to start StatForge.
+REM ===  MonsterBox launcher (PWA build)  ===
+REM Double-click this (or the desktop shortcut to it) to start MonsterBox.
 REM
-REM StatForge is the same client-side PWA that runs on the web: the local app
+REM MonsterBox is the same client-side PWA that runs on the web: the local app
 REM and the web app are one and the same build (in docs\). Everything runs in
 REM your browser and is stored locally (IndexedDB) — nothing uploaded.
 REM
@@ -10,7 +10,7 @@ REM The local file server runs INVISIBLY (no console window) via "pyw"
 REM (pythonw), and shuts itself down a few seconds after you close the app
 REM window — the page sends a heartbeat while open and serve_local.py exits once
 REM the heartbeats stop. Nothing is left running in the background.
-title StatForge
+title MonsterBox
 cd /d "%~dp0"
 
 REM Static file server for the PWA build, hidden (no console). Fixed port 8077

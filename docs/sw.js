@@ -1,10 +1,10 @@
-/* StatForge service worker — caches the app shell for offline use.
+/* MonsterBox service worker — caches the app shell for offline use.
  * Bump CACHE when you change any cached asset to force an update. */
-const CACHE = "statforge-v23";
+const CACHE = "monsterbox-v24";
 const ASSETS = [
   "./", "index.html", "engine.js", "pdfimport.js", "manifest.webmanifest",
   "vendor/pdf.min.js", "vendor/pdf.worker.min.js",
-  "bg-light.jpg", "bg-dark.jpg", "StatForge.ico",
+  "bg-light.jpg", "bg-dark.jpg", "MonsterBox.ico",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png",
 ];
 
