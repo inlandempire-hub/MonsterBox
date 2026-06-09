@@ -331,6 +331,45 @@
     return { traitsText, sections };
   }
 
+  // A line that belongs to a stat block (a field, a section header, the ability
+  // row, or anything carrying combat mechanics). Used to tell stat-block content
+  // apart from the lore/rules prose some books pack between creatures.
+  function isStatLine(s) {
+    s = (s || "").trim(); if (!s) return false;
+    if (RE_AC_LINE.test(s) || RE_SECTION_LINE.test(s)) return true;
+    const low = s.toLowerCase().replace(/^[•▪◦·*\-\s]+/, "");
+    if (STAT_FIELD_PREFIXES.some(p => low.startsWith(p))) return true;
+    const up = s.toUpperCase();
+    if ((up.match(/\b(STR|DEX|CON|INT|WIS|CHA)\b/g) || []).length >= 3) return true;   // ability header
+    if ((s.match(/\d+\s*\(\s*[+\-−]?\d+\s*\)/g) || []).length >= 3) return true;        // "12 (+1) 15 (+2) ..."
+    if (RE_ATTACK.test(s) || RE_ATTACK_2024.test(s) || RE_SAVE.test(s)) return true;
+    if (/\bHit:?\s/i.test(s) || /\d+d\d+/.test(s) || /recharge/i.test(s)) return true;
+    if (/^[•▪◦·*\-\s]*Multiattack\b/i.test(s)) return true;
+    if (RE_CHALLENGE.test(s) || RE_PROF.test(s)) return true;
+    return false;
+  }
+  // Trim trailing lore/rules prose that gets swept into a block when stat blocks
+  // are packed between pages of flavour (e.g. Fateforge's bestiary). Cut at the
+  // start of the first long run of non-stat-block lines after the Armor Class.
+  const FLAVOR_RUN = 16;
+  function trimFlavor(lines) {
+    const ac = lines.findIndex(l => RE_AC_LINE.test(l));
+    if (ac < 0) return lines;
+    // Splice out long runs of non-stat-block lines (lore/rules prose) wherever
+    // they appear — at the end of the block OR sandwiched between the traits and
+    // the actions (a two-column NPC whose halves were stitched together). Keep
+    // the real stat content on both sides; short runs (entry descriptions) stay.
+    const out = lines.slice(0, ac);
+    let run = [];
+    const flush = () => { if (run.length) { if (run.filter(l => l.trim()).length < FLAVOR_RUN) out.push(...run); run = []; } };
+    for (let i = ac; i < lines.length; i++) {
+      if (lines[i].trim() && isStatLine(lines[i])) { flush(); out.push(lines[i]); }
+      else run.push(lines[i]);
+    }
+    flush();
+    return out;
+  }
+
   // ============================================================ split into blocks
   function splitIntoBlocks(pageText, fonts) {
     const lines = pageText.split("\n");
@@ -356,7 +395,7 @@
         const kept = [lines[metaI]];
         for (let i = metaI + 1; i < hardEnd; i++) if (i === ac || fonts[i] === sbFont || RE_SECTION_LINE.test(lines[i])) kept.push(lines[i]);
         rest = kept.join("\n");
-      } else rest = lines.slice(nm.bodyStart, hardEnd).join("\n");
+      } else rest = trimFlavor(lines.slice(nm.bodyStart, hardEnd)).join("\n");
       const body = stripFooter((name + "\n" + rest).trim());
       if (body) blocks.push(body);
     }
@@ -365,7 +404,9 @@
 
   // ===================================================================== parseText
   function parseText(text, sourcePage, source) {
-    const lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
+    let lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
+    lines = trimFlavor(lines);          // drop trailing lore/rules prose (any assembly path)
+    text = lines.join("\n");            // so the regexes + raw_text use the trimmed body
     let found = 0;
     const sb = {
       name: lines.length ? lines[0].trim() : "Unknown Creature",
