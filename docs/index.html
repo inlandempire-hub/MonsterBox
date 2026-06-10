@@ -31,6 +31,7 @@
     --good: #3f8f4f; --good-bg: #e3efe1;
     --bad: #b3261e;
     --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --mono: "Courier New", Courier, "Cascadia Mono", Consolas, monospace;
     /* centre-panel scroll */
     --scroll-bg: #f5efdc;       /* parchment surface */
     --scroll-rod: #9b7c3c;      /* golden wood rollers */
@@ -62,15 +63,14 @@
         padding: 2px 4px; flex-shrink: 0; }
   .title-icon { width: 34px; height: 34px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
-  /* one-word wordmark.
-     Light: white, ENGRAVED / carved into the water surface (shadowed top inner
-     wall + lit bottom lip) — looks cut in rather than sitting on top.
-     Dark: amber with a strong torch glow (echoes the torch-lit fortress bg). */
-  .title-text { font: 700 23px/1 var(--serif); letter-spacing: .3px; }
-  body:not(.dark) .title-text { color: rgba(255,255,255,.8);
-        text-shadow: 0 -1.5px 1px rgba(0,22,34,.65),     /* shadowed top inner wall */
-          0 1px 0 rgba(255,255,255,.6),                  /* lit bottom lip */
-          0 2px 4px rgba(0,26,40,.4); }                  /* soft depth */
+  /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
+     contrast is obvious. Carved-white in light, amber glow in dark. The boot
+     intro types this out then flies here, so the styles must match. */
+  .title-text { font-family: var(--mono); font-size: 22px; line-height: 1; white-space: nowrap; }
+  .tm-monster { font-weight: 800; -webkit-text-stroke: .45px currentColor; }
+  .tm-box { font-weight: 400; }
+  body:not(.dark) .title-text { color: rgba(255,255,255,.82);
+        text-shadow: 0 -1.5px 1px rgba(0,22,34,.65), 0 1px 0 rgba(255,255,255,.6), 0 2px 4px rgba(0,26,40,.4); }
   body.dark .title-text { color: #ffb454;
         text-shadow: 0 0 24px rgba(255,150,40,.8), 0 0 13px rgba(255,160,55,.7),
           0 0 6px rgba(255,170,70,.6), 0 1px 3px rgba(0,0,0,.8); }
@@ -680,43 +680,26 @@
   #app { opacity: 1; transition: opacity 1s ease; }
   body.booting #app { opacity: 0; }
 
-  /* ---- title card / splash intro (sits over the wallpaper only) ---- */
+  /* ---- typewriter intro splash (no box; types out, then flies to the title) ---- */
   #splash {
     position: fixed; inset: 0; z-index: 9999;
-    background: transparent;        /* wallpaper shows through during fades */
     display: flex; align-items: center; justify-content: center;
     pointer-events: none;
-    /* fade in 1.5s, hold static 2s, fade out 1.5s = 5s */
-    animation: splashShow 5s ease forwards;
   }
-  #splash .card {
-    border: 5px solid rgba(255,255,255,.92);
-    padding: 10px 26px 20px;       /* extra bottom room for the f / g descenders */
-    background: rgba(0,0,0,.20);
-    box-shadow: 0 8px 40px rgba(0,0,0,.45);
-    line-height: 1;
+  .splash-text {
+    font-family: var(--mono); font-size: 60px; line-height: 1;
+    white-space: nowrap; display: inline-block; transform-origin: top left;
   }
-  #splash .card span {
-    font-family: var(--serif);      /* same font as the app heading */
-    font-style: italic;
-    font-size: 76px;
-    letter-spacing: .5px;
-  }
-  #splash .card .t1 { font-weight: 700; }   /* "Monster" bold */
-  #splash .card .t2 { font-weight: 400; }   /* "Box" lighter */
+  .splash-text .tm-monster { font-weight: 800; -webkit-text-stroke: .9px currentColor; }
+  .splash-text .tm-box { font-weight: 400; -webkit-text-stroke: 0; }
+  .tw-cursor { font-weight: 400; -webkit-text-stroke: 0; margin-left: 1px;
+        animation: twblink 1.05s step-end infinite; }
+  @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
   /* same palettes as the in-app wordmark: white carved (light) / amber glow (dark) */
-  body:not(.dark) #splash .card span { color: rgba(255,255,255,.84);
-        text-shadow: 0 -2px 2px rgba(0,22,34,.6), 0 2px 0 rgba(255,255,255,.5), 0 4px 9px rgba(0,26,40,.45); }
-  body.dark #splash .card span { color: #ffb454;
-        text-shadow: 0 0 40px rgba(255,150,40,.8), 0 0 20px rgba(255,160,55,.7), 0 0 8px rgba(255,170,70,.6), 0 2px 4px rgba(0,0,0,.85); }
-  body.dark #splash .card { border-color: rgba(255,180,84,.72); background: rgba(0,0,0,.34);
-        box-shadow: 0 8px 40px rgba(0,0,0,.5), 0 0 26px rgba(255,150,40,.25); }
-  @keyframes splashShow {
-    0%    { opacity: 0; }
-    30%   { opacity: 1; }   /* 1.5s in */
-    70%   { opacity: 1; }   /* hold until 3.5s */
-    100%  { opacity: 0; }   /* fully out at 5s */
-  }
+  body:not(.dark) .splash-text { color: rgba(255,255,255,.84);
+        text-shadow: 0 -2px 2px rgba(0,22,34,.6), 0 2px 0 rgba(255,255,255,.55), 0 4px 9px rgba(0,26,40,.45); }
+  body.dark .splash-text { color: #ffb454;
+        text-shadow: 0 0 36px rgba(255,150,40,.8), 0 0 18px rgba(255,160,55,.7), 0 0 7px rgba(255,170,70,.6), 0 2px 4px rgba(0,0,0,.85); }
 
   /* central transparent empty-state label (no scroll shown when nothing picked) */
   #emptylabel {
@@ -811,7 +794,7 @@
     .mtitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .mtitle img { width: 26px; height: 26px; flex-shrink: 0;
           filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
-    .mtitle span { font: 700 19px/1.4 var(--serif); letter-spacing: .3px; color: #fff;
+    .mtitle span { font: 700 18px/1.4 var(--mono); letter-spacing: 0; color: #fff;
           text-shadow: 0 1px 0 rgba(8,72,92,.9), 0 2px 0 rgba(8,62,82,.5), 0 4px 7px rgba(0,24,38,.55);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-bottom: 2px; }
     body.dark .mtitle span { color: #ffb454;
@@ -850,14 +833,13 @@
     #modetoggle { top: auto; bottom: 16px; right: 16px; z-index: 120; }
 
     /* splash scaled down for phones */
-    #splash .card { padding: 8px 18px 14px; border-width: 4px; }
-    #splash .card span { font-size: 54px; }
+    .splash-text { font-size: 40px; }
   }
 </style>
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
-<div id="splash"><div class="card"><span class="t1">Monster</span><span class="t2">Box</span></div></div>
+<div id="splash"><span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span><span class="tw-cursor" id="spCursor">|</span></span></div>
 <div id="app">
 <!-- mobile top bar (hidden on desktop via CSS) -->
 <div id="mtopbar">
@@ -871,7 +853,7 @@
   <div class="side" id="leftside">
     <div class="titlebar">
       <img class="title-icon" src="MonsterBox.ico" alt="">
-      <span class="title-text">MonsterBox</span>
+      <span class="title-text"><span class="tm-monster">Monster</span><span class="tm-box">Box</span></span>
     </div>
     <div class="glass" id="importpanel">
       <input type="file" id="file" accept="application/pdf" hidden>
@@ -2344,11 +2326,39 @@ function toggleMode() {
 })();
 
 // Boot sequence: wallpaper only → title card (in 1.5s / hold 2s / out 1.5s = 5s)
-// → full UI fades in over 1s.
+// Typewriter intro: after a beat, "MonsterBox" types out letter-by-letter with
+// human-ish timing variance, holds a second, then flies to the top-left and
+// shrinks into the title wordmark (the real title is revealed as it lands).
 (function() {
   const sp = $("splash");
-  setTimeout(() => document.body.classList.remove("booting"), 5000);  // UI fades in (CSS 1s)
-  setTimeout(() => { if (sp) sp.remove(); }, 5200);                   // card has faded out
+  const reveal = () => document.body.classList.remove("booting");
+  if (!sp) { reveal(); return; }
+  const mon = $("spMon"), box = $("spBox"), cur = $("spCursor"), st = sp.querySelector(".splash-text");
+  const seq = "Monster".split("").map(c => [mon, c]).concat("Box".split("").map(c => [box, c]));
+  let i = 0;
+  function type() {
+    if (i >= seq.length) return done();
+    const [el, c] = seq[i++]; el.textContent += c;
+    // uneven "tapping" cadence: base + jitter, with the odd longer pause
+    const delay = 90 + (Math.random() * 110 - 30) + (Math.random() < 0.14 ? 230 : 0);
+    setTimeout(type, delay);
+  }
+  function done() {
+    if (cur) { cur.style.transition = "opacity .3s"; cur.style.opacity = "0"; setTimeout(() => cur.remove(), 320); }
+    setTimeout(fly, 1000);   // hold a second
+  }
+  function fly() {
+    const title = document.querySelector(".title-text");
+    if (!title || !st.getBoundingClientRect().height) { reveal(); setTimeout(() => sp.remove(), 1000); return; }
+    const a = st.getBoundingClientRect(), b = title.getBoundingClientRect();
+    const scale = b.height / a.height;
+    st.style.transition = "transform .95s cubic-bezier(.55,0,.25,1)";
+    st.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${scale})`;
+    setTimeout(reveal, 680);                 // real title fades in under the landing text
+    setTimeout(() => { sp.style.transition = "opacity .45s ease"; sp.style.opacity = "0"; }, 760);  // crossfade
+    setTimeout(() => sp.remove(), 1250);
+  }
+  setTimeout(type, 1500);                     // a couple of seconds before typing starts
 })();
 
 // Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
