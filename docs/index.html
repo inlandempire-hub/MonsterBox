@@ -493,6 +493,8 @@
   .btn:hover { border-color: var(--red); background: var(--red-soft); }
   .btn.add, .btn.save { border-color: var(--red); background: var(--red); color: #fff; }
   .btn.add:hover, .btn.save:hover { background: var(--red-dark); }
+  .btn.danger { border-color: var(--red); background: transparent; color: var(--red); }
+  .btn.danger:hover { background: var(--red); color: #fff; }
   .placeholder { color: var(--dim); margin-top: 60px; text-align: center; font-style: italic; }
 
   /* tracker */
@@ -1190,7 +1192,7 @@ async function loadLibrary() {
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
     if (isFlagged(m)) return false;   // entries needing review are hidden until fixed / marked usable
     if (adv.cr && (m.challenge_rating || "?") !== adv.cr) return false;
-    if (adv.type && (m.creature_type||"") !== adv.type) return false;
+    if (adv.type && baseType(m.creature_type) !== adv.type) return false;
     if (adv.size && (m.size||"") !== adv.size) return false;
     if (adv.acMin != null && (m.armor_class ?? 0) < adv.acMin) return false;
     if (adv.acMax != null && (m.armor_class ?? 0) > adv.acMax) return false;
@@ -1269,6 +1271,7 @@ function openReview() {
       <div class="rev-btns">
         <button class="btn" onclick="reviewFix('${m.id}')">✎ Fix</button>
         <button class="btn save" onclick="markUsable('${m.id}')">✓ Mark as Usable</button>
+        <button class="btn danger" onclick="reviewRemove('${m.id}')">🗑 Remove</button>
       </div></div>`;
   }).join("") : '<div class="sub" style="color:var(--dim);padding:8px">Nothing needs review — your whole library is usable. 🎉</div>';
   if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
@@ -1287,6 +1290,17 @@ async function markUsable(id) {
   openReview();                                              // refresh; the accepted one drops off
 }
 async function reviewFix(id) { $("reviewpanel").style.display = "none"; await showSheet(id); startEdit(); }
+// remove a badly-parsed entry outright (instead of fixing / accepting it)
+async function reviewRemove(id) {
+  const m = (library || []).find(x => x.id === id);
+  const name = m ? m.name : "this entry";
+  if (!await uiConfirm(`Remove “${name}” from the compendium? It’s deleted, not fixed.`, "Remove")) return;
+  const r = await fetch("/api/statblocks/" + id, { method: "DELETE" });
+  if (!r.ok) { alert("Remove failed (" + r.status + "). Try restarting MonsterBox."); return; }
+  if (selected === id) { selected = null; blankSheet(); }
+  await loadLibrary();
+  openReview();                                              // refresh; the removed one is gone
+}
 
 // ---- advanced filter panel (opens in the centre, like the encounter view) ----
 const ABIL6 = [["STR","strength"],["DEX","dexterity"],["CON","constitution"],["INT","intelligence"],["WIS","wisdom"],["CHA","charisma"]];
@@ -1321,17 +1335,30 @@ function closeCentrePanels() {
   const fp = $("filterpanel"); if (fp) fp.style.display = "none";
   if (filterPanelOpen) { filterPanelOpen = false; const ft = $("filterToggle"); if (ft) ft.textContent = "Filters ▾"; }
 }
+// The raw resistance/immunity/condition arrays are full phrases ("bludgeoning,
+// piercing, and slashing from nonmagical attacks") split on punctuation, so a
+// dropdown of the distinct strings is unusable. Instead the filter offers the
+// canonical 5e types, showing only those that actually occur in the library and
+// matching them as substrings of the raw text.
+const DMG_TYPES = ["acid","bludgeoning","cold","fire","force","lightning","necrotic","piercing","poison","psychic","radiant","slashing","thunder"];
+const COND_TYPES = ["blinded","charmed","deafened","exhaustion","frightened","grappled","incapacitated","paralyzed","petrified","poisoned","prone","restrained","stunned","unconscious"];
+// base creature type without the "(Drow)" / "(Shapechanger)" parenthetical tag,
+// so the type filter has one row per category (Humanoid, Monstrosity, …)
+const baseType = t => String(t||"").replace(/\s*\(.*$/, "").trim();
 function populateFilterPanel(mons) {
   const el = $("filterbody"); if (!el) return;
   const opts = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(o)}</option>`).join("");
+  const optsCap = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(capWords(o))}</option>`).join("");
   const crs = [...new Set(mons.map(m => m.challenge_rating || "?"))].sort((a,b)=>crValue(a)-crValue(b));
-  const types = [...new Set(mons.map(m => m.creature_type).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const types = [...new Set(mons.map(m => baseType(m.creature_type)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const sizes = [...new Set(mons.map(m => m.size).filter(Boolean))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b));
   const acs = mons.map(m => m.armor_class).filter(v => v != null); const hps = mons.map(m => m.hit_points).filter(v => v != null);
   const acLo = acs.length ? Math.min(...acs) : 0, acHi = acs.length ? Math.max(...acs) : 30;
   const hpLo = hps.length ? Math.min(...hps) : 0, hpHi = hps.length ? Math.max(...hps) : 500;
-  const dmgTypes = [...new Set(mons.flatMap(m => [...(m.damage_resistances||[]), ...(m.damage_immunities||[])]).map(x=>String(x).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const conds = [...new Set(mons.flatMap(m => (m.condition_immunities||[]).map(x=>String(x).trim())).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const dmgBlob = mons.flatMap(m => [...(m.damage_resistances||[]), ...(m.damage_immunities||[])]).join(" | ").toLowerCase();
+  const condBlob = mons.flatMap(m => (m.condition_immunities||[])).join(" | ").toLowerCase();
+  const dmgTypes = DMG_TYPES.filter(t => dmgBlob.includes(t));
+  const conds = COND_TYPES.filter(t => condBlob.includes(t));
   if (adv.acMin == null) adv.acMin = acLo; if (adv.acMax == null) adv.acMax = acHi;
   if (adv.hpMin == null) adv.hpMin = hpLo; if (adv.hpMax == null) adv.hpMax = hpHi;
   _bounds = { ac: [acLo, acHi], hp: [hpLo, hpHi] };
@@ -1349,8 +1376,8 @@ function populateFilterPanel(mons) {
     <div class="frow"><label>Attributes above…</label>
       <div class="abilfilters">${ABIL6.map(([L,k]) =>
         `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"><span class="ablbl">${L} &gt;</span><input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
-    <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${opts(dmgTypes, adv.damage)}</select></div>
-    <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${opts(conds, adv.cond)}</select></div>
+    <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${optsCap(dmgTypes, adv.damage)}</select></div>
+    <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${optsCap(conds, adv.cond)}</select></div>
     <div class="fchecks">
       <label><input type="checkbox" id="f_lr" ${adv.lr?"checked":""} onchange="onAdvFilter()"> Legendary Resistance</label>
       <label><input type="checkbox" id="f_multi" ${adv.multi?"checked":""} onchange="onAdvFilter()"> Multiattack</label>

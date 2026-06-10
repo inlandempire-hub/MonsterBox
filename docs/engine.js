@@ -80,15 +80,25 @@
     try { if (cr.includes("/")) { const [a, b] = cr.split("/"); return (+a) / (+b); } return parseFloat(cr); }
     catch (e) { return Infinity; }
   }
-  // count of legendary resistances from a "Legendary Resistance (N/Day)" trait
+  // count of legendary resistances. The importer strips the "(3/Day)" suffix off
+  // trait names (it lands in trait.usage / raw_text), so match the name loosely
+  // and pull the count from wherever it survived; default to 1 if it has the
+  // trait but no number parsed.
   function lrCount(sb) {
-    for (const t of (sb.traits || [])) { const m = /legendary resistance\s*\((\d+)\s*\/\s*day/i.exec(t.name || ""); if (m) return +m[1]; }
+    for (const t of (sb.traits || [])) {
+      if (!/legendary resistance/i.test(t.name || "")) continue;
+      const m = /(\d+)\s*\/\s*day/i.exec(`${t.name || ""} ${t.usage || ""} ${t.raw_text || ""}`);
+      return m ? +m[1] : 1;
+    }
     return 0;
   }
-  const hasMultiattack = (sb) => (sb.actions || []).some(a => /multiattack/i.test(a.name || ""));
-  const hasSpellcasting = (sb) => !!sb.spellcasting
-    || (sb.traits || []).some(t => /spellcasting/i.test(t.name || ""))
-    || (sb.actions || []).some(a => /spellcasting/i.test(a.name || ""));
+  // Multiattack / Spellcasting can land in any bucket depending on the book's
+  // layout (some omit the Actions header, some list spellcasting as an action or
+  // bonus action), so scan them all. "Innate Spellcasting" matches too.
+  const anyNamed = (sb, re) => [sb.actions, sb.traits, sb.bonus_actions, sb.reactions, sb.legendary_actions]
+    .some(b => (b || []).some(a => re.test(a.name || "")));
+  const hasMultiattack = (sb) => anyNamed(sb, /multiattack/i);
+  const hasSpellcasting = (sb) => !!sb.spellcasting || anyNamed(sb, /spellcasting/i);
   async function listStatblocks() {
     const all = await dbAll("statblocks");
     const items = all.map(sb => ({
