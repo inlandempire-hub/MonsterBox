@@ -722,8 +722,8 @@
      it lifts off the screen instead of reading flat). Drops in and settles on
      load with a weighty bounce + squash. */
   .splash-logo {
-    height: 330px; width: auto; display: block;
-    filter: drop-shadow(0 24px 42px rgba(0,0,0,.62)) drop-shadow(0 9px 16px rgba(0,0,0,.5));
+    height: 290px; width: auto; display: block;
+    filter: drop-shadow(0 22px 38px rgba(0,0,0,.62)) drop-shadow(0 9px 16px rgba(0,0,0,.5));
     transform-origin: center bottom;
     animation: splashLogoIn 1.05s both;
   }
@@ -744,7 +744,8 @@
   .splash-text {
     font-family: var(--mono); font-size: 72px; line-height: 1;
     width: 10ch; text-align: left; white-space: nowrap;     /* fixed width: text doesn't re-centre as it types */
-    display: inline-block; transform-origin: top left;
+    min-height: 1em;                                        /* reserve the line height so the stack doesn't grow (and shove the logo up) as letters appear */
+    display: inline-block; transform-origin: top left; vertical-align: top;
   }
   .splash-text .tm-monster { font-weight: 700; }
   .splash-text .tm-box { font-weight: 400; }
@@ -898,7 +899,7 @@
 
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
-    .splash-logo { height: 210px; }
+    .splash-logo { height: 188px; }
     .splash-stack { gap: 20px; }
   }
 </style>
