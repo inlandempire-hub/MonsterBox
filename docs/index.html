@@ -704,11 +704,30 @@
   #app { opacity: 1; transition: opacity 1s ease; }
   body.booting #app { opacity: 0; }
 
-  /* ---- typewriter intro splash (no box; types out, then flies to the title) ---- */
+  /* ---- typewriter intro splash (logo above centre, wordmark types out below,
+     then the wordmark flies to the title) ---- */
   #splash {
     position: fixed; inset: 0; z-index: 9999;
     display: flex; align-items: center; justify-content: center;
     pointer-events: none;
+  }
+  /* logo + wordmark stacked and centred as a unit, so the logo sits just above
+     centre and the typed title lands just below it */
+  .splash-stack {
+    display: flex; flex-direction: column; align-items: center; gap: 26px;
+  }
+  /* large logo with a heavy two-layer drop-shadow (follows the cut-out shape, so
+     it lifts off the screen instead of reading flat). Pops in on load. */
+  .splash-logo {
+    height: 168px; width: auto; display: block;
+    filter: drop-shadow(0 20px 34px rgba(0,0,0,.6)) drop-shadow(0 7px 14px rgba(0,0,0,.5));
+    transform-origin: center;
+    animation: splashLogoIn .8s cubic-bezier(.2,.9,.3,1.25) both;
+  }
+  @keyframes splashLogoIn {
+    0%   { opacity: 0; transform: translateY(16px) scale(.6); }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
   }
   .splash-text {
     font-family: var(--mono); font-size: 72px; line-height: 1;
@@ -864,12 +883,17 @@
 
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
+    .splash-logo { height: 104px; }
+    .splash-stack { gap: 18px; }
   }
 </style>
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
-<div id="splash"><span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span><span class="tw-cursor" id="spCursor">|</span></span></div>
+<div id="splash"><div class="splash-stack">
+  <img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt="">
+  <span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span><span class="tw-cursor" id="spCursor">|</span></span>
+</div></div>
 <div id="app">
 <!-- mobile top bar (hidden on desktop via CSS) -->
 <div id="mtopbar">
@@ -2403,6 +2427,11 @@ function toggleMode() {
   }
   function fly() {
     const title = document.querySelector(".title-text");
+    // the logo lifts and fades as the wordmark departs, so focus follows the
+    // title travelling to its home corner rather than a logo sitting mid-screen
+    const logo = $("splashLogo");
+    if (logo) { logo.style.transition = "opacity .5s ease, transform .5s ease";
+      logo.style.opacity = "0"; logo.style.transform = "translateY(-14px) scale(.9)"; }
     if (!title || !st.getBoundingClientRect().height) { reveal(); setTimeout(() => sp.remove(), 1000); return; }
     const a = st.getBoundingClientRect(), b = title.getBoundingClientRect();
     const scale = b.height / a.height;

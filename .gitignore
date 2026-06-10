@@ -3,8 +3,9 @@
 data/
 # Extracted page images.
 *.png
-# …except the PWA icons, which the web app needs.
+# …except the PWA icons and the splash logo, which the web app needs.
 !docs/icons/*.png
+!docs/monsterbox-logo.png
 _probe*.py
 # Personal export from tools/export_compendium.py.
 compendium.json
