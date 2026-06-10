@@ -50,6 +50,13 @@
     transition: color var(--fade) ease, background-color var(--fade) ease,
       border-color var(--fade) ease, box-shadow var(--fade) ease, fill var(--fade) ease !important;
   }
+  /* the universal rule above omits `opacity` (interpolating it on the glass
+     panels caused repaint flicker) — but the wallpaper crossfade IS an opacity
+     fade, so restore it specifically for the two wallpaper layers. */
+  body.mode-fading #wallpaper::before,
+  body.mode-fading #wallpaper::after {
+    transition: opacity var(--fade) ease !important;
+  }
   body {
     margin: 0; font: 14px/1.55 system-ui, "Segoe UI", sans-serif;
     background: var(--bg); color: var(--ink);
@@ -70,14 +77,17 @@
   .tm-monster { font-weight: 700; }
   .tm-box { font-weight: 400; }
   /* light: white with a bathymetry depth stack (descending teal contours + dark
-     lift) — readable over the busy water art. dark: amber torch glow. */
+     lift) — readable over the busy water art. dark: the same carved bathymetry
+     in the amber palette (descending bronze contours + a soft amber glow on top
+     so it still reads against the dark water). */
   body:not(.dark) .title-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
           0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
-  body.dark .title-text { color: #ffb454;
-        text-shadow: 0 0 24px rgba(255,150,40,.8), 0 0 13px rgba(255,160,55,.7),
-          0 0 6px rgba(255,170,70,.6), 0 1px 3px rgba(0,0,0,.8); }
+  body.dark .title-text { color: #ffc266;
+        text-shadow: 0 0 12px rgba(255,150,40,.45),
+          0 1px 0 rgba(150,80,15,.92), 0 2px 0 rgba(135,70,12,.66), 0 3px 0 rgba(120,62,10,.48),
+          0 4px 0 rgba(105,54,8,.34), 0 5px 0 rgba(92,46,6,.22), 0 7px 10px rgba(40,18,0,.6); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -324,7 +334,7 @@
   #importmsg.busy { color: var(--red); }
   .impcount { border-bottom: 1px dotted currentColor; cursor: help; }
   /* import progress — centred in the sheet, under the empty-state label */
-  #importprogress { display: none; position: absolute; left: 50%; top: 58%;
+  #importprogress { display: none; position: absolute; left: 50%; top: 50%;
         transform: translate(-50%, -50%); z-index: 3; width: min(360px, 70%);
         overflow-wrap: anywhere; word-break: break-word;
         text-align: center; font: 600 14px/1.5 var(--mono); color: #fff;
@@ -708,13 +718,16 @@
   .tw-cursor { font-weight: 400; margin-left: 0;
         animation: twblink 1.05s step-end infinite; }
   @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
-  /* same palette as the in-app wordmark: bathymetry white (light) / amber glow (dark) */
+  /* same palette as the in-app wordmark: carved bathymetry — white (light) /
+     amber (dark) — with offsets doubled to suit the larger splash type */
   body:not(.dark) .splash-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 2px 0 rgba(8,74,94,.9), 0 4px 0 rgba(8,68,88,.6), 0 6px 0 rgba(8,62,82,.44),
           0 8px 0 rgba(8,56,76,.3), 0 10px 0 rgba(8,50,70,.2), 0 14px 16px rgba(0,24,38,.55); }
-  body.dark .splash-text { color: #ffb454;
-        text-shadow: 0 0 36px rgba(255,150,40,.8), 0 0 18px rgba(255,160,55,.7), 0 0 7px rgba(255,170,70,.6), 0 2px 4px rgba(0,0,0,.85); }
+  body.dark .splash-text { color: #ffc266;
+        text-shadow: 0 0 22px rgba(255,150,40,.45),
+          0 2px 0 rgba(150,80,15,.92), 0 4px 0 rgba(135,70,12,.62), 0 6px 0 rgba(120,62,10,.45),
+          0 8px 0 rgba(105,54,8,.3), 0 10px 0 rgba(92,46,6,.2), 0 14px 16px rgba(40,18,0,.6); }
 
   /* central transparent empty-state label (no scroll shown when nothing picked) */
   #emptylabel {
@@ -2368,9 +2381,14 @@ function toggleMode() {
     const scale = b.height / a.height;
     st.style.transition = "transform .95s cubic-bezier(.55,0,.25,1)";
     st.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${scale})`;
-    setTimeout(reveal, 680);                 // real title fades in under the landing text
-    setTimeout(() => { sp.style.transition = "opacity .45s ease"; sp.style.opacity = "0"; }, 760);  // crossfade
-    setTimeout(() => sp.remove(), 1250);
+    // Only once the intro text has fully landed on the title do we hand over:
+    // reveal the real title and fade the splash out together so they crossfade
+    // in place — never two solid copies at once.
+    setTimeout(() => {
+      reveal();                                                          // real title fades in (1s)
+      sp.style.transition = "opacity .6s ease"; sp.style.opacity = "0";  // splash fades out, perfectly aligned
+    }, 970);
+    setTimeout(() => sp.remove(), 1700);
   }
   setTimeout(type, 1500);                     // a couple of seconds before typing starts
 })();
