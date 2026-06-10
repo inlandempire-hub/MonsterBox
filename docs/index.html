@@ -71,23 +71,23 @@
   .title-icon { width: 34px; height: 34px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
   /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
-     contrast is obvious. Carved-white in light, amber glow in dark. The boot
+     contrast is obvious. Carved-white in light, carved emerald in dark. The boot
      intro types this out then flies here, so the styles must match. */
   .title-text { font-family: var(--mono); font-size: 22px; line-height: 1; white-space: nowrap; }
   .tm-monster { font-weight: 700; }
   .tm-box { font-weight: 400; }
   /* light: white with a bathymetry depth stack (descending teal contours + dark
      lift) — readable over the busy water art. dark: the same carved bathymetry
-     in the amber palette (descending bronze contours + a soft amber glow on top
-     so it still reads against the dark water). */
+     in the emerald palette (mint highlight fill, descending forest-green contours
+     + a soft green glow on top so it still reads against the dark ruins). */
   body:not(.dark) .title-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
           0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
-  body.dark .title-text { color: #ffc266;
-        text-shadow: 0 0 12px rgba(255,150,40,.45),
-          0 1px 0 rgba(150,80,15,.92), 0 2px 0 rgba(135,70,12,.66), 0 3px 0 rgba(120,62,10,.48),
-          0 4px 0 rgba(105,54,8,.34), 0 5px 0 rgba(92,46,6,.22), 0 7px 10px rgba(40,18,0,.6); }
+  body.dark .title-text { color: #50C795;
+        text-shadow: 0 0 12px rgba(80,199,149,.45),
+          0 1px 0 rgba(65,168,122,.92), 0 2px 0 rgba(56,147,98,.66), 0 3px 0 rgba(52,139,90,.48),
+          0 4px 0 rgba(47,128,77,.34), 0 5px 0 rgba(39,106,59,.22), 0 7px 10px rgba(4,24,12,.6); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -721,15 +721,15 @@
         animation: twblink 1.05s step-end infinite; }
   @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
   /* same palette as the in-app wordmark: carved bathymetry — white (light) /
-     amber (dark) — with offsets doubled to suit the larger splash type */
+     emerald (dark) — with offsets doubled to suit the larger splash type */
   body:not(.dark) .splash-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 2px 0 rgba(8,74,94,.9), 0 4px 0 rgba(8,68,88,.6), 0 6px 0 rgba(8,62,82,.44),
           0 8px 0 rgba(8,56,76,.3), 0 10px 0 rgba(8,50,70,.2), 0 14px 16px rgba(0,24,38,.55); }
-  body.dark .splash-text { color: #ffc266;
-        text-shadow: 0 0 22px rgba(255,150,40,.45),
-          0 2px 0 rgba(150,80,15,.92), 0 4px 0 rgba(135,70,12,.62), 0 6px 0 rgba(120,62,10,.45),
-          0 8px 0 rgba(105,54,8,.3), 0 10px 0 rgba(92,46,6,.2), 0 14px 16px rgba(40,18,0,.6); }
+  body.dark .splash-text { color: #50C795;
+        text-shadow: 0 0 22px rgba(80,199,149,.45),
+          0 2px 0 rgba(65,168,122,.92), 0 4px 0 rgba(56,147,98,.62), 0 6px 0 rgba(52,139,90,.45),
+          0 8px 0 rgba(47,128,77,.3), 0 10px 0 rgba(39,106,59,.2), 0 14px 16px rgba(4,24,12,.6); }
 
   /* central transparent empty-state label (no scroll shown when nothing picked) */
   #emptylabel {
