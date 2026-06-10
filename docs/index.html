@@ -67,10 +67,14 @@
      contrast is obvious. Carved-white in light, amber glow in dark. The boot
      intro types this out then flies here, so the styles must match. */
   .title-text { font-family: var(--mono); font-size: 22px; line-height: 1; white-space: nowrap; }
-  .tm-monster { font-weight: 800; -webkit-text-stroke: .45px currentColor; }
+  .tm-monster { font-weight: 700; }
   .tm-box { font-weight: 400; }
-  body:not(.dark) .title-text { color: rgba(255,255,255,.82);
-        text-shadow: 0 -1.5px 1px rgba(0,22,34,.65), 0 1px 0 rgba(255,255,255,.6), 0 2px 4px rgba(0,26,40,.4); }
+  /* light: white with a bathymetry depth stack (descending teal contours + dark
+     lift) — readable over the busy water art. dark: amber torch glow. */
+  body:not(.dark) .title-text { color: #fff;
+        text-shadow: 0 0 1px rgba(0,40,55,.6),
+          0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
+          0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
   body.dark .title-text { color: #ffb454;
         text-shadow: 0 0 24px rgba(255,150,40,.8), 0 0 13px rgba(255,160,55,.7),
           0 0 6px rgba(255,170,70,.6), 0 1px 3px rgba(0,0,0,.8); }
@@ -211,8 +215,9 @@
         background: var(--panel); color: var(--ink); border: 1px solid var(--line);
         border-radius: 6px; padding: 5px 12px; transition: background .12s, border-color .12s; }
   .filterbtn:hover { border-color: var(--red); }
-  /* advanced filters — rendered into #filterbody (a centre panel like the others) */
-  #filterbody { font-size: 12px; max-width: 460px; margin: 0 auto; width: 100%; }
+  /* advanced filters — a narrow centre panel that hugs the controls */
+  #filterpanel { max-width: 380px; min-width: 260px; }
+  #filterbody { font-size: 12px; width: 100%; }
   #filterbody .frow { margin-bottom: 13px; }
   #filterbody .frow > label { display: block; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
   #filterbody select { width: 100%; background: var(--panel); color: var(--ink);
@@ -230,11 +235,13 @@
         box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: pointer; margin-top: 0; }
   .dual input[type="range"]::-moz-range-thumb { pointer-events: auto; width: 14px; height: 14px;
         border-radius: 50%; background: var(--red); border: 2px solid #fff; cursor: pointer; }
-  .abilfilters { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
-  .abrow { display: flex; align-items: center; gap: 5px; font-weight: 400 !important; color: var(--ink); }
-  .abrow .abnum { width: 48px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
-        border-radius: 5px; padding: 2px 4px; font: inherit; font-size: 12px; }
-  .abrow input[type="checkbox"] { accent-color: var(--red); }
+  .abilfilters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; }
+  .abrow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px;
+        font-weight: 400 !important; color: var(--ink); cursor: pointer; }
+  .abrow .ablbl { white-space: nowrap; }
+  .abrow .abnum { width: 46px; background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+        border-radius: 5px; padding: 3px 5px; font: inherit; font-size: 12px; }
+  .abrow input[type="checkbox"] { accent-color: var(--red); margin: 0; }
   .fchecks { display: flex; flex-direction: column; gap: 5px; margin-bottom: 9px; }
   .fchecks label { display: flex; align-items: center; gap: 6px; color: var(--ink); cursor: pointer; }
   .fchecks input[type="checkbox"] { accent-color: var(--red); }
@@ -243,7 +250,7 @@
   .filters select:focus { outline: none; border-color: var(--red); }
   .newentry { width: 100%; cursor: pointer; border: 1px solid var(--red);
         background: var(--red); color: #fff; border-radius: 6px; padding: 6px 10px;
-        font-size: 12px; font-weight: 600; margin-bottom: 10px;
+        font-size: 12px; font-weight: 600; margin: 6px 0 10px;
         transition: background .12s; }
   .newentry:hover { background: var(--red-dark); }
   #sheet {
@@ -320,7 +327,7 @@
   #importprogress { display: none; position: absolute; left: 50%; top: 58%;
         transform: translate(-50%, -50%); z-index: 3; width: min(360px, 70%);
         overflow-wrap: anywhere; word-break: break-word;
-        text-align: center; font: 600 14px/1.4 var(--serif); color: #fff;
+        text-align: center; font: 600 14px/1.5 var(--mono); color: #fff;
         background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
         border-radius: 10px; padding: 14px 18px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
         backdrop-filter: blur(4px); }
@@ -675,6 +682,11 @@
     transform: translateX(26px);
     background: #14100c;
   }
+  /* during a mode toggle, the knob slides across at the shared fade speed (the
+     universal mode-fading rule otherwise drops `transform` and makes it flick) */
+  body.mode-fading #modetoggle::after {
+    transition: transform var(--fade) cubic-bezier(.4,0,.2,1), background var(--fade) ease !important;
+  }
 
   /* ---- app reveal (UI stays hidden until the splash finishes) ---- */
   #app { opacity: 1; transition: opacity 1s ease; }
@@ -687,17 +699,20 @@
     pointer-events: none;
   }
   .splash-text {
-    font-family: var(--mono); font-size: 60px; line-height: 1;
-    white-space: nowrap; display: inline-block; transform-origin: top left;
+    font-family: var(--mono); font-size: 72px; line-height: 1;
+    width: 10ch; text-align: left; white-space: nowrap;     /* fixed width: text doesn't re-centre as it types */
+    display: inline-block; transform-origin: top left;
   }
-  .splash-text .tm-monster { font-weight: 800; -webkit-text-stroke: .9px currentColor; }
-  .splash-text .tm-box { font-weight: 400; -webkit-text-stroke: 0; }
-  .tw-cursor { font-weight: 400; -webkit-text-stroke: 0; margin-left: 1px;
+  .splash-text .tm-monster { font-weight: 700; }
+  .splash-text .tm-box { font-weight: 400; }
+  .tw-cursor { font-weight: 400; margin-left: 0;
         animation: twblink 1.05s step-end infinite; }
   @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
-  /* same palettes as the in-app wordmark: white carved (light) / amber glow (dark) */
-  body:not(.dark) .splash-text { color: rgba(255,255,255,.84);
-        text-shadow: 0 -2px 2px rgba(0,22,34,.6), 0 2px 0 rgba(255,255,255,.55), 0 4px 9px rgba(0,26,40,.45); }
+  /* same palette as the in-app wordmark: bathymetry white (light) / amber glow (dark) */
+  body:not(.dark) .splash-text { color: #fff;
+        text-shadow: 0 0 1px rgba(0,40,55,.6),
+          0 2px 0 rgba(8,74,94,.9), 0 4px 0 rgba(8,68,88,.6), 0 6px 0 rgba(8,62,82,.44),
+          0 8px 0 rgba(8,56,76,.3), 0 10px 0 rgba(8,50,70,.2), 0 14px 16px rgba(0,24,38,.55); }
   body.dark .splash-text { color: #ffb454;
         text-shadow: 0 0 36px rgba(255,150,40,.8), 0 0 18px rgba(255,160,55,.7), 0 0 7px rgba(255,170,70,.6), 0 2px 4px rgba(0,0,0,.85); }
 
@@ -706,9 +721,9 @@
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
     text-align: center; padding: 0 40px;
-    font: italic 600 22px/1.4 var(--serif);
-    color: rgba(255,255,255,.92);
-    text-shadow: 0 2px 12px rgba(0,0,0,.6);
+    font: 700 20px/1.4 var(--mono); letter-spacing: .3px;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 2px 14px rgba(0,0,0,.65);
     pointer-events: none;
   }
 
@@ -892,7 +907,7 @@
   <!-- CENTRE: the scroll -->
   <div class="col sheet" id="sheet">
     <button id="modetoggle" title="Toggle light / dark mode" onclick="toggleMode()"></button>
-    <div id="emptylabel">← Select a monster from the Compendium</div>
+    <div id="emptylabel">Drag and Drop a PDF here</div>
     <div id="importprogress"></div>
     <div class="scroll-wrap" style="display:none">
       <div class="scroll-rod"></div>
@@ -1067,7 +1082,7 @@ function showEmptyLabel() {
   // mobile has no visible compendium — point the user at the ☰ menu instead
   $("emptylabel").textContent = window.matchMedia("(max-width: 820px)").matches
     ? "Tap ☰ to open the Compendium"
-    : "← Select a monster from the Compendium";
+    : "Drag and Drop a PDF here";
   $("emptylabel").style.display = "flex";
 }
 
@@ -1146,7 +1161,7 @@ async function loadLibrary() {
   const usableN = mons.length - flaggedN;
   if (tc) tc.innerHTML = mons.length
     ? `<b>${usableN}</b> <span class="mword">monsters</span>`
-      + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} need review</a>` : "")
+      + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} ${flaggedN === 1 ? "needs" : "need"} review</a>` : "")
     : "";
 
   if (!mons.length) {
@@ -1320,8 +1335,7 @@ function populateFilterPanel(mons) {
     <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>${dual("hp", hpLo, hpHi, adv.hpMin, adv.hpMax)}</div>
     <div class="frow"><label>Attributes above…</label>
       <div class="abilfilters">${ABIL6.map(([L,k]) =>
-        `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"> ${L} &gt;
-          <input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
+        `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"><span class="ablbl">${L} &gt;</span><input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
     <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${opts(dmgTypes, adv.damage)}</select></div>
     <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${opts(conds, adv.cond)}</select></div>
     <div class="fchecks">
@@ -2344,7 +2358,7 @@ function toggleMode() {
     setTimeout(type, delay);
   }
   function done() {
-    if (cur) { cur.style.transition = "opacity .3s"; cur.style.opacity = "0"; setTimeout(() => cur.remove(), 320); }
+    if (cur) { cur.style.transition = "opacity .25s"; cur.style.opacity = "0"; }   // hide, keep in flow (no re-centre)
     setTimeout(fly, 1000);   // hold a second
   }
   function fly() {
@@ -2408,7 +2422,7 @@ if (!localStorage.getItem("sf-hide-about")) {
   const set = () => { const e = $("emptylabel");
     if (e) e.textContent = m.matches
       ? "Tap ☰ to open the Compendium"
-      : "← Select a monster from the Compendium"; };
+      : "Drag and Drop a PDF here"; };
   set();
   m.addEventListener("change", set);
 })();

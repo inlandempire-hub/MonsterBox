@@ -648,7 +648,7 @@
     const flagged = red + amber;
     // centred result: "Imported N monsters:" (bold) / "X need review" (italic)
     showProg('<b>Imported ' + n + ' ' + (n === 1 ? "monster" : "monsters") + ':</b><br>' +
-      '<i>' + (flagged ? flagged + " need review" : "all parsed cleanly") + "</i>");
+      '<i>' + (flagged ? flagged + (flagged === 1 ? " needs" : " need") + " review" : "all parsed cleanly") + "</i>");
     show("");
     if (typeof window.loadLibrary === "function") window.loadLibrary();
     setTimeout(() => { showProg(""); showEmpty(); }, 3000);
