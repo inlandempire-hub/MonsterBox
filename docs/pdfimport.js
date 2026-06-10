@@ -243,13 +243,19 @@
     if (al.startsWith(bl + " ")) return a;
     return a + " " + b;                                        // a genuinely wrapped name
   }
-  function findName(lines, metaI, lower) {
+  function findName(lines, metaI, lower, titleFonts) {
     lower = lower || 0;
     const titles = [];
     let j = metaI - 1;
     // cap at 2 lines: the creature name sits directly above the meta line; grabbing
     // more pulls in family/running headers ("Monsters A–Z", "Bronze Dragons")
-    while (j >= lower && lines[j].trim() && looksLikeTitle(lines[j]) && titles.length < 2) { titles.unshift(lines[j].trim()); j--; }
+    while (j >= lower && lines[j].trim() && looksLikeTitle(lines[j]) && titles.length < 2) {
+      // a wrapped two-line name shares one font; a section heading above the name
+      // is set in a DIFFERENT font ("Urban Fauna" over "Cat") — stop at the change
+      if (titles.length === 1 && titleFonts && titleFonts[j] && titleFonts[j + 1]
+          && titleFonts[j] !== titleFonts[j + 1]) break;
+      titles.unshift(lines[j].trim()); j--;
+    }
     // title path: titles sit directly above the meta line, so the body starts at meta
     if (titles.length) return { name: resolveName(titles), bodyStart: metaI };
     // fallback: name is further up (e.g. a flavour line or a "Challenge N" line sits
@@ -371,9 +377,10 @@
   }
 
   // ============================================================ split into blocks
-  function splitIntoBlocks(pageText, fonts) {
+  function splitIntoBlocks(pageText, fonts, titleFonts) {
     const lines = pageText.split("\n");
     if (fonts && fonts.length !== lines.length) fonts = null;
+    if (titleFonts && titleFonts.length !== lines.length) titleFonts = null;
     const acIdxs = []; lines.forEach((ln, i) => { if (RE_AC_LINE.test(ln)) acIdxs.push(i); });
     if (!acIdxs.length) return [];
     const specs = acIdxs.map(ac => { let mi = ac - 1; while (mi >= 0 && !lines[mi].trim()) mi--; return [mi, ac]; });
@@ -381,7 +388,7 @@
     for (let k = 0; k < specs.length; k++) {
       const [metaI, ac] = specs[k];
       const lower = k > 0 ? specs[k - 1][1] + 1 : 0;
-      const nm = findName(lines, metaI, lower);
+      const nm = findName(lines, metaI, lower, titleFonts);
       const name = nm.name || "Unknown Creature";
       const hardEnd = k + 1 < specs.length ? specs[k + 1][0] : lines.length;
       let rest;
@@ -403,7 +410,28 @@
   }
 
   // ===================================================================== parseText
+  // PDF text artifacts. Print layouts hyphenate words across line breaks
+  // ("sav-\ning throws"); when lines are joined for display that surfaces as
+  // "sav- ing". Rejoin them here, before any parsing. Also map ligature glyphs
+  // (ﬁ ﬂ …) to plain letters and strip soft hyphens.
+  const LIGATURES = { "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st" };
+  // true prefix compounds keep their hyphen when rejoined: "half-\norc" -> "half-orc"
+  const KEEP_HYPHEN = new Set(["self", "off", "non", "half", "well", "ill", "quasi", "semi", "pseudo", "demi", "anti", "multi"]);
+  function cleanExtractedText(text) {
+    text = String(text).replace(/[ﬁﬂﬀﬃﬄﬅﬆ]/g, c => LIGATURES[c] || c).replace(/\u00AD/g, "");
+    // a word fragment + hyphen at a line end, continued by a lowercase fragment:
+    // merge across the break ("sav-\ning" -> "saving"). Uppercase continuations
+    // are left alone — they're headings/names, not split words.
+    text = text.replace(/([A-Za-z]+)-\n([a-z][A-Za-z]*)/g, (m, a, b) =>
+      KEEP_HYPHEN.has(a.toLowerCase()) ? a + "-" + b : a + b);
+    // hyphen + SPACE mid-line ("30-foot- radius", "pre- defined"): the source
+    // text broke a compound after its hyphen — rejoin keeping the hyphen, but
+    // leave suspended hyphens alone ("one- or two-handed").
+    return text.replace(/([A-Za-z])- (?!(?:and|or|nor|to)\b)([a-z][A-Za-z]*)/g, "$1-$2");
+  }
+
   function parseText(text, sourcePage, source) {
+    text = cleanExtractedText(text);
     let lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
     lines = trimFlavor(lines);          // drop trailing lore/rules prose (any assembly path)
     text = lines.join("\n");            // so the regexes + raw_text use the trimmed body
@@ -521,7 +549,12 @@
     if (RE_SECTION_LINE.test(s)) return true;
     const toks = s.toUpperCase().split(/\s+/);
     if (toks.filter(t => ["STR", "DEX", "CON", "INT", "WIS", "CHA"].includes(t)).length >= 3) return true;
-    const low = s.toLowerCase(); const w0 = low.split(/\s+/)[0];
+    // de-bullet before matching: Fateforge prints fields as "• Armor Class 12",
+    // and identical short field lines repeat across its many small creatures —
+    // without this they get classified as page chrome and stripped (losing the
+    // AC anchor, and with it the whole stat block)
+    const low = s.toLowerCase().replace(/^[•▪◦·*\-\s]+/, "");
+    const w0 = low.split(/\s+/)[0];
     if (SIZE_WORDS.has(w0)) return true;
     return CHROME_PROTECT.some(p => low.startsWith(p));
   }
@@ -530,12 +563,25 @@
   function stripPageChrome(linePages) {
     const n = linePages.length;
     if (n < 4) return linePages;
+    // Count repeats per (text, font) pair, not text alone: real running
+    // headers/footers repeat in ONE font, while a creature's name legitimately
+    // recurs across the book in DIFFERENT fonts (contents list, stat-block
+    // title, lore heading, index) — Nerzugal's bestiary hit the threshold that
+    // way and lost real names to the chrome filter.
+    const key = (t, f) => t + "\u0000" + (f || "");
     const freq = {};
-    for (const page of linePages) { const seen = new Set(page.map(([t]) => t.trim()).filter(Boolean)); for (const s of seen) freq[s] = (freq[s] || 0) + 1; }
+    for (const page of linePages) {
+      const seen = new Set();
+      for (const [t, f] of page) { const s = t.trim(); if (s) seen.add(key(s, f)); }
+      for (const k of seen) freq[k] = (freq[k] || 0) + 1;
+    }
     const threshold = Math.max(5, Math.floor(0.03 * n));
     const chrome = new Set();
-    for (const s in freq) if (freq[s] >= threshold && s.length <= 30 && !".!?".includes(s[s.length - 1]) && !isStructuralLine(s)) chrome.add(s);
-    return linePages.map(page => page.filter(([t]) => { const s = t.trim(); return !chrome.has(s) && !isFurniture(s); }));
+    for (const k in freq) {
+      const s = k.slice(0, k.indexOf("\u0000"));
+      if (freq[k] >= threshold && s.length <= 30 && !".!?".includes(s[s.length - 1]) && !isStructuralLine(s)) chrome.add(k);
+    }
+    return linePages.map(page => page.filter(([t, f]) => { const s = t.trim(); return !chrome.has(key(s, f)) && !isFurniture(s); }));
   }
 
   // ============================================================ blocks from pages
@@ -577,14 +623,16 @@
     let pending = null, carry = [];
     const push = (sb) => { if (sb && !isFalseAnchor(sb)) results.push(sb); };
     const flush = () => { if (pending !== null) { try { push(parseText(pending.body, pending.page, source)); } catch (e) {} pending = null; } };
+    let carryF = [];
     for (let i = 0; i < linePages.length; i++) {
       let lines = carry.concat(linePages[i].map(([t]) => t));
-      carry = [];
+      let lfonts = carryF.concat(linePages[i].map(([, f]) => f || ""));
+      carry = []; carryF = [];
       // peel a stranded trailing name off this column to prepend to the next one
       const oi = orphanStart(lines);
-      if (oi >= 0) { carry = lines.slice(oi); lines = lines.slice(0, oi); }
+      if (oi >= 0) { carry = lines.slice(oi); carryF = lfonts.slice(oi); lines = lines.slice(0, oi); lfonts = lfonts.slice(0, oi); }
       const pageText = lines.join("\n");
-      const blocks = splitIntoBlocks(pageText);   // font-less
+      const blocks = splitIntoBlocks(pageText, null, lfonts);   // body stays font-less; fonts only inform the title scan
       if (!blocks.length) {
         if (pending !== null && pageText.trim()) pending.body += "\n" + pageText;
         continue;
