@@ -710,14 +710,13 @@
      then both fade out together and the UI fades in) ---- */
   #splash {
     position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
     pointer-events: none;
   }
-  /* logo + wordmark stacked and centred as a unit, so the logo sits just above
-     centre and the typed title lands just below it */
-  .splash-stack {
-    display: flex; flex-direction: column; align-items: center; gap: 30px;
-  }
+  /* logo and wordmark are anchored to the viewport centre line independently:
+     the logo's bottom sits 10px above centre, the wordmark's top 10px below.
+     Absolute (not flexed) so typing the title never reflows the logo. */
+  .splash-logo-wrap { position: absolute; left: 50%; bottom: calc(50% + 10px); transform: translateX(-50%); }
+  .splash-text-wrap { position: absolute; left: 50%; top: calc(50% + 10px); transform: translateX(-50%); }
   /* large logo with a heavy two-layer drop-shadow (follows the cut-out shape, so
      it lifts off the screen instead of reading flat). Drops in and settles on
      load with a weighty bounce + squash. */
@@ -744,8 +743,7 @@
   .splash-text {
     font-family: var(--mono); font-size: 72px; line-height: 1;
     width: 10ch; text-align: left; white-space: nowrap;     /* fixed width: text doesn't re-centre as it types */
-    min-height: 1em;                                        /* reserve the line height so the stack doesn't grow (and shove the logo up) as letters appear */
-    display: inline-block; transform-origin: top left; vertical-align: top;
+    display: inline-block; transform-origin: top left;
   }
   .splash-text .tm-monster { font-weight: 700; }
   .splash-text .tm-box { font-weight: 400; }
@@ -900,16 +898,15 @@
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
     .splash-logo { height: 188px; }
-    .splash-stack { gap: 20px; }
   }
 </style>
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
-<div id="splash"><div class="splash-stack">
-  <img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt="">
-  <span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span></span>
-</div></div>
+<div id="splash">
+  <div class="splash-logo-wrap"><img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt=""></div>
+  <div class="splash-text-wrap"><span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span></span></div>
+</div>
 <div id="app">
 <!-- mobile top bar (hidden on desktop via CSS) -->
 <div id="mtopbar">
