@@ -48,7 +48,8 @@
   body.mode-fading *::before,
   body.mode-fading *::after {
     transition: color var(--fade) ease, background-color var(--fade) ease,
-      border-color var(--fade) ease, box-shadow var(--fade) ease, fill var(--fade) ease !important;
+      border-color var(--fade) ease, box-shadow var(--fade) ease, fill var(--fade) ease,
+      text-shadow var(--fade) ease !important;   /* title accents: teal <-> green */
   }
   /* the universal rule above omits `opacity` (interpolating it on the glass
      panels caused repaint flicker) — but the wallpaper crossfade IS an opacity
@@ -68,7 +69,7 @@
      import panel in the left column */
   .titlebar { display: flex; align-items: center; gap: 10px; pointer-events: none;
         padding: 2px 4px; flex-shrink: 0; }
-  .title-icon { width: 34px; height: 34px; flex-shrink: 0;
+  .title-icon { width: 46px; height: 46px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
   /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
      contrast is obvious. White with teal accents in light, white with emerald
@@ -705,8 +706,8 @@
   #app { opacity: 1; transition: opacity 1s ease; }
   body.booting #app { opacity: 0; }
 
-  /* ---- typewriter intro splash (logo above centre, wordmark types out below,
-     then the wordmark flies to the title) ---- */
+  /* ---- typewriter intro splash (logo drops in, wordmark types out below,
+     then both fade out together and the UI fades in) ---- */
   #splash {
     position: fixed; inset: 0; z-index: 9999;
     display: flex; align-items: center; justify-content: center;
@@ -715,14 +716,14 @@
   /* logo + wordmark stacked and centred as a unit, so the logo sits just above
      centre and the typed title lands just below it */
   .splash-stack {
-    display: flex; flex-direction: column; align-items: center; gap: 26px;
+    display: flex; flex-direction: column; align-items: center; gap: 30px;
   }
   /* large logo with a heavy two-layer drop-shadow (follows the cut-out shape, so
      it lifts off the screen instead of reading flat). Drops in and settles on
      load with a weighty bounce + squash. */
   .splash-logo {
-    height: 256px; width: auto; display: block;
-    filter: drop-shadow(0 22px 38px rgba(0,0,0,.62)) drop-shadow(0 8px 15px rgba(0,0,0,.5));
+    height: 330px; width: auto; display: block;
+    filter: drop-shadow(0 24px 42px rgba(0,0,0,.62)) drop-shadow(0 9px 16px rgba(0,0,0,.5));
     transform-origin: center bottom;
     animation: splashLogoIn 1.05s both;
   }
@@ -747,9 +748,6 @@
   }
   .splash-text .tm-monster { font-weight: 700; }
   .splash-text .tm-box { font-weight: 400; }
-  .tw-cursor { font-weight: 400; margin-left: 0;
-        animation: twblink 1.05s step-end infinite; }
-  @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
   /* same treatment as the in-app wordmark: WHITE text with coloured bathymetry
      contours — teal (light) / emerald (dark) — offsets doubled for the big type */
   body:not(.dark) .splash-text { color: #fff;
@@ -770,6 +768,12 @@
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 2px 14px rgba(0,0,0,.65);
     pointer-events: none;
+  }
+  /* ring box hugging the label text (like the old intro card outline) */
+  #emptylabel span {
+    border: 2px solid rgba(255,255,255,.85); border-radius: 8px;
+    padding: 4px 4px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.4);
   }
 
   /* ---- dark mode overrides ---- */
@@ -894,8 +898,8 @@
 
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
-    .splash-logo { height: 168px; }
-    .splash-stack { gap: 18px; }
+    .splash-logo { height: 210px; }
+    .splash-stack { gap: 20px; }
   }
 </style>
 </head>
@@ -903,7 +907,7 @@
 <div id="wallpaper"></div>
 <div id="splash"><div class="splash-stack">
   <img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt="">
-  <span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span><span class="tw-cursor" id="spCursor">|</span></span>
+  <span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span></span>
 </div></div>
 <div id="app">
 <!-- mobile top bar (hidden on desktop via CSS) -->
@@ -957,7 +961,7 @@
   <!-- CENTRE: the scroll -->
   <div class="col sheet" id="sheet">
     <button id="modetoggle" title="Toggle light / dark mode" onclick="toggleMode()"></button>
-    <div id="emptylabel">Drag and Drop a PDF here</div>
+    <div id="emptylabel"><span id="emptytext">Drag and Drop a PDF here</span></div>
     <div id="importprogress"></div>
     <div class="scroll-wrap" style="display:none">
       <div class="scroll-rod"></div>
@@ -1130,7 +1134,7 @@ function showEmptyLabel() {
   const w = _wrap();
   if (w) w.style.display = "none";
   // mobile has no visible compendium — point the user at the ☰ menu instead
-  $("emptylabel").textContent = window.matchMedia("(max-width: 820px)").matches
+  $("emptytext").textContent = window.matchMedia("(max-width: 820px)").matches
     ? "Tap ☰ to open the Compendium"
     : "Drag and Drop a PDF here";
   $("emptylabel").style.display = "flex";
@@ -1209,12 +1213,9 @@ async function loadLibrary() {
   const tc = $("totalcount");
   const flaggedN = mons.filter(isFlagged).length;
   const usableN = mons.length - flaggedN;
-  if (tc) tc.innerHTML = mons.length
-    ? `<b>${usableN}</b> <span class="mword">monsters</span>`
-      + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} ${flaggedN === 1 ? "needs" : "need"} review</a>` : "")
-    : "";
 
   if (!mons.length) {
+    if (tc) tc.innerHTML = "";
     $("monlist").innerHTML = '<div class="sub">No monsters imported yet.</div>';
     return;
   }
@@ -1243,6 +1244,11 @@ async function loadLibrary() {
     if (adv.spell && !m.has_spellcasting) return false;
     return true;
   });
+
+  // count line: "n monsters" normally, "x of n monsters" while filters bite
+  if (tc) tc.innerHTML =
+    `<b>${shown.length === usableN ? usableN : `${shown.length}</b> of <b>${usableN}`}</b> <span class="mword">monsters</span>`
+    + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} ${flaggedN === 1 ? "needs" : "need"} review</a>` : "");
 
   if (!shown.length) {
     $("monlist").innerHTML = `<div class="sub" style="color:var(--dim)">No monsters match the current filters.</div>`;
@@ -2414,15 +2420,15 @@ function toggleMode() {
   }
 })();
 
-// Boot sequence: wallpaper only → title card (in 1.5s / hold 2s / out 1.5s = 5s)
-// Typewriter intro: after a beat, "MonsterBox" types out letter-by-letter with
-// human-ish timing variance, holds a second, then flies to the top-left and
-// shrinks into the title wordmark (the real title is revealed as it lands).
+// Boot intro: the logo drops in and settles (1.05s); 1s after settling the
+// wordmark types out letter-by-letter with human-ish timing variance; 2s after
+// the last letter, logo + text fade out together; 1.5s after that fade
+// completes, the full UI fades in.
 (function() {
   const sp = $("splash");
   const reveal = () => document.body.classList.remove("booting");
   if (!sp) { reveal(); return; }
-  const mon = $("spMon"), box = $("spBox"), cur = $("spCursor"), st = sp.querySelector(".splash-text");
+  const mon = $("spMon"), box = $("spBox");
   const seq = "Monster".split("").map(c => [mon, c]).concat("Box".split("").map(c => [box, c]));
   let i = 0;
   function type() {
@@ -2432,44 +2438,14 @@ function toggleMode() {
     const delay = 90 + (Math.random() * 110 - 30) + (Math.random() < 0.14 ? 230 : 0);
     setTimeout(type, delay);
   }
-  function done() {
-    if (cur) { cur.style.transition = "opacity .25s"; cur.style.opacity = "0"; }   // hide, keep in flow (no re-centre)
-    setTimeout(fly, 1000);   // hold a second
+  function done() { setTimeout(fadeOut, 2000); }   // hold the finished card 2s
+  function fadeOut() {
+    sp.style.transition = "opacity .8s ease";
+    sp.style.opacity = "0";                        // logo + wordmark fade together
+    setTimeout(() => sp.remove(), 850);
+    setTimeout(reveal, 800 + 1500);                // 1.5s of bare wallpaper, then UI fades in (1s)
   }
-  // shrink an element from its current spot onto a target element's box, the
-  // same way the wordmark flies to the title (top-left origin so the maths is a
-  // plain translate + uniform scale)
-  function flyTo(el, target) {
-    if (!el || !target) return;
-    const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
-    if (!a.height || !b.height) return;
-    el.style.animation = "none";                 // drop the keyframes' filled value so inline transform wins
-    el.style.transformOrigin = "top left";
-    el.style.transition = "transform .95s cubic-bezier(.55,0,.25,1)";
-    el.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.height / a.height})`;
-  }
-  function fly() {
-    const title = document.querySelector(".title-text");
-    const titleIcon = document.querySelector(".title-icon");
-    const logo = $("splashLogo");
-    // logo flies into the titlebar icon and the wordmark into the title text, so
-    // the whole splash mirrors the real header as it lands there
-    flyTo(logo, titleIcon);
-    if (!title || !st.getBoundingClientRect().height) { reveal(); setTimeout(() => sp.remove(), 1000); return; }
-    const a = st.getBoundingClientRect(), b = title.getBoundingClientRect();
-    const scale = b.height / a.height;
-    st.style.transition = "transform .95s cubic-bezier(.55,0,.25,1)";
-    st.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${scale})`;
-    // Only once the intro text has fully landed on the title do we hand over:
-    // reveal the real title and fade the splash out together so they crossfade
-    // in place — never two solid copies at once.
-    setTimeout(() => {
-      reveal();                                                          // real title fades in (1s)
-      sp.style.transition = "opacity .6s ease"; sp.style.opacity = "0";  // splash fades out, perfectly aligned
-    }, 970);
-    setTimeout(() => sp.remove(), 1700);
-  }
-  setTimeout(type, 1650);                     // let the logo drop + settle first, then type
+  setTimeout(type, 2100);                          // logo drop (1.05s) + 1s settle beat
 })();
 
 // Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
@@ -2509,14 +2485,15 @@ function snoozeBackup() {
 }
 window.refreshBackupNag = refreshBackupNag;
 // show the about/legal panel after the splash on every startup, unless dismissed
+// (drop 2.1s + type ~1.3s + hold 2s + fade .8s + wallpaper beat 1.5s + UI fade 1s)
 if (!localStorage.getItem("sf-hide-about")) {
-  setTimeout(() => showAbout(), 5200);
+  setTimeout(() => showAbout(), 9200);
 }
 
 // keep the empty-state hint correct for the current viewport (and on rotate)
 (function() {
   const m = window.matchMedia("(max-width: 820px)");
-  const set = () => { const e = $("emptylabel");
+  const set = () => { const e = $("emptytext");
     if (e) e.textContent = m.matches
       ? "Tap ☰ to open the Compendium"
       : "Drag and Drop a PDF here"; };
