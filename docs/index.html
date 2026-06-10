@@ -71,23 +71,24 @@
   .title-icon { width: 34px; height: 34px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
   /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
-     contrast is obvious. Carved-white in light, carved emerald in dark. The boot
-     intro types this out then flies here, so the styles must match. */
+     contrast is obvious. White with teal accents in light, white with emerald
+     accents in dark. The boot intro types this out then flies here, so the
+     styles must match. */
   .title-text { font-family: var(--mono); font-size: 22px; line-height: 1; white-space: nowrap; }
   .tm-monster { font-weight: 700; }
   .tm-box { font-weight: 400; }
-  /* light: white with a bathymetry depth stack (descending teal contours + dark
-     lift) — readable over the busy water art. dark: the same carved bathymetry
-     in the emerald palette (mint highlight fill, descending forest-green contours
-     + a soft green glow on top so it still reads against the dark ruins). */
+  /* both modes: WHITE text with a bathymetry depth stack of coloured contours —
+     light uses descending teal, dark uses the emerald palette (leafy mint nearest
+     the text, descending to deep forest) — so the wordmark reads the same way in
+     each mode, just tinted to suit its wallpaper. */
   body:not(.dark) .title-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
           0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
-  body.dark .title-text { color: #50C795;
-        text-shadow: 0 0 12px rgba(80,199,149,.45),
-          0 1px 0 rgba(65,168,122,.92), 0 2px 0 rgba(56,147,98,.66), 0 3px 0 rgba(52,139,90,.48),
-          0 4px 0 rgba(47,128,77,.34), 0 5px 0 rgba(39,106,59,.22), 0 7px 10px rgba(4,24,12,.6); }
+  body.dark .title-text { color: #fff;
+        text-shadow: 0 0 1px rgba(8,40,24,.6),
+          0 1px 0 rgba(80,199,149,.9), 0 2px 0 rgba(65,168,122,.62), 0 3px 0 rgba(56,147,98,.46),
+          0 4px 0 rgba(52,139,90,.33), 0 5px 0 rgba(47,128,77,.22), 0 7px 10px rgba(6,28,15,.6); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -717,17 +718,27 @@
     display: flex; flex-direction: column; align-items: center; gap: 26px;
   }
   /* large logo with a heavy two-layer drop-shadow (follows the cut-out shape, so
-     it lifts off the screen instead of reading flat). Pops in on load. */
+     it lifts off the screen instead of reading flat). Drops in and settles on
+     load with a weighty bounce + squash. */
   .splash-logo {
-    height: 168px; width: auto; display: block;
-    filter: drop-shadow(0 20px 34px rgba(0,0,0,.6)) drop-shadow(0 7px 14px rgba(0,0,0,.5));
-    transform-origin: center;
-    animation: splashLogoIn .8s cubic-bezier(.2,.9,.3,1.25) both;
+    height: 256px; width: auto; display: block;
+    filter: drop-shadow(0 22px 38px rgba(0,0,0,.62)) drop-shadow(0 8px 15px rgba(0,0,0,.5));
+    transform-origin: center bottom;
+    animation: splashLogoIn 1.05s both;
   }
+  /* drop from above, impact, small rebound, then a squash-and-settle landing —
+     reads as a heavy object dropping onto the surface */
   @keyframes splashLogoIn {
-    0%   { opacity: 0; transform: translateY(16px) scale(.6); }
-    60%  { opacity: 1; }
-    100% { opacity: 1; transform: translateY(0) scale(1); }
+    0%   { opacity: 0; transform: translateY(-150px) scaleY(1.06) scaleX(.97);
+           animation-timing-function: cubic-bezier(.45,0,.85,.4); }   /* fall, accelerating */
+    42%  { opacity: 1; transform: translateY(0) scaleY(1) scaleX(1);
+           animation-timing-function: cubic-bezier(.25,.6,.4,1); }    /* first impact */
+    58%  { transform: translateY(-26px) scaleY(1.02) scaleX(.99);
+           animation-timing-function: cubic-bezier(.5,0,.85,.5); }    /* rebound up */
+    78%  { transform: translateY(0) scaleY(.9) scaleX(1.06);
+           animation-timing-function: cubic-bezier(.3,.5,.5,1); }     /* land + squash */
+    90%  { transform: translateY(0) scaleY(1.02) scaleX(.99); }       /* recover */
+    100% { transform: translateY(0) scale(1); }
   }
   .splash-text {
     font-family: var(--mono); font-size: 72px; line-height: 1;
@@ -739,16 +750,16 @@
   .tw-cursor { font-weight: 400; margin-left: 0;
         animation: twblink 1.05s step-end infinite; }
   @keyframes twblink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
-  /* same palette as the in-app wordmark: carved bathymetry — white (light) /
-     emerald (dark) — with offsets doubled to suit the larger splash type */
+  /* same treatment as the in-app wordmark: WHITE text with coloured bathymetry
+     contours — teal (light) / emerald (dark) — offsets doubled for the big type */
   body:not(.dark) .splash-text { color: #fff;
         text-shadow: 0 0 1px rgba(0,40,55,.6),
           0 2px 0 rgba(8,74,94,.9), 0 4px 0 rgba(8,68,88,.6), 0 6px 0 rgba(8,62,82,.44),
           0 8px 0 rgba(8,56,76,.3), 0 10px 0 rgba(8,50,70,.2), 0 14px 16px rgba(0,24,38,.55); }
-  body.dark .splash-text { color: #50C795;
-        text-shadow: 0 0 22px rgba(80,199,149,.45),
-          0 2px 0 rgba(65,168,122,.92), 0 4px 0 rgba(56,147,98,.62), 0 6px 0 rgba(52,139,90,.45),
-          0 8px 0 rgba(47,128,77,.3), 0 10px 0 rgba(39,106,59,.2), 0 14px 16px rgba(4,24,12,.6); }
+  body.dark .splash-text { color: #fff;
+        text-shadow: 0 0 1px rgba(8,40,24,.6),
+          0 2px 0 rgba(80,199,149,.9), 0 4px 0 rgba(65,168,122,.6), 0 6px 0 rgba(56,147,98,.44),
+          0 8px 0 rgba(52,139,90,.3), 0 10px 0 rgba(47,128,77,.2), 0 14px 16px rgba(6,28,15,.55); }
 
   /* central transparent empty-state label (no scroll shown when nothing picked) */
   #emptylabel {
@@ -883,7 +894,7 @@
 
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
-    .splash-logo { height: 104px; }
+    .splash-logo { height: 168px; }
     .splash-stack { gap: 18px; }
   }
 </style>
@@ -898,7 +909,7 @@
 <!-- mobile top bar (hidden on desktop via CSS) -->
 <div id="mtopbar">
   <button class="mbtn" onclick="toggleDrawer('left')" aria-label="Open Compendium">&#9776;</button>
-  <div class="mtitle"><img src="MonsterBox.ico" alt=""><span>MonsterBox</span></div>
+  <div class="mtitle"><img src="monsterbox-logo.png" alt=""><span>MonsterBox</span></div>
   <button class="mbtn" onclick="toggleDrawer('right')" aria-label="Open Tracker and Roll Log">&#9876;</button>
 </div>
 <div id="mscrim" onclick="closeDrawers()"></div>
@@ -906,7 +917,7 @@
   <!-- LEFT: title (atop background) + import panel + compendium panel -->
   <div class="side" id="leftside">
     <div class="titlebar">
-      <img class="title-icon" src="MonsterBox.ico" alt="">
+      <img class="title-icon" src="monsterbox-logo.png" alt="">
       <span class="title-text"><span class="tm-monster">Monster</span><span class="tm-box">Box</span></span>
     </div>
     <div class="glass" id="importpanel">
@@ -2425,13 +2436,25 @@ function toggleMode() {
     if (cur) { cur.style.transition = "opacity .25s"; cur.style.opacity = "0"; }   // hide, keep in flow (no re-centre)
     setTimeout(fly, 1000);   // hold a second
   }
+  // shrink an element from its current spot onto a target element's box, the
+  // same way the wordmark flies to the title (top-left origin so the maths is a
+  // plain translate + uniform scale)
+  function flyTo(el, target) {
+    if (!el || !target) return;
+    const a = el.getBoundingClientRect(), b = target.getBoundingClientRect();
+    if (!a.height || !b.height) return;
+    el.style.animation = "none";                 // drop the keyframes' filled value so inline transform wins
+    el.style.transformOrigin = "top left";
+    el.style.transition = "transform .95s cubic-bezier(.55,0,.25,1)";
+    el.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${b.height / a.height})`;
+  }
   function fly() {
     const title = document.querySelector(".title-text");
-    // the logo lifts and fades as the wordmark departs, so focus follows the
-    // title travelling to its home corner rather than a logo sitting mid-screen
+    const titleIcon = document.querySelector(".title-icon");
     const logo = $("splashLogo");
-    if (logo) { logo.style.transition = "opacity .5s ease, transform .5s ease";
-      logo.style.opacity = "0"; logo.style.transform = "translateY(-14px) scale(.9)"; }
+    // logo flies into the titlebar icon and the wordmark into the title text, so
+    // the whole splash mirrors the real header as it lands there
+    flyTo(logo, titleIcon);
     if (!title || !st.getBoundingClientRect().height) { reveal(); setTimeout(() => sp.remove(), 1000); return; }
     const a = st.getBoundingClientRect(), b = title.getBoundingClientRect();
     const scale = b.height / a.height;
@@ -2446,7 +2469,7 @@ function toggleMode() {
     }, 970);
     setTimeout(() => sp.remove(), 1700);
   }
-  setTimeout(type, 1500);                     // a couple of seconds before typing starts
+  setTimeout(type, 1650);                     // let the logo drop + settle first, then type
 })();
 
 // Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
