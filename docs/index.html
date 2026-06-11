@@ -1266,7 +1266,7 @@ async function loadLibrary() {
     if (adv.acMax != null && (m.armor_class ?? 0) > adv.acMax) return false;
     if (adv.hpMin != null && (m.hit_points ?? 0) < adv.hpMin) return false;
     if (adv.hpMax != null && (m.hit_points ?? 0) > adv.hpMax) return false;
-    for (const k in adv.abil) { if (adv.abil[k] != null) { const v = m.abilities && m.abilities[k]; if (v == null || v <= adv.abil[k]) return false; } }
+    for (const k in adv.abil) { if (adv.abil[k] != null) { const v = m.abilities && m.abilities[k]; if (v == null || v < adv.abil[k]) return false; } }   // >= threshold
     if (adv.damage) { const d = adv.damage.toLowerCase();
       if (![...(m.damage_resistances||[]), ...(m.damage_immunities||[])].some(x => String(x).toLowerCase().includes(d))) return false; }
     if (adv.cond) { const c = adv.cond.toLowerCase();
@@ -1477,7 +1477,7 @@ function populateFilterPanel(mons) {
     <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>${dual("hp", adv.hpMinPos, adv.hpMaxPos)}</div>
     <div class="frow"><label>Attributes above…</label>
       <div class="abilfilters">${ABIL6.map(([L,k]) =>
-        `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"><span class="ablbl">${L} &gt;</span><input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
+        `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"><span class="ablbl">${L} &ge;</span><input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
     <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${optsCap(dmgTypes, adv.damage)}</select></div>
     <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${optsCap(conds, adv.cond)}</select></div>
     <div class="fchecks">
