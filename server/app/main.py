@@ -14,10 +14,13 @@ def create_app() -> FastAPI:
     Base.metadata.create_all(bind=engine)
 
     app = FastAPI(title="MonsterBox API", version="0.1.0")
+    # Auth is by bearer token (not cookies), so we don't need credentialed CORS.
+    # In dev, allow any origin so the local PWA (any port) can call the API; in
+    # production, lock to the configured PWA origin(s).
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_list,
-        allow_credentials=True,
+        allow_origins=["*"] if settings.dev_auth else settings.cors_list,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

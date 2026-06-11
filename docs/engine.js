@@ -11,6 +11,9 @@
   "use strict";
 
   const realFetch = window.fetch.bind(window);
+  // cloud.js uses this to reach the REAL backend; the shim below would otherwise
+  // intercept any path containing "/api/" and answer it locally.
+  window.sfDirectFetch = realFetch;
   const OWNER = "local-user";
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "id-" + Date.now() + "-" + Math.random().toString(16).slice(2));
 

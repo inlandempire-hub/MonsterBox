@@ -666,6 +666,38 @@
   }
 
   /* ---- light / dark toggle (pill-slider, top-right of centre panel) ---- */
+  /* account / sign-in button (sits just left of the mode toggle) */
+  .accountbtn {
+    position: absolute; top: 14px; right: 80px; z-index: 2;
+    height: 28px; padding: 0 12px; border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.55);
+    background: rgba(0,0,0,.30); color: #fff;
+    font: 600 12px/1 var(--mono); cursor: pointer;
+    backdrop-filter: blur(3px); max-width: 160px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: background .15s, border-color .15s;
+  }
+  .accountbtn:hover { background: rgba(0,0,0,.45); border-color: #fff; }
+  .accountbtn.signed-in { border-color: var(--red); }
+  @media (max-width: 820px) { .accountbtn { top: auto; bottom: 16px; right: 84px; z-index: 120; } }
+
+  /* auth modal */
+  .auth-box { max-width: 360px; text-align: center; }
+  .auth-input {
+    display: block; width: 100%; box-sizing: border-box; margin: 8px 0;
+    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--ink); font-size: 14px;
+  }
+  .auth-input:focus { outline: none; border-color: var(--red); }
+  .auth-actions { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+  .auth-msg { min-height: 18px; font-size: 12px; margin: 4px 0; color: var(--dim); }
+  .auth-msg.err { color: var(--red); }
+  .auth-msg.ok { color: #2f804d; }
+  .auth-note { font-size: 11px; color: var(--dim); margin-top: 12px; line-height: 1.4; }
+  .auth-acct-email { font-weight: 700; font-size: 15px; margin: 6px 0; }
+  .auth-acct-tag { font-size: 13px; color: var(--dim); margin-bottom: 10px; }
+  .auth-close { margin-top: 14px; }
+
   #modetoggle {
     position: absolute;
     top: 14px;
@@ -987,6 +1019,7 @@
 
   <!-- CENTRE: the scroll -->
   <div class="col sheet" id="sheet">
+    <button id="accountbtn" class="accountbtn" title="Sign in to sync across devices">Sign In</button>
     <button id="modetoggle" title="Toggle light or dark mode" aria-label="Toggle light or dark mode" onclick="toggleMode()"></button>
     <div id="emptylabel"><span id="emptytext">Drag and Drop a PDF here</span></div>
     <div id="importprogress"></div>
@@ -1117,11 +1150,42 @@
   </div>
 </div>
 
+<!-- sign in / account (Supabase email + password) -->
+<div id="authModal" class="modal-overlay" style="display:none">
+  <div class="modal-box auth-box">
+    <div class="about-h">MonsterBox</div>
+    <div class="about-sub" id="authTitle">Sign in</div>
+
+    <div id="authForm">
+      <input id="authEmail" class="auth-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="authPass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
+      <div class="auth-msg" id="authmsg"></div>
+      <div class="auth-actions">
+        <button class="btn save" onclick="cloudSignIn()">Log In</button>
+        <button class="btn" onclick="cloudSignUp()">Create Account</button>
+      </div>
+      <div class="auth-note">Signing in lets your compendium sync across devices. The app
+        works fully without an account. Everything stays in this browser.</div>
+    </div>
+
+    <div id="authAccount" style="display:none">
+      <div class="auth-acct-email" id="authAcctEmail"></div>
+      <div class="auth-acct-tag" id="authAcctTag"></div>
+      <div class="auth-actions"><button class="btn danger" onclick="cloudSignOut()">Sign Out</button></div>
+    </div>
+
+    <button class="btn auth-close" onclick="cloudCloseModal()">Close</button>
+  </div>
+</div>
+
 <!-- client-side backend (IndexedDB + roll/tracker engine + fetch shim) -->
 <script src="engine.js"></script>
 <!-- in-browser PDF import (pdf.js + parser port) -->
 <script src="vendor/pdf.min.js"></script>
 <script src="pdfimport.js"></script>
+<!-- optional account layer (Supabase email/password login) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="cloud.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 let selected = null;
