@@ -702,9 +702,26 @@
     transition: transform var(--fade) cubic-bezier(.4,0,.2,1), background var(--fade) ease !important;
   }
 
-  /* ---- app reveal (UI stays hidden until the splash finishes) ---- */
-  #app { opacity: 1; transition: opacity 1s ease; }
-  body.booting #app { opacity: 0; }
+  /* ---- app reveal (UI stays hidden until the splash finishes) ----
+     We must NOT fade #app's opacity: while an ancestor has opacity < 1 the glass
+     panels' backdrop-filter is disabled, so they flash un-blurred for ~0.5s as
+     the app fades in. Instead #app is always fully opaque (blur correct from the
+     first frame) and a wallpaper-matched cover sits on top during the intro and
+     fades away — so the panels fade in WITH their blur already working. */
+  #app { opacity: 1; }
+  #bootcover {
+    position: fixed; inset: 0; z-index: 9998; pointer-events: none;
+    opacity: 1; transition: opacity 1s ease;
+  }
+  #bootcover::before, #bootcover::after {
+    content: ''; position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+  }
+  #bootcover::before { background-image: url('bg-light.jpg'); opacity: 1; }
+  #bootcover::after  { background-image: url('bg-dark.jpg');  opacity: 0; }
+  body.dark #bootcover::before { opacity: 0; }
+  body.dark #bootcover::after  { opacity: 1; }
+  body:not(.booting) #bootcover { opacity: 0; }   /* fade the cover away to reveal the live UI */
 
   /* ---- typewriter intro splash (logo drops in, wordmark types out below,
      then both fade out together and the UI fades in) ---- */
@@ -903,6 +920,7 @@
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
+<div id="bootcover"></div>
 <div id="splash">
   <div class="splash-logo-wrap"><img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt=""></div>
   <div class="splash-text-wrap"><span class="splash-text"><span class="tm-monster" id="spMon"></span><span class="tm-box" id="spBox"></span></span></div>
@@ -2424,7 +2442,11 @@ function toggleMode() {
 // completes, the full UI fades in.
 (function() {
   const sp = $("splash");
-  const reveal = () => document.body.classList.remove("booting");
+  const reveal = () => {
+    document.body.classList.remove("booting");      // CSS fades #bootcover away, revealing the blurred UI
+    const bc = $("bootcover");
+    if (bc) setTimeout(() => bc.remove(), 1100);     // drop the cover once it has finished fading
+  };
   if (!sp) { reveal(); return; }
   const mon = $("spMon"), box = $("spBox");
   const seq = "Monster".split("").map(c => [mon, c]).concat("Box".split("").map(c => [box, c]));
