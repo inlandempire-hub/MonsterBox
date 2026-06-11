@@ -67,7 +67,7 @@
   }
   /* title (no ribbon) — sits in its own space atop the background, above the
      import panel in the left column */
-  .titlebar { display: flex; align-items: center; gap: 10px; pointer-events: none;
+  .titlebar { display: flex; align-items: center; gap: 4px; pointer-events: none;
         padding: 2px 4px; flex-shrink: 0; }
   .title-icon { width: 46px; height: 46px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
@@ -335,13 +335,14 @@
   #importmsg { font-size: 12px; color: var(--dim); margin-bottom: 10px; min-height: 1em; }
   #importmsg.busy { color: var(--red); }
   .impcount { border-bottom: 1px dotted currentColor; cursor: help; }
-  /* import progress — centred in the sheet, under the empty-state label */
+  /* import progress: centred overlay text that sizes to its content (no fixed
+     width) so long book titles sit on one line instead of wrapping */
   #importprogress { display: none; position: absolute; left: 50%; top: 50%;
-        transform: translate(-50%, -50%); z-index: 3; width: min(360px, 70%);
-        overflow-wrap: anywhere; word-break: break-word;
+        transform: translate(-50%, -50%); z-index: 3; max-width: 92vw;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         text-align: center; font: 600 14px/1.5 var(--mono); color: #fff;
         background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
-        border-radius: 10px; padding: 14px 18px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
+        border-radius: 10px; padding: 14px 22px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
         backdrop-filter: blur(4px); }
   #importprogress.show { display: block; }
   #importprogress .pbar { margin-top: 10px; }
@@ -670,21 +671,18 @@
     outline: none;
     box-shadow: inset 0 1px 3px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.3);
   }
-  /* the sliding knob */
+  /* the sliding knob — sun (light) / moon (dark) drawn as SVG, no emoji */
   #modetoggle::after {
-    content: '☀️';
+    content: '';
     position: absolute;
     top: 3px;
     left: 3px;
     width: 22px;
     height: 22px;
     border-radius: 50%;
-    background: #fff;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b8731a' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='4.2'/%3E%3Cpath d='M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6'/%3E%3C/svg%3E") center/13px no-repeat;
     box-shadow: 0 1px 5px rgba(0,0,0,.38);
-    transition: transform .3s cubic-bezier(.4,0,.2,1), background .3s;
-    font-size: 12px;
-    line-height: 22px;
-    text-align: center;
+    transition: transform .3s cubic-bezier(.4,0,.2,1), background-color .3s;
     display: block;
   }
   body.dark #modetoggle {
@@ -692,14 +690,16 @@
     box-shadow: inset 0 1px 3px rgba(0,0,0,.5);
   }
   body.dark #modetoggle::after {
-    content: '🌙';
     transform: translateX(26px);
-    background: #14100c;
+    background: #14100c url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23e8e2d4' d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'/%3E%3C/svg%3E") center/13px no-repeat;
   }
   /* during a mode toggle, the knob slides across at the shared fade speed (the
      universal mode-fading rule otherwise drops `transform` and makes it flick) */
   body.mode-fading #modetoggle::after {
-    transition: transform var(--fade) cubic-bezier(.4,0,.2,1), background var(--fade) ease !important;
+    /* the knob SNAPS (.25s) so the control feels responsive; only its colour
+       crossfades with the rest of the UI. Sliding it over the full --fade made
+       the toggle feel laggy. */
+    transition: transform .25s cubic-bezier(.4,0,.2,1), background-color var(--fade) ease !important;
   }
 
   /* ---- app reveal (UI stays hidden until the splash finishes) ----
@@ -732,8 +732,8 @@
   /* logo and wordmark are anchored to the viewport centre line independently:
      the logo's bottom sits 10px above centre, the wordmark's top 10px below.
      Absolute (not flexed) so typing the title never reflows the logo. */
-  .splash-logo-wrap { position: absolute; left: 50%; bottom: calc(50% + 10px); transform: translateX(-50%); }
-  .splash-text-wrap { position: absolute; left: 50%; top: calc(50% + 10px); transform: translateX(-50%); }
+  .splash-logo-wrap { position: absolute; left: 50%; bottom: calc(50% + 5px); transform: translateX(-50%); }
+  .splash-text-wrap { position: absolute; left: 50%; top: calc(50% + 5px); transform: translateX(-50%); }
   /* large logo with a heavy two-layer drop-shadow (follows the cut-out shape, so
      it lifts off the screen instead of reading flat). Drops in and settles on
      load with a weighty bounce + squash. */
@@ -788,7 +788,7 @@
   /* ring box hugging the label text (like the old intro card outline) */
   #emptylabel span {
     border: 2px solid rgba(255,255,255,.85); border-radius: 8px;
-    padding: 4px 4px;
+    padding: 1px 4px;
     box-shadow: 0 2px 12px rgba(0,0,0,.4);
   }
 
@@ -1012,7 +1012,7 @@
           <h2 class="title">Needs Review</h2>
           <button class="btn" onclick="closeReview()">✕ Close</button>
         </div>
-        <div class="review-note">⚠ These entries are <b>hidden from your compendium</b> until you fix them or mark
+        <div class="review-note">These entries are <b>hidden from your compendium</b> until you fix them or mark
           them usable. <b>Fix</b> opens the editor on the highlighted fields; <b>Mark as Usable</b> accepts the
           entry as-is and adds it to your library.</div>
       </div>
@@ -1074,7 +1074,7 @@
 <!-- concentration check prompt (fires when a concentrating creature takes damage) -->
 <div id="concModal" class="modal-overlay" style="display:none">
   <div class="modal-box">
-    <div class="modal-msg"><b>Concentration — <span id="concName"></span></b><div id="concBody" style="margin-top:8px;font-weight:400"></div></div>
+    <div class="modal-msg"><b>Concentration: <span id="concName"></span></b><div id="concBody" style="margin-top:8px;font-weight:400"></div></div>
     <div class="modal-btns" id="concBtns"></div>
   </div>
 </div>
@@ -1088,14 +1088,16 @@
       <p><b>Bring your own content.</b> MonsterBox ships empty and is a tool for working
          with stat-block PDFs you are legally entitled to use. You are solely
          responsible for the legality of the content you import and store.</p>
-      <p>Everything is stored locally in this browser — nothing is uploaded, synced,
+      <p>Everything is stored locally in this browser. Nothing is uploaded, synced,
          or shared. Use <i>Export Compendium</i> to back it up or move it to another
          device.</p>
       <p>MonsterBox is an independent 5e-compatible tool; <b>it is not affiliated,
          endorsed, or sponsored by Wizards of the Coast.</b> Any reference to the game
          system is nominative, to describe compatibility and intended usage only.</p>
       <p><b>Disclosure:</b> This app was created using AI-assisted code, however, it
-         does not contain any AI-generated content or artwork.</p>
+         does not contain any AI-generated content or artwork. All artwork and imagery
+         in MonsterBox is original or properly licensed, with full rights held for its
+         use here.</p>
     </div>
     <div class="about-foot">
       <label class="about-dontshow"><input type="checkbox" id="aboutDontShow"> Don't show this information again</label>
@@ -1145,15 +1147,25 @@ function _restorePlannerLayout() {
   loadTracker();   // refresh the compact list
 }
 
+let _emptyFadeTimer = null;
 function showEmptyLabel() {
   _restorePlannerLayout();
   const w = _wrap();
   if (w) w.style.display = "none";
-  // mobile has no visible compendium — point the user at the ☰ menu instead
+  // mobile has no visible compendium: point the user at the menu instead
   $("emptytext").textContent = window.matchMedia("(max-width: 820px)").matches
-    ? "Tap ☰ to open the Compendium"
+    ? "Tap the menu to open the Compendium"
     : "Drag and Drop a PDF here";
-  $("emptylabel").style.display = "flex";
+  const el = $("emptylabel");
+  el.style.display = "flex";
+  // show the hint for 60s, then fade it out over 3s so it isn't there forever
+  el.style.transition = "none";
+  el.style.opacity = "1";
+  clearTimeout(_emptyFadeTimer);
+  _emptyFadeTimer = setTimeout(() => {
+    el.style.transition = "opacity 3s ease";
+    el.style.opacity = "0";
+  }, 60000);
 }
 
 // Reset any inline animation styles back to the CSS-governed layout.
@@ -1326,11 +1338,12 @@ function openReview() {
       <div class="rev-meta">${esc(m.size||"")} ${esc(m.creature_type||"")}${m.challenge_rating ? " · CR " + esc(m.challenge_rating) : ""} · AC ${m.armor_class} · ${m.hit_points} HP</div>
       <div class="rev-reasons"><div class="rev-rh">Why it needs review</div><ul>${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>
       <div class="rev-btns">
-        <button class="btn" onclick="reviewFix('${m.id}')">✎ Fix</button>
-        <button class="btn save" onclick="markUsable('${m.id}')">✓ Mark as Usable</button>
-        <button class="btn danger" onclick="reviewRemove('${m.id}')">🗑 Remove</button>
+        <button class="btn" onclick="reviewView('${m.id}')">View</button>
+        <button class="btn" onclick="reviewFix('${m.id}')">Fix</button>
+        <button class="btn save" onclick="markUsable('${m.id}')">Mark as Usable</button>
+        <button class="btn danger" onclick="reviewRemove('${m.id}')">Remove</button>
       </div></div>`;
-  }).join("") : '<div class="sub" style="color:var(--dim);padding:8px">Nothing needs review — your whole library is usable. 🎉</div>';
+  }).join("") : '<div class="sub" style="color:var(--dim);padding:8px">Nothing needs review. Your whole library is usable.</div>';
   if (_scrollAnim) { clearTimeout(_scrollAnim); _scrollAnim = null; }
   closeCentrePanels();
   _wrap().style.display = "none";
@@ -1346,7 +1359,9 @@ async function markUsable(id) {
   await loadLibrary();
   openReview();                                              // refresh; the accepted one drops off
 }
-async function reviewFix(id) { $("reviewpanel").style.display = "none"; await showSheet(id); startEdit(); }
+async function reviewView(id) { $("reviewpanel").style.display = "none"; await showSheet(id, { fromReview: true }); }
+async function reviewFix(id) { $("reviewpanel").style.display = "none"; await showSheet(id, { fromReview: true }); startEdit(); }
+function backToReview() { _fromReviewId = null; openReview(); }
 // remove a badly-parsed entry outright (instead of fixing / accepting it)
 async function reviewRemove(id) {
   const m = (library || []).find(x => x.id === id);
@@ -1436,9 +1451,9 @@ function populateFilterPanel(mons) {
     <div class="frow"><label>Damage Resistance / Immunity</label><select id="f_damage" onchange="onAdvFilter()">${optsCap(dmgTypes, adv.damage)}</select></div>
     <div class="frow"><label>Condition Immunity</label><select id="f_cond" onchange="onAdvFilter()">${optsCap(conds, adv.cond)}</select></div>
     <div class="fchecks">
-      <label><input type="checkbox" id="f_lr" ${adv.lr?"checked":""} onchange="onAdvFilter()"> Legendary Resistance</label>
+      <label><input type="checkbox" id="f_lr" ${adv.lr?"checked":""} onchange="onAdvFilter()"> Legendary Resistances</label>
       <label><input type="checkbox" id="f_multi" ${adv.multi?"checked":""} onchange="onAdvFilter()"> Multiattack</label>
-      <label><input type="checkbox" id="f_spell" ${adv.spell?"checked":""} onchange="onAdvFilter()"> Spellcasting</label>
+      <label><input type="checkbox" id="f_spell" ${adv.spell?"checked":""} onchange="onAdvFilter()"> Innate Spellcasting</label>
     </div>`;
   updateRangeLabels();
 }
@@ -1474,7 +1489,7 @@ function confDot(m) {
   if (lv === "green") return "";
   const reasons = (m.parse_warnings && m.parse_warnings.length)
     ? m.parse_warnings.join("; ") : "Some fields may be incomplete";
-  return ` <span class="cdot ${lv}" title="${esc(reasons)}">⚠</span>`;
+  return ` <span class="cdot ${lv}" title="${esc(reasons)}">!</span>`;
 }
 // (re)build the CR dropdown options from the current library
 function crValue(cr) {
@@ -1502,8 +1517,8 @@ function entryHtml(a, sid) {
   else if (a.recharge) pill = `<span class="pill">${esc(a.recharge)}</span>`;
   else if (a.legendary_cost > 1) pill = `<span class="pill">Costs ${a.legendary_cost}</span>`;
   let buttons = "";
-  if (a.attack) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','attack')">🎲 +${a.attack.to_hit} to hit</button>`;
-  if (a.damage && a.damage.length) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','damage')">🎲 damage</button>`;
+  if (a.attack) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','attack')">Roll +${a.attack.to_hit} to Hit</button>`;
+  if (a.damage && a.damage.length) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','damage')">Roll Damage</button>`;
   let save = a.save ? ` <span class="line"><b>Save:</b> DC ${a.save.dc} ${a.save.ability.toUpperCase()}</span>` : "";
   return `<div class="entry"><div class="en">${esc(a.name)}${pill}</div>
     <div class="txt">${esc(a.raw_text)}</div>${save}<div>${buttons}</div></div>`;
@@ -1554,8 +1569,13 @@ const ABILS = [["STR","str","strength"],["DEX","dex","dexterity"],
   ["CON","con","constitution"],["INT","int","intelligence"],
   ["WIS","wis","wisdom"],["CHA","cha","charisma"]];
 
+let _fromReviewId = null;   // the flagged monster we'd return to the Review panel from
 async function showSheet(id, opts = {}) {
   selected = id;
+  // remember whether this sheet was opened from the Review panel, so the editor /
+  // re-renders keep showing "Back to Review" until the user navigates elsewhere
+  const fromReview = !!opts.fromReview || _fromReviewId === id;
+  _fromReviewId = fromReview ? id : null;
   closeCentrePanels();   // opening a sheet closes the review / filter centre panels
   closeDrawers();          // mobile: reveal the scroll after picking a monster
   loadLibrary();
@@ -1619,16 +1639,17 @@ async function showSheet(id, opts = {}) {
       <div class="sheethead">
         <h2 class="title">${esc(sb.name)}</h2>
         <div class="headbtns">
-          ${opts.fromCombatant ? `<button class="btn" onclick="backToEncounter()">◂ Back to Encounter</button>` : ""}
-          <button class="btn" onclick="startEdit()">✎ Edit</button>
+          ${fromReview ? `<button class="btn" onclick="backToReview()">Back to Review</button>` : ""}
+          ${opts.fromCombatant ? `<button class="btn" onclick="backToEncounter()">Back to Encounter</button>` : ""}
+          <button class="btn" onclick="startEdit()">Edit</button>
           <button class="btn" title="Close (clears the panel, keeps it in the library)"
-                  onclick="clearSheet()">✕ Close</button>
+                  onclick="clearSheet()">Close</button>
         </div>
       </div>
       <div class="meta">${esc(sb.size||"")} ${esc(sb.creature_type||"")}${sb.alignment?", "+esc(sb.alignment):""}</div>
       ${(sb.parse_warnings && sb.parse_warnings.length) ? `<div class="reviewbanner">
-        <div class="rb-txt"><b>Needs review:</b> ${sb.parse_warnings.map(esc).join(" · ")}. The PDF didn't give a clear value here — fix it in a couple of clicks.</div>
-        <button class="btn" onclick="startEdit()">✎ Fix</button>
+        <div class="rb-txt"><b>Needs review:</b> ${sb.parse_warnings.map(esc).join(" · ")}. The PDF didn't give a clear value here. Fix it in a couple of clicks.</div>
+        <button class="btn" onclick="startEdit()">Fix</button>
       </div>` : ""}
       <div class="defenses">
         <div class="d"><div class="k">Armor Class</div><div class="v">${sb.armor_class}</div></div>
@@ -1661,7 +1682,7 @@ async function showSheet(id, opts = {}) {
       ${listLine("Condition Immunities", (sb.condition_immunities||[]).map(capWords))}
       ${line("Senses", sensesText)}
       ${listLine("Languages", (sb.languages||[]).map(capWords))}
-      <button class="btn add" onclick="spawn('${id}')">➕ Add to Encounter</button>
+      <button class="btn add" onclick="spawn('${id}')">Add to Encounter</button>
       ${sectionHtml("Traits", sb.traits, id, "traits", disabled)}
       ${sectionHtml("Actions", sb.actions, id, "actions", disabled)}
       ${sectionHtml("Bonus Actions", sb.bonus_actions, id, "bonus_actions", disabled)}
@@ -1785,7 +1806,7 @@ function renderEdit(animate = false) {
     ${editButtons("top")}
     <div class="sheet-scroll"><div class="ef">
     <div class="sheethead"><h2 class="title">${isNewEntry ? "New Compendium Entry" : "Editing"}</h2></div>
-    ${warns.length ? `<div class="fixhint">⚠ Fields the importer was unsure about are outlined in red — give them a quick check. Saving marks this creature reviewed.</div>` : ""}
+    ${warns.length ? `<div class="fixhint">Fields the importer was unsure about are outlined in red. Give them a quick check. Saving marks this creature reviewed.</div>` : ""}
     <label>Name</label>${inp("e_name", sb.name, fix("name"))}
     <div class="row">
       <div><label>Size</label>${inp("e_size", sb.size||"")}</div>
@@ -2163,7 +2184,7 @@ async function promptConcentration(c, dmg) {
   _concCid = c.id;
   if (!c.statblock_id) {   // PC / no stat block — DM rolls; offer a manual decision
     return showConc(c.display_name,
-      `Took <b>${dmg}</b> damage — <b>Constitution save DC ${dc}</b> to hold concentration.`,
+      `Took <b>${dmg}</b> damage. <b>Constitution save DC ${dc}</b> to hold concentration.`,
       `<button class="btn" onclick="closeConc()">Held</button><button class="btn save" onclick="concBreak()">Broken</button>`);
   }
   const ev = await post("/api/roll", { statblock_id: c.statblock_id, kind: "save", ability: "con" });
@@ -2173,15 +2194,15 @@ async function promptConcentration(c, dmg) {
     return showConc(c.display_name, `Constitution save <b>DC ${dc}</b> to hold concentration.`,
       `<button class="btn" onclick="closeConc()">Held</button><button class="btn save" onclick="concBreak()">Broken</button>`);
   }
-  if (total >= dc) { toast(`${c.display_name} holds concentration — rolled ${total} vs DC ${dc}.`); _concCid = null; return; }
+  if (total >= dc) { toast(`${c.display_name} holds concentration. Rolled ${total} vs DC ${dc}.`); _concCid = null; return; }
   // failed the save
   if ((c.lr || 0) > 0) {
     return showConc(c.display_name,
-      `Failed the save — <b>${total}</b> vs DC ${dc}. Spend a <b>Legendary Resistance</b> to hold concentration? (${c.lr} left)`,
+      `Failed the save: <b>${total}</b> vs DC ${dc}. Spend a <b>Legendary Resistance</b> to hold concentration? (${c.lr} left)`,
       `<button class="btn save" onclick="concUseLR()">Use Legendary Resistance</button><button class="btn" onclick="concBreak()">Let it break</button>`);
   }
   await post("/api/encounter/condition", { combatant_id: c.id, name: "Concentration", action: "remove" });
-  toast(`${c.display_name} loses concentration — rolled ${total} vs DC ${dc}.`);
+  toast(`${c.display_name} loses concentration. Rolled ${total} vs DC ${dc}.`);
   _concCid = null; loadTracker();
 }
 async function concBreak() {
@@ -2190,7 +2211,7 @@ async function concBreak() {
 }
 async function concUseLR() {
   if (_concCid) await post("/api/encounter/legendary-resist", { combatant_id: _concCid, delta: -1 });
-  toast("Legendary Resistance spent — concentration holds.");
+  toast("Legendary Resistance spent. Concentration holds.");
   closeConc(); loadTracker();
 }
 async function toggleLR(cid, k) {
@@ -2216,7 +2237,7 @@ function renderPlannerList(enc) {
   const el = $("plannerlist");
   if (!el) return;
   if (!enc.combatants.length) {
-    el.innerHTML = '<div class="planner-empty">Empty — add creatures from a stat block, then Expand to run it.</div>';
+    el.innerHTML = '';
     return;
   }
   el.innerHTML = enc.combatants.map(c => `
@@ -2515,13 +2536,14 @@ if (!localStorage.getItem("sf-hide-about")) {
   const m = window.matchMedia("(max-width: 820px)");
   const set = () => { const e = $("emptytext");
     if (e) e.textContent = m.matches
-      ? "Tap ☰ to open the Compendium"
+      ? "Tap the menu to open the Compendium"
       : "Drag and Drop a PDF here"; };
   set();
   m.addEventListener("change", set);
 })();
 
 loadLibrary(); loadTracker(); loadLog(); loadEncounterList();
+if (!selected) showEmptyLabel();   // show the drag-and-drop hint, then auto-fade it after 60s
 </script>
 </body>
 </html>
