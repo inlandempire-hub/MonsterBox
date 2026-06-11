@@ -1249,12 +1249,13 @@ async function loadLibrary() {
   }
 
 
-  // combined filters: free-text search + CR dropdown + advanced filter panel
+  // combined filters: free-text search + CR dropdown + advanced filter panel.
+  // The predicate is the SAME for compendium and review entries (so the "need
+  // review" count tracks the active filters too); only isFlagged separates them.
   const q = searchTerm.trim().toLowerCase();
-  const shown = mons.filter(m => {
+  const matchFilters = (m) => {
     if (q && !(m.name||"").toLowerCase().includes(q)
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
-    if (isFlagged(m)) return false;   // entries needing review are hidden until fixed / marked usable
     if (adv.cr && (m.challenge_rating || "?") !== adv.cr) return false;
     if (adv.type && baseType(m.creature_type) !== adv.type) return false;
     if (adv.size && (m.size||"") !== adv.size) return false;
@@ -1271,12 +1272,15 @@ async function loadLibrary() {
     if (adv.multi && !m.has_multiattack) return false;
     if (adv.spell && !m.has_spellcasting) return false;
     return true;
-  });
+  };
+  const shown = mons.filter(m => !isFlagged(m) && matchFilters(m));
+  const reviewMatch = mons.filter(m => isFlagged(m) && matchFilters(m)).length;
 
-  // count line: "n monsters" normally, "x of n monsters" while filters bite
+  // count line: "n monsters" normally, "x of n monsters" while filters bite;
+  // the review count reflects the same filters
   if (tc) tc.innerHTML =
     `<b>${shown.length === usableN ? usableN : `${shown.length}</b> of <b>${usableN}`}</b> <span class="mword">monsters</span>`
-    + (flaggedN ? ` · <a class="reviewlink" onclick="openReview()">${flaggedN} ${flaggedN === 1 ? "needs" : "need"} review</a>` : "");
+    + (reviewMatch ? ` · <a class="reviewlink" onclick="openReview()">${reviewMatch} ${reviewMatch === 1 ? "needs" : "need"} review</a>` : "");
 
   if (!shown.length) {
     $("monlist").innerHTML = `<div class="sub" style="color:var(--dim)">No monsters match the current filters.</div>`;
@@ -1376,7 +1380,13 @@ async function reviewRemove(id) {
 
 // ---- advanced filter panel (opens in the centre, like the encounter view) ----
 const ABIL6 = [["STR","strength"],["DEX","dexterity"],["CON","constitution"],["INT","intelligence"],["WIS","wisdom"],["CHA","charisma"]];
-const ADV_DEFAULT = () => ({ cr:"", type:"", size:"", acMin:null, acMax:null, hpMin:null, hpMax:null,
+// acMin/acMax/hpMin/hpMax are VALUES (used by the filter); *Pos are the slider
+// positions 0-1000 (the source of truth for the UI). The sliders are mapped
+// through the value distribution, so position is a percentile of monster count,
+// not a linear value — moving a handle halfway covers ~half the monsters.
+const ADV_DEFAULT = () => ({ cr:"", type:"", size:"",
+  acMin:null, acMax:null, hpMin:null, hpMax:null,
+  acMinPos:0, acMaxPos:1000, hpMinPos:0, hpMaxPos:1000,
   abil:{ strength:null, dexterity:null, constitution:null, intelligence:null, wisdom:null, charisma:null },
   damage:"", cond:"", lr:false, multi:false, spell:false });
 let adv = ADV_DEFAULT();
@@ -1384,6 +1394,13 @@ let filterPanelOpen = false;
 const SIZE_ORDER = ["Tiny","Small","Medium","Large","Huge","Gargantuan"];
 
 let _bounds = { ac: [0, 30], hp: [0, 500] };
+// sorted value arrays (ascending, with duplicates) for the AC/HP sliders; a
+// slider position maps to the value at that percentile of the distribution
+let _dist = { ac: [], hp: [] };
+function distVal(key, pos) {
+  const s = _dist[key]; if (!s || !s.length) return null;
+  return s[Math.round((pos / 1000) * (s.length - 1))];
+}
 function toggleFilterPanel() {
   filterPanelOpen = !filterPanelOpen;
   $("filterToggle").textContent = filterPanelOpen ? "Filters ▴" : "Filters ▾";
@@ -1416,7 +1433,13 @@ const DMG_TYPES = ["acid","bludgeoning","cold","fire","force","lightning","necro
 const COND_TYPES = ["blinded","charmed","deafened","exhaustion","frightened","grappled","incapacitated","paralyzed","petrified","poisoned","prone","restrained","stunned","unconscious"];
 // base creature type without the "(Drow)" / "(Shapechanger)" parenthetical tag,
 // so the type filter has one row per category (Humanoid, Monstrosity, …)
-const baseType = t => String(t||"").replace(/\s*\(.*$/, "").trim();
+// base creature type for the filter: drop the "(Drow)" parenthetical, and
+// collapse every swarm ("Swarm of Tiny Beasts", "Medium Swarm of ...") to one
+// "Swarm" row, the same way Humanoid/Monstrosity collapse
+const baseType = t => {
+  const b = String(t||"").replace(/\s*\(.*$/, "").trim();
+  return /\bswarm\b/i.test(b) ? "Swarm" : b;
+};
 function populateFilterPanel(mons) {
   const el = $("filterbody"); if (!el) return;
   const opts = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(o)}</option>`).join("");
@@ -1431,20 +1454,24 @@ function populateFilterPanel(mons) {
   const condBlob = mons.flatMap(m => (m.condition_immunities||[])).join(" | ").toLowerCase();
   const dmgTypes = DMG_TYPES.filter(t => dmgBlob.includes(t));
   const conds = COND_TYPES.filter(t => condBlob.includes(t));
-  if (adv.acMin == null) adv.acMin = acLo; if (adv.acMax == null) adv.acMax = acHi;
-  if (adv.hpMin == null) adv.hpMin = hpLo; if (adv.hpMax == null) adv.hpMax = hpHi;
   _bounds = { ac: [acLo, acHi], hp: [hpLo, hpHi] };
-  const dual = (key, lo, hi, mn, mx) => `<div class="dual">
+  // build the value distributions and resolve the current handle positions to
+  // their values, so the filter is in sync with the sliders on (re)render
+  _dist = { ac: acs.slice().sort((a,b)=>a-b), hp: hps.slice().sort((a,b)=>a-b) };
+  adv.acMin = distVal("ac", adv.acMinPos); adv.acMax = distVal("ac", adv.acMaxPos);
+  adv.hpMin = distVal("hp", adv.hpMinPos); adv.hpMax = distVal("hp", adv.hpMaxPos);
+  // slider position runs 0-1000 (percentile of the distribution), not the raw value
+  const dual = (key, mnPos, mxPos) => `<div class="dual">
       <div class="dual-track"></div><div class="dual-fill" id="f_${key}fill"></div>
-      <input type="range" id="f_${key}min" min="${lo}" max="${hi}" value="${mn}" oninput="onAdvFilter()">
-      <input type="range" id="f_${key}max" min="${lo}" max="${hi}" value="${mx}" oninput="onAdvFilter()"></div>`;
+      <input type="range" id="f_${key}min" min="0" max="1000" value="${mnPos}" oninput="onAdvFilter()">
+      <input type="range" id="f_${key}max" min="0" max="1000" value="${mxPos}" oninput="onAdvFilter()"></div>`;
   el.innerHTML = `
     <div class="frow"><label>Challenge Rating</label><select id="f_cr" onchange="onAdvFilter()">${
       '<option value="">Any CR</option>' + crs.map(c=>`<option value="${esc(c)}" ${c===adv.cr?"selected":""}>CR ${esc(c)}</option>`).join("")}</select></div>
     <div class="frow"><label>Creature Type</label><select id="f_type" onchange="onAdvFilter()">${opts(types, adv.type)}</select></div>
     <div class="frow"><label>Creature Size</label><select id="f_size" onchange="onAdvFilter()">${opts(sizes, adv.size)}</select></div>
-    <div class="frow"><label>Armor Class <span class="rangelbl" id="f_aclbl"></span></label>${dual("ac", acLo, acHi, adv.acMin, adv.acMax)}</div>
-    <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>${dual("hp", hpLo, hpHi, adv.hpMin, adv.hpMax)}</div>
+    <div class="frow"><label>Armor Class <span class="rangelbl" id="f_aclbl"></span></label>${dual("ac", adv.acMinPos, adv.acMaxPos)}</div>
+    <div class="frow"><label>Hit Points <span class="rangelbl" id="f_hplbl"></span></label>${dual("hp", adv.hpMinPos, adv.hpMaxPos)}</div>
     <div class="frow"><label>Attributes above…</label>
       <div class="abilfilters">${ABIL6.map(([L,k]) =>
         `<label class="abrow"><input type="checkbox" id="f_ab_${k}_on" ${adv.abil[k]!=null?"checked":""} onchange="onAdvFilter()"><span class="ablbl">${L} &gt;</span><input type="number" id="f_ab_${k}" class="abnum" value="${adv.abil[k]??""}" oninput="onAdvFilter()"></label>`).join("")}</div></div>
@@ -1459,19 +1486,22 @@ function populateFilterPanel(mons) {
 }
 function updateRangeLabels() {
   const al = $("f_aclbl"), hl = $("f_hplbl");
-  if (al) al.textContent = `${adv.acMin}–${adv.acMax}`;
-  if (hl) hl.textContent = `${adv.hpMin}–${adv.hpMax}`;
-  const fill = (key, lo, hi, mn, mx) => { const el = $("f_" + key + "fill"); if (!el || hi <= lo) return;
-    const a = (mn - lo) / (hi - lo) * 100, b = (mx - lo) / (hi - lo) * 100;
+  if (al) al.textContent = `${adv.acMin} to ${adv.acMax}`;
+  if (hl) hl.textContent = `${adv.hpMin} to ${adv.hpMax}`;
+  // fill spans between the two handle POSITIONS (already a percentage of the track)
+  const fill = (key) => { const el = $("f_" + key + "fill"); if (!el) return;
+    const a = adv[key + "MinPos"] / 10, b = adv[key + "MaxPos"] / 10;
     el.style.left = a + "%"; el.style.width = Math.max(0, b - a) + "%"; };
-  fill("ac", _bounds.ac[0], _bounds.ac[1], adv.acMin, adv.acMax);
-  fill("hp", _bounds.hp[0], _bounds.hp[1], adv.hpMin, adv.hpMax);
+  fill("ac"); fill("hp");
 }
 function onAdvFilter() {
   adv.cr = $("f_cr").value; adv.type = $("f_type").value; adv.size = $("f_size").value;
   let acMin = +$("f_acmin").value, acMax = +$("f_acmax").value; if (acMin > acMax) { const t = acMin; acMin = acMax; acMax = t; }
   let hpMin = +$("f_hpmin").value, hpMax = +$("f_hpmax").value; if (hpMin > hpMax) { const t = hpMin; hpMin = hpMax; hpMax = t; }
-  adv.acMin = acMin; adv.acMax = acMax; adv.hpMin = hpMin; adv.hpMax = hpMax;
+  // sliders are in position space (0-1000); map each handle to its distribution value
+  adv.acMinPos = acMin; adv.acMaxPos = acMax; adv.hpMinPos = hpMin; adv.hpMaxPos = hpMax;
+  adv.acMin = distVal("ac", acMin); adv.acMax = distVal("ac", acMax);
+  adv.hpMin = distVal("hp", hpMin); adv.hpMax = distVal("hp", hpMax);
   ABIL6.forEach(([L,k]) => { const on = $("f_ab_"+k+"_on").checked; const n = $("f_ab_"+k).value;
     adv.abil[k] = (on && n !== "") ? +n : null; });
   adv.damage = $("f_damage").value; adv.cond = $("f_cond").value;
