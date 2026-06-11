@@ -941,7 +941,7 @@
       <span class="title-text"><span class="tm-monster">Monster</span><span class="tm-box">Box</span></span>
     </div>
     <div class="glass" id="importpanel">
-      <input type="file" id="file" accept="application/pdf" hidden>
+      <input type="file" id="file" accept="application/pdf" multiple hidden>
       <div class="impbtns">
         <button class="btn primary" onclick="document.getElementById('file').click()">Import PDF</button>
         <label class="btn">Import Compendium
@@ -2400,7 +2400,11 @@ async function loadLog() {
 
 // ---- PDF import: Import PDF button (file picker) + drop onto the main panel ----
 const fileInput = $("file");
-fileInput.addEventListener("change", () => { if (fileInput.files[0]) uploadPdf(fileInput.files[0]); });
+fileInput.addEventListener("change", () => {
+  const fs = Array.from(fileInput.files || []);   // snapshot before clearing
+  fileInput.value = "";                            // so the same file can be re-picked later
+  if (fs.length) uploadPdfs(fs);
+});
 (function () {
   const sheet = $("sheet");
   if (!sheet) return;
@@ -2410,14 +2414,13 @@ fileInput.addEventListener("change", () => { if (fileInput.files[0]) uploadPdf(f
   sheet.addEventListener("drop", ev => {
     if (!hasFiles(ev)) return;
     ev.preventDefault(); sheet.classList.remove("drag-over");
-    const f = ev.dataTransfer.files[0];
-    if (f) uploadPdf(f);
+    if (ev.dataTransfer.files.length) uploadPdfs(ev.dataTransfer.files);   // accept a whole batch at once
   });
 })();
 
-// Web build: parse the PDF entirely in the browser (pdfimport.js), no upload.
-async function uploadPdf(file) {
-  if (window.sfImportPdf) return window.sfImportPdf(file);
+// Web build: parse the PDF(s) entirely in the browser (pdfimport.js), no upload.
+async function uploadPdfs(files) {
+  if (window.sfImportPdfs) return window.sfImportPdfs(files);
   const msg = $("importmsg"); if (msg) { msg.className = ""; msg.textContent = "PDF import unavailable."; }
 }
 

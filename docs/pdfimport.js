@@ -649,59 +649,96 @@
   }
 
   // ================================================================ public: import
-  async function sfImportPdf(file) {
-    const msg = document.getElementById("importmsg");
+  // a stat block's identity for de-duplication: same name + AC + HP + CR means
+  // it is the same creature, so re-importing a PDF won't add it twice
+  const fingerprint = (b) => `${(b.name || "").trim().toLowerCase()}|${b.armor_class}|${b.hit_points}|${b.challenge_rating}`;
+
+  // parse + insert ONE file, skipping any block already in the compendium.
+  // Returns a summary; never touches the shared progress UI itself.
+  async function importOneFile(file, onProgress) {
+    if (!/\.pdf$/i.test(file.name)) return { ok: false, name: file.name, error: "Not a PDF file." };
+    let buf;
+    try { buf = await file.arrayBuffer(); } catch (e) { return { ok: false, name: file.name, error: "Couldn't read the file." }; }
+    let pages;
+    try { pages = await extractColumnLinePages(buf, onProgress); }
+    catch (e) { return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
+    const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
+    if (!pages.length || totalChars < 40 * pages.length)
+      return { ok: false, name: file.name, error: "No text layer found. This looks like a scanned or image-only PDF, which MonsterBox can't read." };
+    let blocks;
+    try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error." }; }
+    // de-dupe against what's already stored (re-fetched per file so a duplicate
+    // shared across several dropped PDFs is caught too)
+    let existing = [];
+    try { existing = await (await fetch("/api/statblocks")).json(); } catch (e) {}
+    const seen = new Set((existing || []).map(fingerprint));
+    let added = 0, dup = 0, flagged = 0;
+    for (const sb of blocks) {
+      const f = fingerprint(sb);
+      if (seen.has(f)) { dup++; continue; }
+      seen.add(f);
+      sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + added;
+      try {
+        await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) });
+        added++; if (sb.parse_confidence < 0.85) flagged++;
+      } catch (e) {}
+    }
+    return { ok: true, name: file.name, parsed: blocks.length, added, dup, flagged };
+  }
+
+  // import one OR MANY PDFs in sequence, with shared progress + a combined result
+  async function sfImportPdfs(files) {
     const prog = document.getElementById("importprogress");
     const empty = document.getElementById("emptylabel");
-    // progress + result are centred in the sheet; the empty-state label is faded
-    // out for the duration and brought back 3s after the result shows.
-    const show = (html) => { if (msg) { msg.className = ""; msg.innerHTML = html || ""; } };
     const showProg = (html) => { if (prog) { prog.innerHTML = html || ""; prog.classList.toggle("show", !!html); } };
     let emptyWasShown = false;
     const hideEmpty = () => { if (empty && getComputedStyle(empty).display !== "none") { emptyWasShown = true; empty.style.display = "none"; } };
     const showEmpty = () => { if (empty && emptyWasShown) { empty.style.display = "flex"; emptyWasShown = false;
       if (empty.animate) try { empty.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: "ease" }); } catch (e) {} } };
-    const fail = (m) => { showProg(""); show(m); showEmpty(); };
-    if (!file) return;
-    if (!/\.pdf$/i.test(file.name)) { show("Please choose a .pdf file."); return; }
-    if (!window.pdfjsLib) { show("PDF engine failed to load."); return; }
-    show(""); hideEmpty();
-    showProg("Importing " + escapeHtml(file.name) + "…");
-    let buf;
-    try { buf = await file.arrayBuffer(); } catch (e) { fail("Couldn't read the file."); return; }
-    let pages;
-    try {
-      pages = await extractColumnLinePages(buf, (cur, total) => {
+
+    const list = Array.from(files || []).filter(Boolean);
+    if (!list.length) return;
+    if (!window.pdfjsLib) { hideEmpty(); showProg("PDF engine failed to load."); setTimeout(() => { showProg(""); showEmpty(); }, 4000); return; }
+    const pdfs = list.filter(f => /\.pdf$/i.test(f.name));
+    if (!pdfs.length) { hideEmpty(); showProg("Please choose PDF files."); setTimeout(() => { showProg(""); showEmpty(); }, 4000); return; }
+
+    hideEmpty();
+    let totAdded = 0, totDup = 0, totFlagged = 0; const errors = [];
+    for (let i = 0; i < pdfs.length; i++) {
+      const file = pdfs[i];
+      const head = (pdfs.length > 1 ? "Importing " + (i + 1) + " of " + pdfs.length + ": " : "Importing ") + escapeHtml(file.name);
+      showProg(head + "…");
+      const res = await importOneFile(file, (cur, total) => {
         const pct = total ? Math.round((100 * cur) / total) : 0;
-        showProg("Importing " + escapeHtml(file.name) + "<br>" + cur + "/" + total + " pages complete" +
+        showProg(head + "<br>" + cur + "/" + total + " pages complete" +
           '<div class="pbar"><div style="width:' + pct + '%"></div></div>');
       });
-    } catch (e) { fail("Couldn't parse the PDF: " + escapeHtml(String(e))); return; }
-    // text-layer check (scanned PDFs have ~no text)
-    const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
-    if (!pages.length || totalChars < 40 * pages.length) {
-      fail("No text layer found — this looks like a scanned or image-only PDF, which MonsterBox can't read. Try a digital (text-layer) PDF.");
-      return;
+      if (!res.ok) { errors.push(escapeHtml(res.name) + ": " + escapeHtml(res.error)); continue; }
+      totAdded += res.added; totDup += res.dup; totFlagged += res.flagged;
     }
-    showProg("Importing " + escapeHtml(file.name) + "<br>parsing stat blocks…");
-    let blocks;
-    try { blocks = blocksFromPages(pages, file.name); } catch (e) { fail("Parse error: " + escapeHtml(String(e))); return; }
-    let n = 0;
-    for (const sb of blocks) {
-      sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + n;
-      try { await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) }); n++; } catch (e) {}
-    }
-    const red = blocks.filter(b => b.parse_confidence < 0.6).length;
-    const amber = blocks.filter(b => b.parse_confidence >= 0.6 && b.parse_confidence < 0.85).length;
-    const flagged = red + amber;
-    // centred result: "Imported N monsters:" (bold) / "X need review" (italic)
-    showProg('<b>Imported ' + n + ' ' + (n === 1 ? "monster" : "monsters") + ':</b><br>' +
-      '<i>' + (flagged ? flagged + (flagged === 1 ? " needs" : " need") + " review" : "all parsed cleanly") + "</i>");
-    show("");
     if (typeof window.loadLibrary === "function") window.loadLibrary();
-    setTimeout(() => { showProg(""); showEmpty(); }, 3000);
+
+    // combined result message
+    const dupNote = totDup ? " " + totDup + " already in your compendium." : "";
+    let result;
+    if (totAdded > 0) {
+      const from = pdfs.length > 1 ? " from " + pdfs.length + " PDFs" : "";
+      const review = totFlagged ? totFlagged + (totFlagged === 1 ? " needs" : " need") + " review." : "All parsed cleanly.";
+      result = "<b>Imported " + totAdded + " " + (totAdded === 1 ? "monster" : "monsters") + from + ":</b><br><i>" + review + dupNote + "</i>";
+    } else if (totDup > 0) {
+      result = "<b>These monsters have already been imported.</b>";
+    } else if (errors.length) {
+      result = "<b>Import failed:</b><br><i>" + errors.join("<br>") + "</i>";
+    } else {
+      result = "<b>No stat blocks found in " + (pdfs.length > 1 ? "these PDFs." : "this PDF.") + "</b>";
+    }
+    if (errors.length && totAdded > 0) result += "<br><i>" + errors.join("<br>") + "</i>";
+    showProg(result);
+    setTimeout(() => { showProg(""); showEmpty(); }, 4500);
   }
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
-  window.sfImportPdf = sfImportPdf;
+  // single-file entry point kept for compatibility (delegates to the batch path)
+  window.sfImportPdf = (file) => sfImportPdfs(file ? [file] : []);
+  window.sfImportPdfs = sfImportPdfs;
 })();
