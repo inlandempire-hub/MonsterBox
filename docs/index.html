@@ -2526,11 +2526,11 @@ function toggleMode() {
   function done() { setTimeout(fadeOut, 2000); }   // hold the finished card 2s
   function fadeOut() {
     sp.style.transition = "opacity .8s ease";
-    sp.style.opacity = "0";                        // logo + wordmark fade together
+    sp.style.opacity = "0";                        // logo + wordmark fade out
+    reveal();                                      // …and the full UI fades in at the SAME moment
     setTimeout(() => sp.remove(), 850);
-    setTimeout(reveal, 800 + 1500);                // 1.5s of bare wallpaper, then UI fades in (1s)
   }
-  setTimeout(type, 2100);                          // logo drop (1.05s) + 1s settle beat
+  setTimeout(type, 1450);                          // logo drop (1.05s) + a short settle beat, then type
 })();
 
 // Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
@@ -2570,9 +2570,9 @@ function snoozeBackup() {
 }
 window.refreshBackupNag = refreshBackupNag;
 // show the about/legal panel after the splash on every startup, unless dismissed
-// (drop 2.1s + type ~1.3s + hold 2s + fade .8s + wallpaper beat 1.5s + UI fade 1s)
+// (type 1.45s + typing ~1.5s + hold 2s + fade/UI-crossfade ~1s)
 if (!localStorage.getItem("sf-hide-about")) {
-  setTimeout(() => showAbout(), 9200);
+  setTimeout(() => showAbout(), 6400);
 }
 
 // keep the empty-state hint correct for the current viewport (and on rotate)
