@@ -80,6 +80,7 @@
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     const pages = [];
     for (let p = 1; p <= pdf.numPages; p++) {
+      if (_abort) { try { pdf.destroy && pdf.destroy(); } catch (e) {} throw new Error("__abort__"); }
       const page = await pdf.getPage(p);
       const vp = page.getViewport({ scale: 1 });
       const tc = await page.getTextContent();
@@ -649,6 +650,8 @@
   }
 
   // ================================================================ public: import
+  let _abort = false;   // set by the Cancel button; checked between pages + inserts
+
   // a stat block's identity for de-duplication: same name + AC + HP + CR means
   // it is the same creature, so re-importing a PDF won't add it twice
   const fingerprint = (b) => `${(b.name || "").trim().toLowerCase()}|${b.armor_class}|${b.hit_points}|${b.challenge_rating}`;
@@ -661,7 +664,7 @@
     try { buf = await file.arrayBuffer(); } catch (e) { return { ok: false, name: file.name, error: "Couldn't read the file." }; }
     let pages;
     try { pages = await extractColumnLinePages(buf, onProgress); }
-    catch (e) { return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
+    catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length)
       return { ok: false, name: file.name, error: "No text layer found. This looks like a scanned or image-only PDF, which MonsterBox can't read." };
@@ -674,6 +677,7 @@
     const seen = new Set((existing || []).map(fingerprint));
     let added = 0, dup = 0, flagged = 0;
     for (const sb of blocks) {
+      if (_abort) return { ok: false, name: file.name, aborted: true, added, dup, flagged };
       const f = fingerprint(sb);
       if (seen.has(f)) { dup++; continue; }
       seen.add(f);
@@ -703,16 +707,19 @@
     if (!pdfs.length) { hideEmpty(); showProg("Please choose PDF files."); setTimeout(() => { showProg(""); showEmpty(); }, 4000); return; }
 
     hideEmpty();
-    let totAdded = 0, totDup = 0, totFlagged = 0; const errors = [];
+    _abort = false;   // fresh run
+    const cancelBtn = '<div style="margin-top:10px"><button class="btn" onclick="sfCancelImport()">Cancel</button></div>';
+    let totAdded = 0, totDup = 0, totFlagged = 0, aborted = false; const errors = [];
     for (let i = 0; i < pdfs.length; i++) {
       const file = pdfs[i];
       const head = (pdfs.length > 1 ? "Importing " + (i + 1) + " of " + pdfs.length + ": " : "Importing ") + escapeHtml(file.name);
-      showProg(head + "…");
+      showProg(head + "…" + cancelBtn);
       const res = await importOneFile(file, (cur, total) => {
         const pct = total ? Math.round((100 * cur) / total) : 0;
         showProg(head + "<br>" + cur + "/" + total + " pages complete" +
-          '<div class="pbar"><div style="width:' + pct + '%"></div></div>');
+          '<div class="pbar"><div style="width:' + pct + '%"></div></div>' + cancelBtn);
       });
+      if (res.aborted) { totAdded += res.added || 0; totDup += res.dup || 0; totFlagged += res.flagged || 0; aborted = true; break; }
       if (!res.ok) { errors.push(escapeHtml(res.name) + ": " + escapeHtml(res.error)); continue; }
       totAdded += res.added; totDup += res.dup; totFlagged += res.flagged;
     }
@@ -721,7 +728,9 @@
     // combined result message
     const dupNote = totDup ? " " + totDup + " already in your compendium." : "";
     let result;
-    if (totAdded > 0) {
+    if (aborted) {
+      result = "<b>Import cancelled.</b>" + (totAdded ? "<br><i>" + totAdded + " " + (totAdded === 1 ? "monster" : "monsters") + " kept.</i>" : "");
+    } else if (totAdded > 0) {
       const from = pdfs.length > 1 ? " from " + pdfs.length + " PDFs" : "";
       const review = totFlagged ? totFlagged + (totFlagged === 1 ? " needs" : " need") + " review." : "All parsed cleanly.";
       result = "<b>Imported " + totAdded + " " + (totAdded === 1 ? "monster" : "monsters") + from + ":</b><br><i>" + review + dupNote + "</i>";
@@ -741,4 +750,5 @@
   // single-file entry point kept for compatibility (delegates to the batch path)
   window.sfImportPdf = (file) => sfImportPdfs(file ? [file] : []);
   window.sfImportPdfs = sfImportPdfs;
+  window.sfCancelImport = () => { _abort = true; };
 })();

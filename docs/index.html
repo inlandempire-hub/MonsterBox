@@ -489,6 +489,9 @@
         text-transform: uppercase; letter-spacing: .3px; }
   .entry .txt { color: #44423e; font-size: 13px; }
 
+  /* keyboard focus ring (accessibility): visible only for keyboard users, never
+     on mouse click. Applies to every interactive control. */
+  :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 4px; }
   /* buttons — neutral default, red for primary actions */
   .btn { cursor: pointer; border: 1px solid var(--line); background: var(--panel);
         color: var(--ink); border-radius: 6px; padding: 4px 10px; font-size: 12px;
@@ -976,7 +979,7 @@
 
   <!-- CENTRE: the scroll -->
   <div class="col sheet" id="sheet">
-    <button id="modetoggle" title="Toggle light / dark mode" onclick="toggleMode()"></button>
+    <button id="modetoggle" title="Toggle light or dark mode" aria-label="Toggle light or dark mode" onclick="toggleMode()"></button>
     <div id="emptylabel"><span id="emptytext">Drag and Drop a PDF here</span></div>
     <div id="importprogress"></div>
     <div class="scroll-wrap" style="display:none">
