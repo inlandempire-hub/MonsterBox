@@ -701,11 +701,11 @@
   .signin-tag.free { background: var(--dim); }
 
   /* account card: landscape — mimic logo on the left, details right-aligned */
-  .auth-box.account-mode { max-width: 470px; }
-  .acct-layout { display: flex; align-items: center; gap: 18px; text-align: right; }
-  .acct-logo { width: 120px; height: auto; flex-shrink: 0;
+  .auth-box.account-mode { max-width: 390px; }
+  .acct-layout { display: flex; align-items: center; justify-content: center; gap: 18px; text-align: right; }
+  .acct-logo { width: 112px; height: auto; flex-shrink: 0;
         filter: drop-shadow(0 8px 16px rgba(0,0,0,.45)); }
-  .acct-info { flex: 1; min-width: 0; }
+  .acct-info { min-width: 0; }   /* shrink to content so the logo + text sit together */
   .acct-info .about-sub { margin-bottom: 8px; }
   .acct-name { display: flex; align-items: center; justify-content: flex-end; gap: 8px;
         font-weight: 700; font-size: 16px; margin: 2px 0; }
