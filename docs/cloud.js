@@ -41,17 +41,24 @@
   }
 
   // ---- backend account / entitlement ----
+  let acctErr = null;   // why the last access check failed (for the diagnostic line)
   async function fetchAccount() {
-    account = null;
-    if (!session || !API_BASE) return;
+    account = null; acctErr = null;
+    if (!session) return;
+    if (!API_BASE) { acctErr = "no server configured for this site"; return; }
     try {
       const r = await directFetch(API_BASE + "/api/auth/me", {
         headers: { Authorization: "Bearer " + session.access_token },
       });
-      if (r.ok) account = await r.json();
+      if (r.ok) { account = await r.json(); }
+      else {
+        acctErr = "server replied HTTP " + r.status;
+        try { const t = (await r.text()) || ""; if (t) acctErr += " (" + t.slice(0, 80) + ")"; } catch (e) {}
+      }
     } catch (e) {
-      /* backend not reachable (e.g. not running locally) — just no access info */
+      acctErr = "couldn't reach the server at " + API_BASE + " (is it running?)";
     }
+    if (acctErr) console.warn("[MonsterBox] access check:", acctErr);
   }
 
   function accessTag() {
@@ -128,6 +135,8 @@
     if (!el) return;
     el.textContent = accessTag();
     el.style.background = (account && account.has_full_access) ? "var(--red)" : "var(--dim)";
+    const d = $("authAcctDiag");
+    if (d) d.textContent = (!account && acctErr) ? ("Access not confirmed: " + acctErr) : "";
   }
   function closeModal() { const m = $("authModal"); if (m) m.style.display = "none"; }
 
