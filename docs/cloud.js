@@ -65,7 +65,7 @@
   function displayName() {
     const m = (session && session.user && session.user.user_metadata) || {};
     const f = (m.first_name || "").trim(), l = (m.last_name || "").trim();
-    if (f || l) return [f, l].filter(Boolean).join(", ");
+    if (f || l) return [f, l].filter(Boolean).join(" ");
     const email = (session && session.user && session.user.email) || "";
     return email.split("@")[0] || "Account";
   }
