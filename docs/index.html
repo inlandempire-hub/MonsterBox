@@ -701,11 +701,14 @@
   .signin-tag.free { background: var(--dim); }
 
   /* account card: landscape — mimic logo on the left, details right-aligned */
-  .auth-box.account-mode { max-width: 390px; }
-  .acct-layout { display: flex; align-items: center; justify-content: center; gap: 18px; text-align: right; }
-  .acct-logo { width: 112px; height: auto; flex-shrink: 0;
+  .auth-box.account-mode { max-width: 372px; }
+  .acct-layout { display: flex; align-items: center; gap: 16px; text-align: right; }
+  .acct-logo { width: auto; height: 132px; flex-shrink: 0;   /* matches the right-aligned text height */
         filter: drop-shadow(0 8px 16px rgba(0,0,0,.45)); }
-  .acct-info { min-width: 0; }   /* shrink to content so the logo + text sit together */
+  /* info fills the right and right-aligns, so the details AND the buttons share
+     the right edge; the narrow box keeps the logo close (little dead space) */
+  .acct-info { flex: 1; min-width: 0; }
+  #authAcctActions { justify-content: flex-end; }   /* Sign Out + Close right-aligned */
   .acct-info .about-sub { margin-bottom: 8px; }
   .acct-name { display: flex; align-items: center; justify-content: flex-end; gap: 8px;
         font-weight: 700; font-size: 16px; margin: 2px 0; }
@@ -1236,9 +1239,10 @@
 
     <div class="auth-actions" id="authAcctActions" style="display:none">
       <button class="btn danger" onclick="cloudSignOut()">Sign Out</button>
+      <button class="btn" onclick="cloudCloseModal()">Close</button>
     </div>
 
-    <button class="btn auth-close" onclick="cloudCloseModal()">Close</button>
+    <button class="btn auth-close" id="authCloseShared" onclick="cloudCloseModal()">Close</button>
   </div>
 </div>
 

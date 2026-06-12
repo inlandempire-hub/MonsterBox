@@ -113,6 +113,7 @@
     $("authAccount").style.display = account ? "flex" : "none";
     $("authHeader").style.display = account ? "none" : "block";
     $("authAcctActions").style.display = account ? "flex" : "none";
+    $("authCloseShared").style.display = account ? "none" : "inline-block";
     $("authBox").classList.toggle("account-mode", account);
     if (!account) $("authTitle").textContent = view === "create" ? "Create account" : "Sign in";
     $("authModal").style.display = "flex";
