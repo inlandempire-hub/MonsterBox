@@ -14,6 +14,13 @@
   // cloud.js uses this to reach the REAL backend; the shim below would otherwise
   // intercept any path containing "/api/" and answer it locally.
   window.sfDirectFetch = realFetch;
+  // Fired after any local statblock write so the cloud-sync layer (sync.js) can
+  // mirror it to the server. Suppressed while sync is applying a REMOTE change
+  // back into IndexedDB, so we don't echo it straight back to the server.
+  function notifyWrite(op, payload) {
+    if (window._sfApplyingRemote) return;
+    try { if (typeof window.sfOnWrite === "function") window.sfOnWrite(op, payload); } catch (e) {}
+  }
   const OWNER = "local-user";
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : "id-" + Date.now() + "-" + Math.random().toString(16).slice(2));
 
@@ -233,12 +240,18 @@
   async function route(path, method, body) {
     let m;
     if (path === "/api/statblocks" && method === "GET") return jsonResp(await listStatblocks());
-    if (path === "/api/statblocks" && method === "DELETE") { const n = (await dbAll("statblocks")).length; await dbClear("statblocks"); return jsonResp({ deleted: n }); }
+    if (path === "/api/statblocks" && method === "DELETE") { const n = (await dbAll("statblocks")).length; await dbClear("statblocks"); notifyWrite("clear"); return jsonResp({ deleted: n }); }
     if ((m = path.match(/^\/api\/statblocks\/([^/]+)$/))) {
       const id = decodeURIComponent(m[1]);
       if (method === "GET") { const sb = await dbGet("statblocks", id); return sb ? jsonResp(sb) : jsonResp({ error: "not found" }, 404); }
-      if (method === "POST") { body.id = id; body.owner_id = OWNER; await dbPut("statblocks", body); return jsonResp(body); }
-      if (method === "DELETE") { await dbDel("statblocks", id); return jsonResp({ deleted: true }); }
+      if (method === "POST") {
+        body.id = id; body.owner_id = OWNER;
+        // a fresh local change bumps the clock (for last-write-wins); a remote
+        // change being applied keeps the server's timestamp
+        if (!window._sfApplyingRemote) body.updated_at = Date.now();
+        await dbPut("statblocks", body); notifyWrite("upsert", body); return jsonResp(body);
+      }
+      if (method === "DELETE") { await dbDel("statblocks", id); notifyWrite("delete", { id }); return jsonResp({ deleted: true }); }
     }
     if (path === "/api/encounter" && method === "GET") return jsonResp(encDump());
     if (path === "/api/encounter/spawn" && method === "POST") { await spawn(body.statblock_id, body.count || 1); return jsonResp(encDump()); }
@@ -376,8 +389,9 @@
     try { data = JSON.parse(await file.text()); } catch (e) { alert("That file isn't valid JSON."); return; }
     const arr = Array.isArray(data) ? data : (data.statblocks || []);
     let n = 0;
-    for (const sb of arr) { if (!sb || !sb.name) continue; sb.id = sb.id || uuid(); sb.owner_id = OWNER; await dbPut("statblocks", sb); n++; }
+    for (const sb of arr) { if (!sb || !sb.name) continue; sb.id = sb.id || uuid(); sb.owner_id = OWNER; if (!sb.updated_at) sb.updated_at = Date.now(); await dbPut("statblocks", sb); n++; }
     if (typeof loadLibrary === "function") loadLibrary();
+    notifyWrite("bulk");
     alert(`Imported ${n} ${n === 1 ? "monster" : "monsters"}.`);
   };
 

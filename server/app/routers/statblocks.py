@@ -59,3 +59,15 @@ def delete_statblock(
         row.deleted = True   # soft-delete so a sync can tombstone across devices
         db.commit()
     return {"deleted": True}
+
+
+@router.delete("")
+def clear_statblocks(user: User = Depends(require_full_access), db: Session = Depends(get_db)):
+    """Tombstone the whole library (mirrors the app's 'Clear All')."""
+    rows = db.scalars(
+        select(StatBlock).where(StatBlock.user_id == user.id, StatBlock.deleted.is_(False))
+    ).all()
+    for r in rows:
+        r.deleted = True
+    db.commit()
+    return {"deleted": len(rows)}
