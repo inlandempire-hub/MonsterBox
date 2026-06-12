@@ -10,11 +10,16 @@ REM The local file server runs INVISIBLY (no console window) via "pyw"
 REM (pythonw), and shuts itself down a few seconds after you close the app
 REM window — the page sends a heartbeat while open and serve_local.py exits once
 REM the heartbeats stop. Nothing is left running in the background.
+REM
+REM serve_local.py also starts the API backend (login/sync) on port 8090 if it's
+REM installed, and stops it on the same auto-close — so this one launcher starts
+REM (and cleans up) everything. The app still works fully without the backend.
 title MonsterBox
 cd /d "%~dp0"
 
-REM Static file server for the PWA build, hidden (no console). Fixed port 8077
-REM keeps the IndexedDB origin stable across launches so your library persists.
+REM Static file server for the PWA build (+ API backend), hidden (no console).
+REM Fixed port 8077 keeps the IndexedDB origin stable across launches so your
+REM library persists.
 start "" pyw "%~dp0serve_local.py"
 
 REM Give the server a moment to come up before opening the browser.
