@@ -62,18 +62,25 @@
   }
 
   // ---- UI ----
+  function displayName() {
+    const m = (session && session.user && session.user.user_metadata) || {};
+    const f = (m.first_name || "").trim(), l = (m.last_name || "").trim();
+    if (f || l) return [f, l].filter(Boolean).join(", ");
+    const email = (session && session.user && session.user.email) || "";
+    return email.split("@")[0] || "Account";
+  }
+
   function render() {
-    const btn = $("accountbtn");
+    const btn = $("signinbtn");
     if (!btn) return;
     if (session) {
-      const email = (session.user && session.user.email) || "Account";
-      btn.textContent = email.split("@")[0];
-      btn.title = email + " — " + accessTag();
-      btn.classList.add("signed-in");
+      btn.textContent = "Signed in: " + displayName();
+      btn.classList.remove("primary"); btn.classList.add("signed");
+      btn.title = ((session.user && session.user.email) || "") + " — " + accessTag();
     } else {
       btn.textContent = "Sign In";
-      btn.title = "Sign in to sync across devices";
-      btn.classList.remove("signed-in");
+      btn.classList.add("primary"); btn.classList.remove("signed");
+      btn.title = "Sign in to sync your compendium across devices";
     }
   }
 
@@ -101,14 +108,26 @@
     setView("create");
     const e = $("authNewEmail"); if (e) setTimeout(() => e.focus(), 30);
   }
-  function showModal() {
-    if (session) {
-      setView("account");
-      $("authAcctEmail").textContent = (session.user && session.user.email) || "";
-      $("authAcctTag").textContent = "Access: " + accessTag();
-    } else {
-      showSignIn();
-    }
+  async function showModal() {
+    if (!session) { showSignIn(); return; }
+    setView("account");
+    curMsg = "authmsg3"; msg("");
+    const meta = (session.user && session.user.user_metadata) || {};
+    $("authEditFirst").value = meta.first_name || "";
+    $("authEditLast").value = meta.last_name || "";
+    $("authAcctName").textContent = displayName();
+    $("authAcctEmail").textContent = (session.user && session.user.email) || "";
+    paintTag();
+    // re-check access in case the backend wasn't running when we first logged in
+    await fetchAccount();
+    paintTag();
+    render();
+  }
+  function paintTag() {
+    const el = $("authAcctTag");
+    if (!el) return;
+    el.textContent = accessTag();
+    el.style.background = (account && account.has_full_access) ? "var(--red)" : "var(--dim)";
   }
   function closeModal() { const m = $("authModal"); if (m) m.style.display = "none"; }
 
@@ -124,19 +143,40 @@
   }
 
   async function createAccount() {
+    const first = ($("authFirst").value || "").trim();
+    const last = ($("authLast").value || "").trim();
     const email = ($("authNewEmail").value || "").trim();
     const pw = $("authNewPass").value || "";
     const pw2 = $("authNewPass2").value || "";
-    if (!email || !pw || !pw2) return msg("Fill in all three fields.", "err");
+    if (!first || !last) return msg("Enter your first and last name.", "err");
+    if (!email || !pw || !pw2) return msg("Fill in email, password and confirm password.", "err");
     if (pw.length < 8) return msg("Password must be at least 8 characters.", "err");
     if (pw !== pw2) return msg("Passwords don't match.", "err");
     const c = client(); if (!c) return msg("Sign-up is unavailable right now.", "err");
     msg("Creating your account…");
-    const { data, error } = await c.auth.signUp({ email, password: pw });
+    const { data, error } = await c.auth.signUp({
+      email, password: pw,
+      options: { data: { first_name: first, last_name: last } },
+    });
     if (error) return msg(error.message, "err");
     // confirmation is on, so signUp returns no session — prompt to confirm by email
     if (data && data.session) closeModal();
     else msg("Account created. Check your email to confirm, then log in.", "ok");
+  }
+
+  async function saveName() {
+    curMsg = "authmsg3";
+    const first = ($("authEditFirst").value || "").trim();
+    const last = ($("authEditLast").value || "").trim();
+    if (!first || !last) return msg("Enter your first and last name.", "err");
+    const c = client(); if (!c) return;
+    msg("Saving…");
+    const { data, error } = await c.auth.updateUser({ data: { first_name: first, last_name: last } });
+    if (error) return msg(error.message, "err");
+    if (data && data.user) session.user = data.user;   // refresh local copy
+    $("authAcctName").textContent = displayName();
+    render();
+    msg("Saved.", "ok");
   }
 
   async function signOut() {
@@ -156,10 +196,8 @@
   }
 
   function init() {
-    const btn = $("accountbtn");
-    if (btn) btn.addEventListener("click", showModal);
-    // Enter-to-submit is handled by the <form> onsubmit now.
-
+    // #signinbtn uses inline onclick="cloudOpen()"; Enter-to-submit is handled
+    // by the <form> onsubmit.
     const c = client();
     if (!c) { render(); return; }   // supabase-js failed to load -> stay signed-out
     c.auth.getSession().then(({ data }) => onAuth(data ? data.session : null));
@@ -167,8 +205,10 @@
   }
 
   // expose for inline onclick handlers
+  window.cloudOpen = showModal;
   window.cloudSignIn = signIn;
   window.cloudCreateAccount = createAccount;
+  window.cloudSaveName = saveName;
   window.cloudShowCreate = showCreate;
   window.cloudShowSignIn = showSignIn;
   window.cloudSignOut = signOut;
