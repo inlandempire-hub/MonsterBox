@@ -77,11 +77,18 @@
     return email.split("@")[0] || "Account";
   }
 
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g,
+      (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  }
+
   function render() {
     const btn = $("signinbtn");
     if (!btn) return;
     if (session) {
-      btn.textContent = "Signed in: " + displayName();
+      const full = !!(account && account.has_full_access);
+      btn.innerHTML = "Signed in: " + esc(displayName()) +
+        ' <span class="signin-tag' + (full ? "" : " free") + '">' + esc(accessTag()) + "</span>";
       btn.classList.remove("primary"); btn.classList.add("signed");
       btn.title = ((session.user && session.user.email) || "") + " — " + accessTag();
     } else {
@@ -96,13 +103,18 @@
     if (m) { m.textContent = text || ""; m.className = "auth-msg" + (kind ? " " + kind : ""); }
   }
 
-  // three views in one modal: sign-in / create-account / signed-in account
+  // three views in one modal: sign-in / create-account / signed-in account.
+  // The account view is a landscape card with its own header, so the shared
+  // header is hidden and the box widens.
   function setView(view) {
+    const account = view === "account";
     $("authForm").style.display = view === "signin" ? "block" : "none";
     $("authCreate").style.display = view === "create" ? "block" : "none";
-    $("authAccount").style.display = view === "account" ? "block" : "none";
-    $("authTitle").textContent =
-      view === "create" ? "Create account" : view === "account" ? "Your account" : "Sign in";
+    $("authAccount").style.display = account ? "flex" : "none";
+    $("authHeader").style.display = account ? "none" : "block";
+    $("authAcctActions").style.display = account ? "flex" : "none";
+    $("authBox").classList.toggle("account-mode", account);
+    if (!account) $("authTitle").textContent = view === "create" ? "Create account" : "Sign in";
     $("authModal").style.display = "flex";
   }
   function showSignIn() {
@@ -119,9 +131,7 @@
     if (!session) { showSignIn(); return; }
     setView("account");
     curMsg = "authmsg3"; msg("");
-    const meta = (session.user && session.user.user_metadata) || {};
-    $("authEditFirst").value = meta.first_name || "";
-    $("authEditLast").value = meta.last_name || "";
+    $("authNameEdit").style.display = "none";
     $("authAcctName").textContent = displayName();
     $("authAcctEmail").textContent = (session.user && session.user.email) || "";
     paintTag();
@@ -130,11 +140,19 @@
     paintTag();
     render();
   }
+  function editName() {
+    const meta = (session && session.user && session.user.user_metadata) || {};
+    $("authEditFirst").value = meta.first_name || "";
+    $("authEditLast").value = meta.last_name || "";
+    curMsg = "authmsg3"; msg("");
+    $("authNameEdit").style.display = "block";
+  }
+  function cancelEdit() { $("authNameEdit").style.display = "none"; curMsg = "authmsg3"; msg(""); }
   function paintTag() {
     const el = $("authAcctTag");
     if (!el) return;
     el.textContent = accessTag();
-    el.style.background = (account && account.has_full_access) ? "var(--red)" : "var(--dim)";
+    el.classList.toggle("full", !!(account && account.has_full_access));
     const d = $("authAcctDiag");
     if (d) d.textContent = (!account && acctErr) ? ("Access not confirmed: " + acctErr) : "";
   }
@@ -184,8 +202,8 @@
     if (error) return msg(error.message, "err");
     if (data && data.user) session.user = data.user;   // refresh local copy
     $("authAcctName").textContent = displayName();
+    $("authNameEdit").style.display = "none";          // collapse the editor
     render();
-    msg("Saved.", "ok");
   }
 
   async function signOut() {
@@ -218,6 +236,8 @@
   window.cloudSignIn = signIn;
   window.cloudCreateAccount = createAccount;
   window.cloudSaveName = saveName;
+  window.cloudEditName = editName;
+  window.cloudCancelEdit = cancelEdit;
   window.cloudShowCreate = showCreate;
   window.cloudShowSignIn = showSignIn;
   window.cloudSignOut = signOut;
