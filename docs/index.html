@@ -689,7 +689,8 @@
     background: var(--panel2); color: var(--ink); font-size: 14px;
   }
   .auth-input:focus { outline: none; border-color: var(--red); }
-  .auth-actions { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
+  .auth-actions { display: flex; gap: 8px; justify-content: center; align-items: center; margin-top: 6px; }
+  .auth-or { color: var(--dim); font-size: 12px; }
   .auth-msg { min-height: 18px; font-size: 12px; margin: 4px 0; color: var(--dim); }
   .auth-msg.err { color: var(--red); }
   .auth-msg.ok { color: #2f804d; }
@@ -1156,16 +1157,33 @@
     <div class="about-h">MonsterBox</div>
     <div class="about-sub" id="authTitle">Sign in</div>
 
+    <!-- sign in -->
     <div id="authForm">
       <input id="authEmail" class="auth-input" type="email" placeholder="Email" autocomplete="email">
       <input id="authPass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
       <div class="auth-msg" id="authmsg"></div>
       <div class="auth-actions">
         <button class="btn save" onclick="cloudSignIn()">Log In</button>
-        <button class="btn" onclick="cloudSignUp()">Create Account</button>
+        <span class="auth-or">or</span>
+        <button class="btn" onclick="cloudShowCreate()">Create Account</button>
       </div>
       <div class="auth-note">Signing in lets your compendium sync across devices. The app
         works fully without an account. Everything stays in this browser.</div>
+    </div>
+
+    <!-- create account -->
+    <div id="authCreate" style="display:none">
+      <input id="authNewEmail" class="auth-input" type="email" placeholder="Email" autocomplete="email">
+      <input id="authNewPass" class="auth-input" type="password" placeholder="Password (8+ characters)" autocomplete="new-password">
+      <input id="authNewPass2" class="auth-input" type="password" placeholder="Confirm password" autocomplete="new-password">
+      <div class="auth-msg" id="authmsg2"></div>
+      <div class="auth-actions">
+        <button class="btn save" onclick="cloudCreateAccount()">Create Account</button>
+        <span class="auth-or">or</span>
+        <button class="btn" onclick="cloudShowSignIn()">Log In</button>
+      </div>
+      <div class="auth-note">You'll get a one-time email to confirm your account. After that,
+        you just log in with your email and password.</div>
     </div>
 
     <div id="authAccount" style="display:none">

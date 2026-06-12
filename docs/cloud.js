@@ -31,6 +31,7 @@
   let supa = null;
   let session = null;   // Supabase session (null = signed out)
   let account = null;   // our backend's view: { email, plan, role, has_full_access }
+  let curMsg = "authmsg";   // which view's message line msg() writes to
 
   function client() {
     if (supa) return supa;
@@ -77,23 +78,37 @@
   }
 
   function msg(text, kind) {
-    const m = $("authmsg");
+    const m = $(curMsg);
     if (m) { m.textContent = text || ""; m.className = "auth-msg" + (kind ? " " + kind : ""); }
   }
 
+  // three views in one modal: sign-in / create-account / signed-in account
+  function setView(view) {
+    $("authForm").style.display = view === "signin" ? "block" : "none";
+    $("authCreate").style.display = view === "create" ? "block" : "none";
+    $("authAccount").style.display = view === "account" ? "block" : "none";
+    $("authTitle").textContent =
+      view === "create" ? "Create account" : view === "account" ? "Your account" : "Sign in";
+    $("authModal").style.display = "flex";
+  }
+  function showSignIn() {
+    curMsg = "authmsg"; msg("");
+    setView("signin");
+    const e = $("authEmail"); if (e) setTimeout(() => e.focus(), 30);
+  }
+  function showCreate() {
+    curMsg = "authmsg2"; msg("");
+    setView("create");
+    const e = $("authNewEmail"); if (e) setTimeout(() => e.focus(), 30);
+  }
   function showModal() {
-    const signedIn = !!session;
-    $("authForm").style.display = signedIn ? "none" : "block";
-    $("authAccount").style.display = signedIn ? "block" : "none";
-    $("authTitle").textContent = signedIn ? "Your account" : "Sign in";
-    if (signedIn) {
+    if (session) {
+      setView("account");
       $("authAcctEmail").textContent = (session.user && session.user.email) || "";
       $("authAcctTag").textContent = "Access: " + accessTag();
     } else {
-      msg("");
-      const e = $("authEmail"); if (e) setTimeout(() => e.focus(), 30);
+      showSignIn();
     }
-    $("authModal").style.display = "flex";
   }
   function closeModal() { const m = $("authModal"); if (m) m.style.display = "none"; }
 
@@ -108,17 +123,20 @@
     closeModal();
   }
 
-  async function signUp() {
-    const email = ($("authEmail").value || "").trim();
-    const pw = $("authPass").value || "";
-    if (!email || !pw) return msg("Enter your email and password.", "err");
-    if (pw.length < 6) return msg("Password must be at least 6 characters.", "err");
+  async function createAccount() {
+    const email = ($("authNewEmail").value || "").trim();
+    const pw = $("authNewPass").value || "";
+    const pw2 = $("authNewPass2").value || "";
+    if (!email || !pw || !pw2) return msg("Fill in all three fields.", "err");
+    if (pw.length < 8) return msg("Password must be at least 8 characters.", "err");
+    if (pw !== pw2) return msg("Passwords don't match.", "err");
     const c = client(); if (!c) return msg("Sign-up is unavailable right now.", "err");
     msg("Creating your account…");
     const { data, error } = await c.auth.signUp({ email, password: pw });
     if (error) return msg(error.message, "err");
-    if (data && data.session) closeModal();                 // email confirmation off
-    else msg("Account created. Check your email to confirm, then sign in.", "ok");
+    // confirmation is on, so signUp returns no session — prompt to confirm by email
+    if (data && data.session) closeModal();
+    else msg("Account created. Check your email to confirm, then log in.", "ok");
   }
 
   async function signOut() {
@@ -142,6 +160,8 @@
     if (btn) btn.addEventListener("click", showModal);
     const pass = $("authPass");
     if (pass) pass.addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
+    const pass2 = $("authNewPass2");
+    if (pass2) pass2.addEventListener("keydown", (e) => { if (e.key === "Enter") createAccount(); });
 
     const c = client();
     if (!c) { render(); return; }   // supabase-js failed to load -> stay signed-out
@@ -151,7 +171,9 @@
 
   // expose for inline onclick handlers
   window.cloudSignIn = signIn;
-  window.cloudSignUp = signUp;
+  window.cloudCreateAccount = createAccount;
+  window.cloudShowCreate = showCreate;
+  window.cloudShowSignIn = showSignIn;
   window.cloudSignOut = signOut;
   window.cloudCloseModal = closeModal;
   window.cloudGetSession = () => session;
