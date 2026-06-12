@@ -103,10 +103,25 @@ server/
   tests/test_smoke.py
 ```
 
+## Cloud sync
+
+`sync.js` in the PWA mirrors the local compendium to/from `GET/PUT/DELETE
+/api/statblocks` for signed-in full-access users (two-way, last-write-wins).
+Signed out or free, it's a no-op. For sync to work across *devices* the API must
+be reachable from the deployed PWA, i.e. deployed (below) — running it only on
+your PC syncs that one machine to Supabase.
+
 ## Going to production
 
-- Swap `DATABASE_URL` to Supabase Postgres; replace `create_all` with Alembic
-  migrations.
-- `DEV_AUTH=false`, set `SUPABASE_JWT_SECRET`, lock `CORS_ORIGINS` to your PWA origin.
-- Deploy on any container host (Render / Railway / Fly):
-  `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+1. **Deploy the API** (a `Dockerfile` is included; works on Render / Railway / Fly):
+   - Render: New -> Web Service -> point at this repo, root `server/`, it builds
+     the Dockerfile automatically. Or Railway/Fly: `docker` deploy of `server/`.
+   - Start command (if not using Docker): `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+2. **Set environment variables** on the host:
+   - `DATABASE_URL` = your Supabase Postgres URL (`postgresql+psycopg://...`).
+   - `DEV_AUTH=false` (turn the local header bypass OFF).
+   - `CORS_ORIGINS` = your PWA origin (e.g. `https://yourname.github.io`).
+   - `SUPABASE_URL` = `https://<ref>.supabase.co` (optional; auto-derived otherwise).
+3. **Point the PWA at it**: set the production API base in `docs/cloud.js` and
+   `docs/sync.js` (currently blank for non-localhost).
+4. Replace the dev `create_all` with Alembic migrations when the schema settles.
