@@ -9,8 +9,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./monsterbox.db"
 
     # Supabase project JWT settings (Dashboard -> Settings -> API).
-    supabase_jwt_secret: str = ""
+    supabase_jwt_secret: str = ""        # legacy HS256 secret (optional)
     supabase_jwt_aud: str = "authenticated"
+    # Project base URL, e.g. https://<ref>.supabase.co. Optional: if blank it's
+    # derived from DATABASE_URL. Used to find the public keys (JWKS) for the
+    # modern asymmetric (ES256) login tokens.
+    supabase_url: str = ""
 
     # Local-only escape hatch: trust an X-Dev-User header instead of a real token.
     dev_auth: bool = False
