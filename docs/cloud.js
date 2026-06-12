@@ -158,10 +158,7 @@
   function init() {
     const btn = $("accountbtn");
     if (btn) btn.addEventListener("click", showModal);
-    const pass = $("authPass");
-    if (pass) pass.addEventListener("keydown", (e) => { if (e.key === "Enter") signIn(); });
-    const pass2 = $("authNewPass2");
-    if (pass2) pass2.addEventListener("keydown", (e) => { if (e.key === "Enter") createAccount(); });
+    // Enter-to-submit is handled by the <form> onsubmit now.
 
     const c = client();
     if (!c) { render(); return; }   // supabase-js failed to load -> stay signed-out

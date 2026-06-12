@@ -683,6 +683,7 @@
 
   /* auth modal */
   .auth-box { max-width: 360px; text-align: center; }
+  #authForm, #authCreate { margin: 0; }
   .auth-input {
     display: block; width: 100%; box-sizing: border-box; margin: 8px 0;
     padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
@@ -1008,8 +1009,8 @@
           <h2>Compendium</h2>
           <button class="clearbtn" onclick="clearLibrary()">Clear All</button>
         </div>
-        <input id="search" type="search" placeholder="Search Monsters…"
-               oninput="onSearch(this.value)" />
+        <input id="search" type="search" name="monster-search" autocomplete="off"
+               placeholder="Search Monsters…" oninput="onSearch(this.value)" />
         <button id="filterToggle" class="filterbtn filters-btn" onclick="toggleFilterPanel()">Filters ▾</button>
         <button class="newentry" onclick="newEntry()">＋ New Compendium Entry</button>
         <div id="totalcount" class="totalcount"></div>
@@ -1158,33 +1159,33 @@
     <div class="about-sub" id="authTitle">Sign in</div>
 
     <!-- sign in -->
-    <div id="authForm">
-      <input id="authEmail" class="auth-input" type="email" placeholder="Email" autocomplete="email">
-      <input id="authPass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
+    <form id="authForm" onsubmit="cloudSignIn(); return false;">
+      <input id="authEmail" class="auth-input" type="email" name="email" placeholder="Email" autocomplete="username">
+      <input id="authPass" class="auth-input" type="password" name="password" placeholder="Password" autocomplete="current-password">
       <div class="auth-msg" id="authmsg"></div>
       <div class="auth-actions">
-        <button class="btn save" onclick="cloudSignIn()">Log In</button>
+        <button type="submit" class="btn save">Log In</button>
         <span class="auth-or">or</span>
-        <button class="btn" onclick="cloudShowCreate()">Create Account</button>
+        <button type="button" class="btn" onclick="cloudShowCreate()">Create Account</button>
       </div>
       <div class="auth-note">Signing in lets your compendium sync across devices. The app
         works fully without an account. Everything stays in this browser.</div>
-    </div>
+    </form>
 
     <!-- create account -->
-    <div id="authCreate" style="display:none">
-      <input id="authNewEmail" class="auth-input" type="email" placeholder="Email" autocomplete="email">
-      <input id="authNewPass" class="auth-input" type="password" placeholder="Password (8+ characters)" autocomplete="new-password">
-      <input id="authNewPass2" class="auth-input" type="password" placeholder="Confirm password" autocomplete="new-password">
+    <form id="authCreate" style="display:none" onsubmit="cloudCreateAccount(); return false;">
+      <input id="authNewEmail" class="auth-input" type="email" name="email" placeholder="Email" autocomplete="username">
+      <input id="authNewPass" class="auth-input" type="password" name="new-password" placeholder="Password (8+ characters)" autocomplete="new-password">
+      <input id="authNewPass2" class="auth-input" type="password" name="confirm-password" placeholder="Confirm password" autocomplete="new-password">
       <div class="auth-msg" id="authmsg2"></div>
       <div class="auth-actions">
-        <button class="btn save" onclick="cloudCreateAccount()">Create Account</button>
+        <button type="submit" class="btn save">Create Account</button>
         <span class="auth-or">or</span>
-        <button class="btn" onclick="cloudShowSignIn()">Log In</button>
+        <button type="button" class="btn" onclick="cloudShowSignIn()">Log In</button>
       </div>
       <div class="auth-note">You'll get a one-time email to confirm your account. After that,
         you just log in with your email and password.</div>
-    </div>
+    </form>
 
     <div id="authAccount" style="display:none">
       <div class="auth-acct-email" id="authAcctEmail"></div>
