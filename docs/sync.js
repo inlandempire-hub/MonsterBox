@@ -17,7 +17,7 @@
   const API_BASE =
     location.hostname === "127.0.0.1" || location.hostname === "localhost"
       ? "http://127.0.0.1:8090"
-      : "";   // production backend URL goes here once deployed
+      : "https://monsterbox-api.onrender.com";
   const directFetch = window.sfDirectFetch || window.fetch.bind(window);
 
   let status = "off";          // off | syncing | synced | error

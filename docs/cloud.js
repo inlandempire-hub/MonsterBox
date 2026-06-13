@@ -22,7 +22,7 @@
   const API_BASE =
     location.hostname === "127.0.0.1" || location.hostname === "localhost"
       ? "http://127.0.0.1:8090"
-      : "";
+      : "https://monsterbox-api.onrender.com";
 
   // bypass the IndexedDB fetch-shim so backend calls actually leave the browser
   const directFetch = window.sfDirectFetch || window.fetch.bind(window);
