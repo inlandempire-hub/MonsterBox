@@ -138,16 +138,21 @@
      URL bar or a system gesture inset can never leave an uncovered strip at the
      bottom (sizing by height left a ~20px grey gap on some tablets) */
   #wallpaper { position: fixed; top: -8px; left: 0; right: 0; bottom: -48px;
-    z-index: 0; pointer-events: none; }
+    z-index: 0; pointer-events: none; overflow: hidden;
+    transform: scale(1.06);            /* zoom in a touch so edges always fill */
+    transform-origin: center; }
   #wallpaper::before, #wallpaper::after {
     content: ''; position: absolute; inset: 0;
     background-size: cover; background-position: center;
     transition: opacity var(--fade) ease;
   }
+  /* OPAQUE-BASE crossfade: the light image is the always-opaque base; the dark
+     image just fades in/out on top. The layer is therefore fully opaque at every
+     point of the fade, so nothing behind it (the body backstop) can bleed through
+     and flicker — the old both-layers-fade approach went semi-transparent mid-fade. */
   #wallpaper::before { background-image: url('bg-light.jpg'); opacity: 1; }
   #wallpaper::after  { background-image: url('bg-dark.jpg');  opacity: 0; }
-  body.dark #wallpaper::before { opacity: 0; }
-  body.dark #wallpaper::after  { opacity: 1; }
+  body.dark #wallpaper::after { opacity: 1; }
 
   /* ---- detached, rounded "glass" panels ---- */
   .glass {
