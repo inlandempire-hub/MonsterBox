@@ -6,12 +6,14 @@ from . import models  # noqa: F401  (import so tables register on Base.metadata)
 from .config import settings
 from .db import Base, engine
 from .routers import account, admin, health, statblocks
+from .schema_migrate import ensure_schema
 
 
 def create_app() -> FastAPI:
     # Skeleton convenience: auto-create tables. In production this is replaced by
     # Alembic migrations (the schema is otherwise unchanged).
     Base.metadata.create_all(bind=engine)
+    ensure_schema()   # add/backfill columns added after the table already existed
 
     app = FastAPI(title="MonsterBox API", version="0.1.0")
     # Auth is by bearer token (not cookies), so we don't need credentialed CORS.

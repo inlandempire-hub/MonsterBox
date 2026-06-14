@@ -171,6 +171,23 @@
     el.classList.toggle("full", !!(account && account.has_full_access));
     const d = $("authAcctDiag");
     if (d) d.textContent = (!account && acctErr) ? ("Access not confirmed: " + acctErr) : "";
+    // shareable account id (so a friend can be comped by code, not email)
+    const idRow = $("authAcctId");
+    if (idRow) {
+      const aid = account && account.account_id;
+      idRow.style.display = aid ? "flex" : "none";
+      const v = $("authAcctIdVal");
+      if (v) v.textContent = aid || "";
+    }
+  }
+
+  async function copyId() {
+    const aid = account && account.account_id;
+    if (!aid) return;
+    const btn = $("authAcctIdCopy");
+    try { await navigator.clipboard.writeText(aid); }
+    catch (_) { /* clipboard may be blocked; the id is visible to copy by hand */ }
+    if (btn) { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => { btn.textContent = o; }, 1200); }
   }
   function closeModal() { const m = $("authModal"); if (m) m.style.display = "none"; }
 
@@ -268,6 +285,7 @@
   window.cloudShowSignIn = showSignIn;
   window.cloudSignOut = signOut;
   window.cloudCloseModal = closeModal;
+  window.cloudCopyId = copyId;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;
 

@@ -743,6 +743,12 @@
   .acct-status { display: inline-block; font-size: 12px; font-weight: 700; color: #fff;
         background: var(--dim); border-radius: 10px; padding: 3px 12px; }
   .acct-status.full { background: var(--red); }
+  /* shareable account id row */
+  .acct-id { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .acct-id-label { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
+  .acct-id-val { font-family: var(--mono, ui-monospace, monospace); font-size: 14px; font-weight: 700;
+        letter-spacing: .5px; color: #fff; }
+  .acct-id-copy { font-size: 11px; padding: 2px 9px; height: auto; margin: 0; }
   #authNameEdit { text-align: left; margin-top: 10px; }
   .acct-sync { font-size: 11px; color: var(--dim); margin-top: 8px; }
   .acct-sync.syncing { color: var(--ink); }
@@ -1361,6 +1367,11 @@
         <div class="acct-name"><span id="authAcctName"></span><button type="button" class="btn acct-edit" onclick="cloudEditName()">Edit</button></div>
         <div class="acct-email" id="authAcctEmail"></div>
         <div class="acct-status" id="authAcctTag"></div>
+        <div class="acct-id" id="authAcctId" style="display:none">
+          <span class="acct-id-label">Account ID</span>
+          <code class="acct-id-val" id="authAcctIdVal"></code>
+          <button type="button" class="btn acct-id-copy" id="authAcctIdCopy" onclick="cloudCopyId()">Copy</button>
+        </div>
         <div class="acct-sync" id="authSyncStatus"></div>
         <div class="auth-diag" id="authAcctDiag"></div>
         <div id="authNameEdit" style="display:none">

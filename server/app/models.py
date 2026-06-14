@@ -9,6 +9,7 @@ so god accounts and free comp accounts are just a column you set:
 has_full_access == admin OR pro OR comp. Everything paywalled checks that.
 """
 import datetime
+import secrets
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -20,6 +21,15 @@ def utcnow() -> datetime.datetime:
     return datetime.datetime.now(datetime.timezone.utc)
 
 
+# Human-friendly public account id (e.g. "MB-7Q3K2P"). No 0/O/1/I/L so it can't
+# be misread when someone reads it aloud or copies it to be granted comp access.
+_ID_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def generate_public_id() -> str:
+    return "MB-" + "".join(secrets.choice(_ID_ALPHABET) for _ in range(6))
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -28,6 +38,9 @@ class User(Base):
     # us pre-grant access by email before someone has even created their account.
     supabase_id: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
+
+    # Short shareable id so people can be granted comp by code, not email.
+    public_id: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
 
     plan: Mapped[str] = mapped_column(String, default="free")   # free | pro | comp
     role: Mapped[str] = mapped_column(String, default="user")   # user | admin

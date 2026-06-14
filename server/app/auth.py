@@ -13,7 +13,23 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db
-from .models import User
+from .models import User, generate_public_id
+
+
+def _unique_public_id(db: Session) -> str:
+    for _ in range(10):
+        pid = generate_public_id()
+        if db.scalar(select(User).where(User.public_id == pid)) is None:
+            return pid
+    return generate_public_id()   # negligible collision risk after 10 tries
+
+
+def ensure_public_id(db: Session, user: User) -> None:
+    """Backfill an id for accounts created before public_id existed."""
+    if not user.public_id:
+        user.public_id = _unique_public_id(db)
+        db.commit()
+        db.refresh(user)
 
 
 class AuthError(HTTPException):
@@ -87,8 +103,11 @@ def _get_or_create_user(db: Session, *, sub: str | None, email: str | None) -> U
         if user is not None and sub and not user.supabase_id:
             user.supabase_id = sub          # bind a pre-granted account on first login
     if user is None:
-        user = User(supabase_id=sub, email=(email or f"{sub}@no-email.local"))
+        user = User(supabase_id=sub, email=(email or f"{sub}@no-email.local"),
+                    public_id=_unique_public_id(db))
         db.add(user)
+    elif not user.public_id:
+        user.public_id = _unique_public_id(db)   # pre-granted-by-email rows have none yet
     db.commit()
     db.refresh(user)
     return user

@@ -10,6 +10,7 @@ class AccountOut(BaseModel):
     plan: str
     role: str
     has_full_access: bool
+    account_id: str | None = None      # the shareable public id (MB-XXXXXX)
 
 
 class StatBlockIn(BaseModel):
@@ -26,6 +27,7 @@ class StatBlockOut(BaseModel):
 
 
 class GrantIn(BaseModel):
-    email: str
-    plan: str | None = None       # free | pro | comp
-    role: str | None = None       # user | admin
+    email: str | None = None          # grant by email (can pre-create before signup)
+    account_id: str | None = None     # ...or by the public account id (MB-XXXXXX)
+    plan: str | None = None           # free | pro | comp
+    role: str | None = None           # user | admin
