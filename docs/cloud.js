@@ -84,17 +84,32 @@
 
   function render() {
     const btn = $("signinbtn");
-    if (!btn) return;
+    const macct = $("mAccountBtn");   // tablet/mobile top-bar account button
+    if (!btn && !macct) return;
     if (session) {
       const full = !!(account && account.has_full_access);
-      btn.innerHTML = "Signed in: " + esc(displayName()) +
-        ' <span class="signin-tag' + (full ? "" : " free") + '">' + esc(accessTag()) + "</span>";
-      btn.classList.remove("primary"); btn.classList.add("signed");
-      btn.title = ((session.user && session.user.email) || "") + " — " + accessTag();
+      const tag = ' <span class="signin-tag' + (full ? "" : " free") + '">' + esc(accessTag()) + "</span>";
+      const ttl = ((session.user && session.user.email) || "") + " — " + accessTag();
+      if (btn) {
+        btn.innerHTML = "Signed in: " + esc(displayName()) + tag;
+        btn.classList.remove("primary"); btn.classList.add("signed");
+        btn.title = ttl;
+      }
+      if (macct) {
+        macct.innerHTML = "Account" + tag;
+        macct.classList.remove("acct-out"); macct.title = ttl;
+      }
     } else {
-      btn.textContent = "Sign In";
-      btn.classList.add("primary"); btn.classList.remove("signed");
-      btn.title = "Sign in to sync your compendium across devices";
+      if (btn) {
+        btn.textContent = "Sign In";
+        btn.classList.add("primary"); btn.classList.remove("signed");
+        btn.title = "Sign in to sync your compendium across devices";
+      }
+      if (macct) {
+        macct.textContent = "Sign In";
+        macct.classList.add("acct-out");
+        macct.title = "Sign in to sync your compendium across devices";
+      }
     }
   }
 

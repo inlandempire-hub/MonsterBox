@@ -948,6 +948,9 @@
       transition: background .12s, color .12s, border-color .12s;
     }
     .mbtn:active, .mbtn.active { background: var(--red); border-color: var(--red); color: #fff; }
+    /* account button: red when signed out, neutral + access tag when signed in */
+    .macct.acct-out { background: var(--red); border-color: var(--red); color: #fff; }
+    .macct .signin-tag { margin-left: 6px; }
     .mtitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .mtitle img { width: 26px; height: 26px; flex-shrink: 0;
           filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
@@ -1050,6 +1053,7 @@
     <button class="mbtn" onclick="openPanel('importpanel')">Import</button>
     <button class="mbtn" onclick="openPanel('library')">Compendium</button>
     <button class="mbtn" onclick="openPanel('rightside')">Encounter</button>
+    <button id="mAccountBtn" class="mbtn macct acct-out" onclick="cloudOpen()">Sign In</button>
   </div>
 </div>
 <div class="layout">
