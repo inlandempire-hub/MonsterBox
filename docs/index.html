@@ -756,8 +756,10 @@
   .report-intro { font-size: 13px; line-height: 1.5; color: var(--dim); margin: 8px 0 14px; }
   .report-text { width: 100%; box-sizing: border-box; resize: vertical; min-height: 96px;
         font: inherit; font-size: 13px; padding: 10px 12px; border-radius: 8px;
-        background: color-mix(in srgb, var(--panel) 55%, transparent);
-        border: 1px solid color-mix(in srgb, var(--panel) 50%, transparent); color: var(--ink); }
+        /* a distinctly darker fill + brighter border so the box is visible unfocused */
+        background: color-mix(in srgb, var(--bg) 55%, #000 22%);
+        border: 1px solid color-mix(in srgb, var(--panel) 80%, #fff 10%); color: var(--ink); }
+  .report-text:focus { outline: none; border-color: var(--red); }
   .report-email { width: 100%; box-sizing: border-box; margin-top: 10px; }
   .report-file { display: flex; flex-direction: column; gap: 4px; margin-top: 12px;
         font-size: 12px; color: var(--dim); }
@@ -971,7 +973,7 @@
      pop-up panels instead of the cramped 3-column desktop grid.
      ===================================================================== */
   #mtopbar, #mscrim { display: none; }
-  @media (max-width: 1024px) {
+  @media (max-width: 1024px) and (pointer: coarse) {
     /* fixed top app bar: menu · title · tracker */
     #mtopbar {
       display: flex; align-items: center; justify-content: space-between;
@@ -1080,7 +1082,7 @@
      is still desktop-sized and too big to work with. Scale it down and let the
      stat block scroll as one piece. (Overrides the sizing in the block above.)
      =================== */
-  @media (max-width: 1024px) {
+  @media (max-width: 1024px) and (pointer: coarse) {
     /* faster light/dark crossfade on touch devices (0.9s feels sluggish there).
        Must be :root, not html — :root outspecifies html so the base wins otherwise. */
     :root { --fade: 0.35s; }
@@ -1131,7 +1133,7 @@
 
   /* PHONE-ONLY (<=600px): drop the brand text so the four top-bar buttons fit
      a narrow width (tablets keep the title — they have room). */
-  @media (max-width: 600px) {
+  @media (max-width: 600px) and (pointer: coarse) {
     .mtitle span { display: none; }
   }
 </style>
@@ -1342,11 +1344,13 @@
     <div class="about-h">Report an Issue</div>
     <div class="about-sub">Help improve MonsterBox</div>
     <p class="report-intro">Use this to report bugs, or if you have a book that isn't importing
-       correctly, paste a shareable link and I can run tests on it. A screenshot helps a lot.</p>
+       correctly, paste a shareable link and I can run tests on it. Adding a screenshot of an
+       issue where possible, is a great help.</p>
     <textarea id="reportMsg" class="report-text" rows="6"
               placeholder="Describe the issue, or paste a shareable link to the book…"></textarea>
-    <input id="reportEmail" class="auth-input report-email" type="email"
-           placeholder="Your email (optional, so I can reply)" autocomplete="email">
+    <input id="reportEmail" class="auth-input report-email" type="text" inputmode="email"
+           name="mb-report-contact" autocomplete="off"
+           placeholder="Your email (optional, so I can reply)">
     <label class="report-file">
       <span>Add a screenshot (optional)</span>
       <input id="reportShot" type="file" accept="image/*">
@@ -1489,7 +1493,7 @@ function showEmptyLabel() {
   _restorePlannerLayout();
   const w = _wrap();
   if (w) w.style.display = "none";
-  $("emptytext").textContent = window.matchMedia("(max-width: 1024px)").matches
+  $("emptytext").textContent = window.matchMedia("(max-width: 1024px) and (pointer: coarse)").matches
     ? "Tap Import to add a PDF"
     : "Drag and Drop a PDF here";
   const el = $("emptylabel");
@@ -2902,7 +2906,7 @@ if (!localStorage.getItem("sf-hide-about")) {
 
 // empty-state hint: touch layouts can't drag-and-drop, so point them at Import
 (function() {
-  const m = window.matchMedia("(max-width: 1024px)");
+  const m = window.matchMedia("(max-width: 1024px) and (pointer: coarse)");
   const set = () => { const e = $("emptytext");
     if (e) e.textContent = m.matches ? "Tap Import to add a PDF" : "Drag and Drop a PDF here"; };
   set();

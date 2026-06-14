@@ -117,6 +117,12 @@
   const RE_META = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
   const RE_META_LOOSE = new RegExp("^\\w+\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,\\s*(.+)$", "i");
   const RE_META_SIZETYPE = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+((?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*$", "i");
+  // Homebrew creature TYPES the standard list doesn't know (Obojima "Medium Spirit,
+  // Unaligned"). Size + any type word(s) + an alignment-looking tail. Used only as
+  // a fallback, and the tail is validated against RE_ALIGNMENTish so it can't grab
+  // an ordinary "Large pile of gold, worth…" line.
+  const RE_META_ANYTYPE = new RegExp("^(" + SIZE_ALT + ")(?:\\s+or\\s+\\w+)?\\s+([A-Za-z][A-Za-z'\\u2019]*(?:\\s+[A-Za-z'\\u2019]+){0,2}?)\\s*,\\s*(.+)$", "i");
+  const RE_ALIGNMENTish = /^(?:any\b|unaligned|lawful|chaotic|neutral|good|evil|typically|no alignment)/i;
   // Compact layouts print the NAME and the size/type/alignment on ONE line, e.g.
   // "Kyanos B'lot Large Aberration (Shapechanger), Chaotic" — split name off the meta.
   const RE_NAME_META = new RegExp("^(.+?)\\s+(" + SIZE_ALT + ")\\s+((?:swarm of \\w+ )?(?:" + TYPES + ")s?(?:\\s*\\([^)]*\\))?)\\s*,?\\s*(.*)$", "i");
@@ -149,6 +155,12 @@
   const reSectionG = () => new RegExp(SECTION_SRC, "gim");
   const RE_ENTRY_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9:\\u2019'/\\-]+(?:\\s+[A-Za-z0-9:\\u2019'/\\-]+){0,5}?(?:\\s*\\([^)]*\\))?)[ \\t]*\\.[ \\t]+(?=[A-Z(])";
   const reEntryG = () => new RegExp(RE_ENTRY_SRC, "gm");
+  // Homebrew books (GM Binder: Expanded Warforged/Golems/Clockwork) print attack
+  // actions with NO period after the bold name — "Stun Mace Melee Weapon Attack:
+  // +4 ...". Detect a Title-Case name immediately followed by an attack clause;
+  // that clause is a strong enough signal that no period (or sentence-end) is needed.
+  const RE_ENTRY_ATTACK_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9\\u2019'/\\-]+(?:\\s+[A-Za-z0-9\\u2019'/\\-]+){0,4}?)\\s+(?=(?:Melee|Ranged)(?:\\s+or\\s+(?:Melee|Ranged))?\\s+(?:Weapon\\s+|Spell\\s+)?Attack(?:\\s+Roll)?\\b)";
+  const reEntryAttackG = () => new RegExp(RE_ENTRY_ATTACK_SRC, "gm");
 
   const SIZES = { tiny: "Tiny", small: "Small", medium: "Medium", large: "Large", huge: "Huge", gargantuan: "Gargantuan" };
   const ABIL_BY_NAME = { strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha" };
@@ -168,6 +180,17 @@
   const titleCase = (s) => String(s || "").toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
   const isUpper = (c) => c >= "A" && c <= "Z";
   const stripEdge = (s, chars) => { let i = 0, j = s.length; while (i < j && chars.includes(s[i])) i++; while (j > i && chars.includes(s[j - 1])) j--; return s.slice(i, j); };
+  // Bold text is faked in some PDFs by drawing the glyphs twice with a tiny offset,
+  // which surfaces as a fully-doubled line ("Actions Actions", "Warforged Enforcer
+  // Warforged Enforcer"). Collapse a line that is exactly two identical halves.
+  function dedupeLine(s) {
+    const w = s.trim().split(/\s+/);
+    if (w.length >= 2 && w.length % 2 === 0) {
+      const h = w.length / 2;
+      if (w.slice(0, h).join(" ").toLowerCase() === w.slice(h).join(" ").toLowerCase()) return w.slice(0, h).join(" ");
+    }
+    return s;
+  }
 
   function parseSpeed(text) { const out = {}; let m; RE_SPEED_PART.lastIndex = 0; while ((m = RE_SPEED_PART.exec(text))) out[(m[1] || "walk").toLowerCase()] = +m[2]; return out; }
   function parseSenses(text) { const out = {}; let m; RE_SPEED_PART.lastIndex = 0; while ((m = RE_SPEED_PART.exec(text))) if (m[1]) out[m[1].toLowerCase()] = +m[2]; return out; }
@@ -207,6 +230,7 @@
     if (".,:;".includes(s[s.length - 1])) return false;
     if (!isUpper(s[0])) return false;
     if (SECTION_HEADER_WORDS.has(s.toLowerCase())) return false;
+    if (RE_SECTION_LINE.test(s)) return false;   // "Actions"/"Reactions" labels aren't names
     // reject stat-field lines (e.g. "Challenge 21", "AC 17") — not creature names
     if (STAT_FIELD_PREFIXES.some(k => s.toLowerCase().startsWith(k))) return false;
     return !RE_AC_LINE.test(s);
@@ -299,14 +323,27 @@
 
   function parseEntries(sectionText, category) {
     if (!sectionText.trim()) return [];
-    const accepted = []; let m; const re = reEntryG();
+    const accepted = []; const seenStart = new Set();
+    const add = (name, start, end) => { if (!seenStart.has(start)) { seenStart.add(start); accepted.push({ name, start, end }); } };
+    // (1) standard period-delimited entries: "Slam. Melee Weapon Attack: ..."
+    let m; const re = reEntryG();
     while ((m = re.exec(sectionText))) {
       const nm = m[1].replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
       if (NON_HEADER_NAMES.has(nm)) continue;
       if (!isFeatureName(m[1])) continue;
       const prev = sectionText.slice(0, m.index).replace(/\s+$/, "");
-      if (!prev || SENTENCE_END.includes(prev[prev.length - 1])) accepted.push({ name: m[1], start: m.index, end: re.lastIndex });
+      if (!prev || SENTENCE_END.includes(prev[prev.length - 1])) add(m[1], m.index, re.lastIndex);
     }
+    // (2) homebrew attack actions with NO period after the name: "Stun Mace Melee
+    // Weapon Attack: ...". The attack clause is signal enough — no sentence-end guard.
+    let am; const reA = reEntryAttackG();
+    while ((am = reA.exec(sectionText))) {
+      const nm = am[1].replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
+      if (NON_HEADER_NAMES.has(nm)) continue;
+      if (!isFeatureName(am[1])) continue;
+      add(am[1], am.index, reA.lastIndex);
+    }
+    accepted.sort((a, b) => a.start - b.start);
     const entries = [];
     for (let i = 0; i < accepted.length; i++) {
       const end = i + 1 < accepted.length ? accepted[i + 1].start : sectionText.length;
@@ -423,7 +460,11 @@
     // a word fragment + hyphen at a line end, continued by a lowercase fragment:
     // merge across the break ("sav-\ning" -> "saving"). Uppercase continuations
     // are left alone — they're headings/names, not split words.
-    text = text.replace(/([A-Za-z]+)-\n([a-z][A-Za-z]*)/g, (m, a, b) =>
+    // strip DriveThruRPG per-purchaser watermark glued into the text
+    // ("Iari Bettoli Transaction: CRITEU27881") — optional name + transaction code.
+    text = text.replace(/(?:[A-Z][a-z]+\s+){0,4}Transaction:\s*[A-Z0-9]+/g, " ");
+    // Allow a space BEFORE the hyphen too ("night -\nmare", "Cha -\nrisma").
+    text = text.replace(/([A-Za-z]+)[ \t]*-\n([a-z][A-Za-z]*)/g, (m, a, b) =>
       KEEP_HYPHEN.has(a.toLowerCase()) ? a + "-" + b : a + b);
     // hyphen + SPACE mid-line ("30-foot- radius", "pre- defined"): the source
     // text broke a compound after its hyphen — rejoin keeping the hyphen, but
@@ -434,6 +475,7 @@
   function parseText(text, sourcePage, source) {
     text = cleanExtractedText(text);
     let lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
+    lines = lines.map(dedupeLine);      // collapse bold double-draw ("Actions Actions")
     lines = trimFlavor(lines);          // drop trailing lore/rules prose (any assembly path)
     text = lines.join("\n");            // so the regexes + raw_text use the trimmed body
     let found = 0;
@@ -458,6 +500,12 @@
       // size + type with no alignment, e.g. "Large Celestial" (Free5e layout)
       const sm = RE_META_SIZETYPE.exec(t);
       if (sm) { sb.size = SIZES[sm[1].toLowerCase()] || null; sb.creature_type = titleCase(sm[2]); break; }
+      // non-standard creature type (Obojima "Medium Spirit, Unaligned"): accept any
+      // type word(s) when the tail looks like an alignment.
+      const anym = RE_META_ANYTYPE.exec(t);
+      if (anym && RE_ALIGNMENTish.test(anym[3].trim())) {
+        sb.size = SIZES[anym[1].toLowerCase()] || null; sb.creature_type = titleCase(anym[2].trim()); sb.alignment = anym[3].trim(); break;
+      }
     }
     // compact layout: the name line itself carries the size/type (alignment may
     // wrap to the next line), e.g. "Kyanos B'lot Large Aberration (Shapechanger), Chaotic"
@@ -525,15 +573,20 @@
     const hasName = sb.name && sb.name !== "Unknown Creature" && sb.name.trim().length > 1;
     const bodyCount = sb.actions.length + sb.traits.length + sb.reactions.length
                     + sb.bonus_actions.length + sb.legendary_actions.length;
+    // CR < 1 creatures (0, 1/8, 1/4, 1/2) very often genuinely have no actions, so
+    // missing actions alone shouldn't flag them. Other errors still count normally.
+    const cr = (sb.challenge_rating || "").trim();
+    const crLow = cr === "0" || cr === "1/8" || cr === "1/4" || cr === "1/2";
+    const bodyOk = bodyCount > 0 || crLow;
     if (!hasName) warns.push("No name parsed");
     if (!acF)     warns.push("No armor class");
     if (!hpF)     warns.push("No hit points");
     if (!abF)     warns.push("Ability scores look unparsed");
     if (!crF)     warns.push("No challenge rating");
-    if (!bodyCount) warns.push("No actions or traits");
+    if (!bodyCount && !crLow) warns.push("No actions or traits");
     const score = (hasName ? 0.12 : 0) + (acF ? 0.15 : 0) + (hpF ? 0.15 : 0)
                 + (abF ? 0.20 : 0) + (crF ? 0.10 : 0) + (spdF ? 0.08 : 0)
-                + (bodyCount ? 0.20 : 0);
+                + (bodyOk ? 0.20 : 0);
     sb.parse_confidence = Math.round(score * 100) / 100;
     sb.parse_warnings = warns;
     return sb;
