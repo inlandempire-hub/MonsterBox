@@ -708,8 +708,13 @@
 
   /* account card: landscape — mimic logo on the left, details right-aligned */
   .auth-box.account-mode { max-width: 372px; }
-  .acct-layout { display: flex; align-items: center; gap: 16px; text-align: right; }
-  .acct-logo { width: auto; height: 132px; flex-shrink: 0;   /* matches the right-aligned text height */
+  .acct-layout { display: flex; align-items: center; gap: 14px; text-align: right; }
+  /* logo fills the left column and centres in the full card height (the info
+     column is taller, so a fixed-height logo left dead space below it) */
+  .acct-logo-col { flex: 0 0 auto; align-self: stretch; display: flex;
+        align-items: center; justify-content: center; }
+  .acct-logo { width: auto; height: 100%; max-height: 184px; min-height: 150px;
+        object-fit: contain;
         filter: drop-shadow(0 8px 16px rgba(0,0,0,.45)); }
   /* info fills the right and right-aligns, so the details AND the buttons share
      the right edge; the narrow box keeps the logo close (little dead space) */
@@ -1321,7 +1326,7 @@
     </form>
 
     <div id="authAccount" class="acct-layout" style="display:none">
-      <img class="acct-logo" src="monsterbox-logo.png" alt="">
+      <div class="acct-logo-col"><img class="acct-logo" src="monsterbox-logo.png" alt=""></div>
       <div class="acct-info">
         <div class="about-h">MonsterBox</div>
         <div class="about-sub">Your Account</div>

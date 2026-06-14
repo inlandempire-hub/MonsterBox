@@ -251,7 +251,7 @@
   window.onSyncStatus = function (s) {
     const el = $("authSyncStatus");
     if (!el) return;
-    const text = { syncing: "Syncing your compendium…", synced: "Compendium synced to your account",
+    const text = { syncing: "Syncing your compendium…", synced: "Compendium synced",
                    error: "Sync paused (couldn't reach the server)", off: "" };
     el.textContent = session ? (text[s] || "") : "";
     el.className = "acct-sync" + (s === "syncing" ? " syncing" : s === "error" ? " error" : "");
