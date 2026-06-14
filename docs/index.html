@@ -644,23 +644,26 @@
     overflow-y: auto;
     padding: 14px 28px 20px;
   }
-  /* curl shadows — simulates the parchment rolling onto the rod above/below */
-  .scroll-content::before,
-  .scroll-content::after {
+  /* curl shadows — the parchment rolling onto the rod above/below. Anchored to
+     the (non-scrolling) .scroll-wrap, just inside the 32px rods, so they stay
+     pinned at the parchment edges even when .scroll-content itself scrolls
+     (which it does on tablet/mobile, where the whole sheet scrolls as one). */
+  .scroll-wrap::before,
+  .scroll-wrap::after {
     content: '';
     display: block;
     position: absolute;
     left: 0; right: 0;
     height: 32px;
     pointer-events: none;
-    z-index: 1;
+    z-index: 3;
   }
-  .scroll-content::before {
-    top: 0;
+  .scroll-wrap::before {
+    top: 32px;
     background: linear-gradient(to bottom, rgba(0,0,0,.20) 0%, transparent 100%);
   }
-  .scroll-content::after {
-    bottom: 0;
+  .scroll-wrap::after {
+    bottom: 32px;
     background: linear-gradient(to top, rgba(0,0,0,.20) 0%, transparent 100%);
   }
   .scroll-content .placeholder { padding-top: 40px; color: var(--dim); }
@@ -707,7 +710,7 @@
   .signin-tag.free { background: var(--dim); }
 
   /* account card: landscape — mimic logo on the left, details right-aligned */
-  .auth-box.account-mode { max-width: 372px; }
+  .auth-box.account-mode { max-width: 408px; }
   .acct-layout { display: flex; align-items: center; gap: 14px; text-align: right; }
   /* logo fills the left column and centres in the full card height (the info
      column is taller, so a fixed-height logo left dead space below it) */
@@ -1056,6 +1059,23 @@
 
     /* general text a touch smaller for breathing room */
     body { font-size: 13px; }
+
+    /* stat block: the ability check/save boxes and body lines are oversized on
+       touch screens — trim them down */
+    .abilities { gap: 6px; margin-bottom: 10px; }
+    .ab-check { padding: 5px 0 4px; }
+    .ab-check .mod { font-size: 16px; }
+    .ab-check .sc { font-size: 10px; }
+    .ab-save { padding: 2px 0; }
+    .ab-save .svv { font-size: 12px; }
+    .line { font-size: 12px; }
+    .section > h2 { font-size: 14px; }
+
+    /* account card: smaller text so details fit without wrapping */
+    .acct-logo { max-height: 168px; }
+    .acct-name { font-size: 15px; }
+    .acct-email { font-size: 12px; }
+    .acct-status { font-size: 11px; }
 
     /* UNFREEZE the stat-block header: the fixed top pane (name + ability
        scores) otherwise eats the whole short parchment, leaving a ~10px scroll
