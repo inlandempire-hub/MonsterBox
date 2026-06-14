@@ -738,6 +738,8 @@
     border: none;
     border-radius: 14px;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;  /* no blue tap flash on tablets */
+    user-select: none; -webkit-user-select: none;
     transition: background .3s;
     padding: 0;
     outline: none;
@@ -1050,8 +1052,11 @@
     <button class="mbtn" onclick="openPanel('rightside')">Encounter</button>
   </div>
 </div>
-<div id="mscrim" onclick="closeDrawers()"></div>
 <div class="layout">
+  <!-- backdrop behind an open drawer; lives INSIDE .layout so it shares the
+       same stacking context as the fixed panels (else .layout's z-index:1
+       traps the panels below this body-level scrim and eats all taps) -->
+  <div id="mscrim" onclick="closeDrawers()"></div>
   <!-- LEFT: title (atop background) + import panel + compendium panel -->
   <div class="side" id="leftside">
     <div class="titlebar">
@@ -1207,14 +1212,12 @@
       <p><b>Bring your own content.</b> MonsterBox ships empty and is a tool for working
          with stat-block PDFs you are legally entitled to use. You are solely
          responsible for the legality of the content you import and store.</p>
-      <p><b>Your data &amp; privacy.</b> Signed out, everything stays in this browser
-         (local storage only) and nothing leaves your device. If you create an account
-         and sign in, your email and your compendium are stored securely in the cloud
-         so they sync across your devices. We use Supabase (authentication and
-         database) and a hosting provider to run the service; your content is yours
-         alone and is never sold or shared. <i>Export Compendium</i> keeps your own
-         backup. To delete your account and all of its data, email
-         <a href="mailto:jmgilb96@outlook.com">jmgilb96@outlook.com</a>.</p>
+      <p><b>Your Data &amp; Privacy:</b> When signed out, all data is stored locally in
+         this browser, and nothing leaves your device. If you create an account and sign
+         in, your email and compendium are stored securely in the cloud to enable sync
+         across devices. Your content is yours alone and never sold or shared - to delete
+         your account and all of its data, contact
+         <a href="mailto:monsterboxdev@outlook.com">monsterboxdev@outlook.com</a></p>
       <p>MonsterBox is an independent 5e-compatible tool; <b>it is not affiliated,
          endorsed, or sponsored by Wizards of the Coast.</b> Any reference to the game
          system is nominative, to describe compatibility and intended usage only.</p>
