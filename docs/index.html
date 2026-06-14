@@ -71,11 +71,17 @@
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body {
     margin: 0; font: 14px/1.55 system-ui, "Segoe UI", sans-serif;
-    background: var(--bg); color: var(--ink);
+    color: var(--ink);
+    /* paint the wallpaper directly on the body as a fixed, full-cover backstop:
+       the #wallpaper div handles the smooth crossfade, but if its fixed box ever
+       falls short of an edge (mobile URL-bar / safe-area quirks), the body shows
+       the SAME image rather than a grey strip. --bg is only the load fallback. */
+    background: var(--bg) url('bg-light.jpg') center center / cover no-repeat fixed;
     /* UI colours switch instantly on mode toggle (only the wallpaper crossfades).
        Interpolating every colour var per-frame forced color-mix + backdrop-filter
        panels to repaint each frame, which caused the fade flicker. */
   }
+  body.dark { background-image: url('bg-dark.jpg'); }
   /* title (no ribbon) — sits in its own space atop the background, above the
      import panel in the left column */
   .titlebar { display: flex; align-items: center; gap: 4px; pointer-events: none;
