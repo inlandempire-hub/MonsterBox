@@ -397,6 +397,17 @@
 
   // ------------------------------------------------------ service worker
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    // updateViaCache:"none" => the browser always revalidates sw.js itself, so a
+    // new deploy is picked up instead of being masked by the HTTP cache (up to 24h).
+    window.addEventListener("load", () =>
+      navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {}));
+    // when a freshly-installed worker takes control, reload once so the page runs
+    // the new assets (guarded so it only fires after an actual update, not first load).
+    let _swReloaded = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (_swReloaded) return;
+      _swReloaded = true;
+      if (navigator.serviceWorker.controller) location.reload();
+    });
   }
 })();

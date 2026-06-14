@@ -1,6 +1,6 @@
 /* MonsterBox service worker — caches the app shell for offline use.
  * Bump CACHE when you change any cached asset to force an update. */
-const CACHE = "monsterbox-v78";
+const CACHE = "monsterbox-v79";
 const ASSETS = [
   "./", "index.html", "engine.js", "pdfimport.js", "cloud.js", "sync.js", "manifest.webmanifest",
   "vendor/pdf.min.js", "vendor/pdf.worker.min.js",
@@ -28,7 +28,24 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (url.pathname.indexOf("/api/") !== -1) return;          // local API shim handles these in-page
   if (e.request.method !== "GET") return;
-  e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request))
-  );
+
+  // App shell (our own origin): NETWORK-FIRST so a normal refresh always shows
+  // the latest deploy. We update the cache on every successful fetch and fall
+  // back to it only when offline. (Cache-first used to serve stale code until
+  // the SW itself swapped in — which needed extra reloads to take effect.)
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      fetch(e.request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Anything cross-origin stays cache-first.
+  e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request)));
 });

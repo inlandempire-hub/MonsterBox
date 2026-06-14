@@ -1401,7 +1401,9 @@ function showEmptyLabel() {
   _restorePlannerLayout();
   const w = _wrap();
   if (w) w.style.display = "none";
-  $("emptytext").textContent = "Drag and Drop a PDF here";
+  $("emptytext").textContent = window.matchMedia("(max-width: 1024px)").matches
+    ? "Tap Import to add a PDF"
+    : "Drag and Drop a PDF here";
   const el = $("emptylabel");
   el.style.display = "flex";
   // show the hint for 60s, then fade it out over 3s so it isn't there forever
@@ -2810,10 +2812,13 @@ if (!localStorage.getItem("sf-hide-about")) {
   setTimeout(() => showAbout(), 6400);
 }
 
-// empty-state hint (same on every viewport now that the top bar exposes Import)
+// empty-state hint: touch layouts can't drag-and-drop, so point them at Import
 (function() {
-  const e = $("emptytext");
-  if (e) e.textContent = "Drag and Drop a PDF here";
+  const m = window.matchMedia("(max-width: 1024px)");
+  const set = () => { const e = $("emptytext");
+    if (e) e.textContent = m.matches ? "Tap Import to add a PDF" : "Drag and Drop a PDF here"; };
+  set();
+  m.addEventListener("change", set);
 })();
 
 // Real visible-viewport height for tablet/phone panels: 100dvh/100vh can resolve
