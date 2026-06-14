@@ -962,7 +962,7 @@
     #mscrim.show { opacity: 1; pointer-events: auto; }
 
     /* single column: only the centre scroll stays in flow */
-    .layout { display: block; height: 100vh; height: 100dvh; padding: 0; gap: 0; }
+    .layout { display: block; height: var(--apph, 100dvh); padding: 0; gap: 0; }
     .titlebar { display: none; }            /* replaced by the top bar */
     #sheet { height: 100%; padding: 58px 0 8px; }
     .scroll-wrap, #encounterrun { width: 94%; }
@@ -970,7 +970,7 @@
     /* side columns become off-canvas drawers (roomier on tablets) */
     .side {
       position: fixed; top: 0; bottom: 0; z-index: 200;
-      width: 86vw; max-width: 440px; height: 100vh; height: 100dvh;
+      width: 86vw; max-width: 440px; height: var(--apph, 100dvh);
       padding: 58px 12px 14px; gap: 12px; overflow: hidden;
       background: color-mix(in srgb, var(--bg) 95%, transparent);
       backdrop-filter: blur(24px) saturate(125%);
@@ -982,6 +982,7 @@
        chain their scroll to the page behind */
     .lib-scroll, .log-scroll, .planner-list {
       -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+      min-height: 0; touch-action: pan-y;   /* allow vertical touch scrolling */
     }
     /* Encounter + Roll Log = right drawer (#rightside keeps the .side styling) */
     #rightside { right: 0; transform: translateX(106%); border-radius: 16px 0 0 16px; }
@@ -994,7 +995,7 @@
     /* Compendium = left drawer; with Import split out, the list gets full height */
     #library {
       position: fixed; top: 0; left: 0; z-index: 200;
-      width: 86vw; max-width: 460px; height: 100vh; height: 100dvh;
+      width: 86vw; max-width: 460px; height: var(--apph, 100dvh);
       padding: 58px 0 0; overflow: hidden;
       background: color-mix(in srgb, var(--bg) 95%, transparent);
       backdrop-filter: blur(24px) saturate(125%); -webkit-backdrop-filter: blur(24px) saturate(125%);
@@ -2770,6 +2771,16 @@ if (!localStorage.getItem("sf-hide-about")) {
       : "Drag and Drop a PDF here"; };
   set();
   m.addEventListener("change", set);
+})();
+
+// Real visible-viewport height for tablet/phone panels: 100dvh/100vh can resolve
+// taller than the visible area (address bar / older Chrome), pushing a drawer's
+// bottom off-screen so its list looks unscrollable. Pin --apph to innerHeight.
+(function () {
+  const setH = () => document.documentElement.style.setProperty('--apph', window.innerHeight + 'px');
+  setH();
+  window.addEventListener('resize', setH);
+  window.addEventListener('orientationchange', () => setTimeout(setH, 200));
 })();
 
 loadLibrary(); loadTracker(); loadLog(); loadEncounterList();
