@@ -1035,14 +1035,6 @@
     /* splash scaled down for phones */
     .splash-text { font-size: 40px; }
     .splash-logo { height: 188px; }
-
-    /* INSTANT light/dark toggle on tablets: the cross-fade (animating the
-       wallpaper opacity behind the blurred glass panels) flickers on tablet
-       GPUs, so switch instantly here instead. */
-    body.mode-fading *, body.mode-fading *::before, body.mode-fading *::after,
-    body.mode-fading #wallpaper::before, body.mode-fading #wallpaper::after {
-      transition: none !important;
-    }
   }
 
   /* ===================================================================
@@ -1409,10 +1401,7 @@ function showEmptyLabel() {
   _restorePlannerLayout();
   const w = _wrap();
   if (w) w.style.display = "none";
-  // mobile has no visible compendium: point the user at the menu instead
-  $("emptytext").textContent = window.matchMedia("(max-width: 1024px)").matches
-    ? "Tap the menu to open the Compendium"
-    : "Drag and Drop a PDF here";
+  $("emptytext").textContent = "Drag and Drop a PDF here";
   const el = $("emptylabel");
   el.style.display = "flex";
   // show the hint for 60s, then fade it out over 3s so it isn't there forever
@@ -2821,15 +2810,10 @@ if (!localStorage.getItem("sf-hide-about")) {
   setTimeout(() => showAbout(), 6400);
 }
 
-// keep the empty-state hint correct for the current viewport (and on rotate)
+// empty-state hint (same on every viewport now that the top bar exposes Import)
 (function() {
-  const m = window.matchMedia("(max-width: 1024px)");
-  const set = () => { const e = $("emptytext");
-    if (e) e.textContent = m.matches
-      ? "Tap the menu to open the Compendium"
-      : "Drag and Drop a PDF here"; };
-  set();
-  m.addEventListener("change", set);
+  const e = $("emptytext");
+  if (e) e.textContent = "Drag and Drop a PDF here";
 })();
 
 // Real visible-viewport height for tablet/phone panels: 100dvh/100vh can resolve
