@@ -1041,15 +1041,15 @@
   }
 
   /* ===================================================================
-     PHONE-ONLY (<=600px): the tablet rules above apply, but everything is
-     still desktop-sized and far too big on a phone. Scale the chrome down
-     and let the stat block scroll as one piece. =================== */
-  @media (max-width: 600px) {
-    /* slimmer top bar + buttons; drop the brand text so the 4 buttons fit */
+     TABLET & SMALLER (<=1024px): the layout rules above apply, but the chrome
+     is still desktop-sized and too big to work with. Scale it down and let the
+     stat block scroll as one piece. (Overrides the sizing in the block above.)
+     =================== */
+  @media (max-width: 1024px) {
+    /* slimmer top bar + buttons */
     #mtopbar { height: 44px; padding: 0 6px; gap: 6px; }
     .mtabs { gap: 6px; }
     .mbtn { height: 30px; padding: 0 10px; font-size: 12px; border-radius: 8px; }
-    .mtitle span { display: none; }
     .mtitle img { width: 22px; height: 22px; }
 
     /* drawers/centre clear the shorter bar */
@@ -1060,17 +1060,23 @@
     /* general text a touch smaller for breathing room */
     body { font-size: 13px; }
 
-    /* UNFREEZE the stat-block header on phones: the fixed top pane (name +
-       ability scores) otherwise eats the whole short parchment, leaving a
-       ~10px scroll area. Let the entire sheet scroll as one instead. */
+    /* UNFREEZE the stat-block header: the fixed top pane (name + ability
+       scores) otherwise eats the whole short parchment, leaving a ~10px scroll
+       area. Let the entire sheet scroll as one piece instead. */
     .scroll-content { overflow-y: auto; -webkit-overflow-scrolling: touch;
           overscroll-behavior: contain; touch-action: pan-y; }
     .sheet-frozen { position: static; z-index: auto; padding: 14px 14px 6px; }
     .sheet-scroll { flex: 0 0 auto; overflow: visible; padding: 10px 14px 18px; }
 
-    /* smaller splash on phones */
+    /* smaller splash */
     .splash-text { font-size: 30px; }
     .splash-logo { height: 132px; }
+  }
+
+  /* PHONE-ONLY (<=600px): drop the brand text so the four top-bar buttons fit
+     a narrow width (tablets keep the title — they have room). */
+  @media (max-width: 600px) {
+    .mtitle span { display: none; }
   }
 </style>
 </head>
