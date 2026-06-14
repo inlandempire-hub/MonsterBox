@@ -128,10 +128,11 @@
   .side { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
 
   /* ---- full-window wallpaper (light/dark crossfade) behind the glass UI ---- */
-  /* size to the LARGE viewport so the mobile URL bar retracting never exposes
-     an uncovered strip (inset:0 alone resolves to the small viewport there) */
-  #wallpaper { position: fixed; top: 0; left: 0; width: 100vw;
-    height: 100vh; height: 100lvh; z-index: 0; pointer-events: none; }
+  /* anchor to the viewport top and BELOW its bottom edge so a retracting mobile
+     URL bar or a system gesture inset can never leave an uncovered strip at the
+     bottom (sizing by height left a ~20px grey gap on some tablets) */
+  #wallpaper { position: fixed; top: -8px; left: 0; right: 0; bottom: -48px;
+    z-index: 0; pointer-events: none; }
   #wallpaper::before, #wallpaper::after {
     content: ''; position: absolute; inset: 0;
     background-size: cover; background-position: center;
@@ -1046,6 +1047,10 @@
      stat block scroll as one piece. (Overrides the sizing in the block above.)
      =================== */
   @media (max-width: 1024px) {
+    /* faster light/dark crossfade on touch devices (0.9s feels sluggish there).
+       Must be :root, not html — :root outspecifies html so the base wins otherwise. */
+    :root { --fade: 0.35s; }
+
     /* slimmer top bar + buttons */
     #mtopbar { height: 44px; padding: 0 6px; gap: 6px; }
     .mtabs { gap: 6px; }
