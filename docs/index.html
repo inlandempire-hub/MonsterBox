@@ -723,13 +723,13 @@
 
   /* account card: landscape — mimic logo on the left, details right-aligned */
   .auth-box.account-mode { max-width: 408px; }
-  .acct-layout { display: flex; align-items: center; gap: 14px; text-align: right; }
+  .acct-layout { display: flex; align-items: center; gap: 14px; text-align: right; position: relative; }
   /* logo fills the left column and centres in the full card height (the info
      column is taller, so a fixed-height logo left dead space below it) */
   .acct-logo-col { flex: 0 0 auto; align-self: stretch; display: flex;
         align-items: center; justify-content: center; }
   .acct-logo { width: auto; height: 100%; max-height: 184px; min-height: 150px;
-        object-fit: contain;
+        object-fit: contain; transform: translateY(12px);   /* nudge down, clear of the top-left id */
         filter: drop-shadow(0 8px 16px rgba(0,0,0,.45)); }
   /* info fills the right and right-aligns, so the details AND the buttons share
      the right edge; the narrow box keeps the logo close (little dead space) */
@@ -743,12 +743,29 @@
   .acct-status { display: inline-block; font-size: 12px; font-weight: 700; color: #fff;
         background: var(--dim); border-radius: 10px; padding: 3px 12px; }
   .acct-status.full { background: var(--red); }
-  /* shareable account id row */
-  .acct-id { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-  .acct-id-label { font-size: 10px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
-  .acct-id-val { font-family: var(--mono, ui-monospace, monospace); font-size: 14px; font-weight: 700;
-        letter-spacing: .5px; color: #fff; }
-  .acct-id-copy { font-size: 11px; padding: 2px 9px; height: auto; margin: 0; }
+  /* shareable account id — pinned top-left of the card, small + dim like the
+     "Compendium synced" line */
+  .acct-id { position: absolute; top: 0; left: 0; text-align: left;
+        display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: var(--dim); }
+  .acct-id-val { font-family: var(--mono, ui-monospace, monospace); font-weight: 700; color: var(--dim); }
+  .acct-id-copy { background: none; border: none; padding: 0; cursor: pointer;
+        font: inherit; color: var(--red); text-decoration: underline; }
+
+  /* report-an-issue modal */
+  .report-box { max-width: 460px; text-align: left; }
+  .report-intro { font-size: 13px; line-height: 1.5; color: var(--dim); margin: 8px 0 14px; }
+  .report-text { width: 100%; box-sizing: border-box; resize: vertical; min-height: 96px;
+        font: inherit; font-size: 13px; padding: 10px 12px; border-radius: 8px;
+        background: color-mix(in srgb, var(--panel) 55%, transparent);
+        border: 1px solid color-mix(in srgb, var(--panel) 50%, transparent); color: var(--ink); }
+  .report-email { width: 100%; box-sizing: border-box; margin-top: 10px; }
+  .report-file { display: flex; flex-direction: column; gap: 4px; margin-top: 12px;
+        font-size: 12px; color: var(--dim); }
+  .report-file input { font-size: 12px; color: var(--ink); }
+  .report-status { min-height: 16px; font-size: 12px; margin-top: 10px; color: var(--dim); }
+  .report-status.ok { color: #4caf50; }
+  .report-status.err { color: var(--red); }
+  .report-actions { margin-top: 14px; justify-content: flex-end; }
   #authNameEdit { text-align: left; margin-top: 10px; }
   .acct-sync { font-size: 11px; color: var(--dim); margin-top: 8px; }
   .acct-sync.syncing { color: var(--ink); }
@@ -1158,6 +1175,7 @@
         </label>
         <button class="btn" onclick="sfExport()">Export Compendium</button>
         <button class="btn" onclick="showAbout()">About &amp; Legal</button>
+        <button class="btn" onclick="reportOpen()">Report an Issue</button>
       </div>
       <div id="backupnag" class="backupnag">
         <span class="bk-txt">Your compendium is stored only on this device. Back it up.</span>
@@ -1318,6 +1336,29 @@
   </div>
 </div>
 
+<!-- report an issue -->
+<div id="reportModal" class="modal-overlay" style="display:none">
+  <div class="modal-box report-box">
+    <div class="about-h">Report an Issue</div>
+    <div class="about-sub">Help improve MonsterBox</div>
+    <p class="report-intro">Use this to report bugs, or if you have a book that isn't importing
+       correctly, paste a shareable link and I can run tests on it. A screenshot helps a lot.</p>
+    <textarea id="reportMsg" class="report-text" rows="6"
+              placeholder="Describe the issue, or paste a shareable link to the book…"></textarea>
+    <input id="reportEmail" class="auth-input report-email" type="email"
+           placeholder="Your email (optional, so I can reply)" autocomplete="email">
+    <label class="report-file">
+      <span>Add a screenshot (optional)</span>
+      <input id="reportShot" type="file" accept="image/*">
+    </label>
+    <div id="reportStatus" class="report-status"></div>
+    <div class="auth-actions report-actions">
+      <button class="btn save" id="reportSend" onclick="reportSend()">Send Report</button>
+      <button type="button" class="btn" onclick="reportClose()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- sign in / account (Supabase email + password) -->
 <div id="authModal" class="modal-overlay" style="display:none">
   <div class="modal-box auth-box" id="authBox">
@@ -1368,9 +1409,8 @@
         <div class="acct-email" id="authAcctEmail"></div>
         <div class="acct-status" id="authAcctTag"></div>
         <div class="acct-id" id="authAcctId" style="display:none">
-          <span class="acct-id-label">Account ID</span>
-          <code class="acct-id-val" id="authAcctIdVal"></code>
-          <button type="button" class="btn acct-id-copy" id="authAcctIdCopy" onclick="cloudCopyId()">Copy</button>
+          <span>Account ID: <code class="acct-id-val" id="authAcctIdVal"></code></span>
+          <button type="button" class="acct-id-copy" id="authAcctIdCopy" onclick="cloudCopyId()">Copy</button>
         </div>
         <div class="acct-sync" id="authSyncStatus"></div>
         <div class="auth-diag" id="authAcctDiag"></div>
@@ -1407,6 +1447,7 @@
 <script src="cloud.js"></script>
 <!-- optional cloud sync of the compendium (Pro) -->
 <script src="sync.js"></script>
+<script src="report.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 let selected = null;

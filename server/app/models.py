@@ -56,6 +56,20 @@ class User(Base):
         return self.role == "admin" or self.plan in ("pro", "comp")
 
 
+class Report(Base):
+    """A user-submitted bug/issue report. Always stored here as a backstop; also
+    emailed if SMTP is configured. The screenshot (if any) is kept in the email
+    only, but we record whether one was attached."""
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)   # reporter's reply-to
+    message: Mapped[str] = mapped_column(String)
+    had_screenshot: Mapped[bool] = mapped_column(Boolean, default=False)
+    emailed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class StatBlock(Base):
     """A user's synced stat block. The full client JSON is stored verbatim in
     `data`; `client_id` is the id the browser generated, unique per user."""

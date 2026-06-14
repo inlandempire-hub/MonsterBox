@@ -1,8 +1,8 @@
 /* MonsterBox service worker — caches the app shell for offline use.
  * Bump CACHE when you change any cached asset to force an update. */
-const CACHE = "monsterbox-v85";
+const CACHE = "monsterbox-v86";
 const ASSETS = [
-  "./", "index.html", "engine.js", "pdfimport.js", "cloud.js", "sync.js", "manifest.webmanifest",
+  "./", "index.html", "engine.js", "pdfimport.js", "cloud.js", "sync.js", "report.js", "manifest.webmanifest",
   "vendor/pdf.min.js", "vendor/pdf.worker.min.js",
   "bg-light.jpg", "bg-dark.jpg", "MonsterBox.ico", "monsterbox-logo.png",
   "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png",

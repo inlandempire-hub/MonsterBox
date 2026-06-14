@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import models  # noqa: F401  (import so tables register on Base.metadata)
 from .config import settings
 from .db import Base, engine
-from .routers import account, admin, health, statblocks
+from .routers import account, admin, health, report, statblocks
 from .schema_migrate import ensure_schema
 
 
@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(account.router)
     app.include_router(statblocks.router)
     app.include_router(admin.router)
+    app.include_router(report.router)
     return app
 
 
