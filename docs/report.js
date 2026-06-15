@@ -24,8 +24,10 @@
   function open() {
     $("reportMsg").value = "";
     $("reportShot").value = "";
-    const sess = window.cloudGetSession && window.cloudGetSession();
-    $("reportEmail").value = (sess && sess.user && sess.user.email) || "";
+    // leave the email blank and re-arm the read-only anti-autofill guard each open
+    const em = $("reportEmail");
+    em.value = "";
+    em.setAttribute("readonly", "");
     status("");
     $("reportSend").disabled = false;
     $("reportModal").style.display = "flex";

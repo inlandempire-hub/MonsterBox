@@ -1349,7 +1349,8 @@
     <textarea id="reportMsg" class="report-text" rows="6"
               placeholder="Describe the issue, or paste a shareable link to the book…"></textarea>
     <input id="reportEmail" class="auth-input report-email" type="text" inputmode="email"
-           name="mb-report-contact" autocomplete="off"
+           name="mb-report-contact" autocomplete="off" readonly
+           onfocus="this.removeAttribute('readonly')"
            placeholder="Your email (optional, so I can reply)">
     <label class="report-file">
       <span>Add a screenshot (optional)</span>
