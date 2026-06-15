@@ -206,6 +206,27 @@
   // single-line test: does this line START a trait/action entry ("Name. Desc")?
   const RE_ENTRY_LINE = new RegExp(RE_ENTRY_SRC);
 
+  // ADAPTIVE RECOVERY (big-win #2): slower, looser ability layouts tried only when
+  // the standard parse fails. Returns scores or null; never overwrites a good parse.
+  function recoverAbilities(text) {
+    const lines = String(text).replace(/\r/g, "").split("\n");
+    // layout A: an ability header row, then a row of six BARE integers
+    // ("STR DEX CON INT WIS CHA" / "15 14 13 12 10 8")
+    for (let i = 0; i < lines.length; i++) {
+      const up = lines[i].toUpperCase();
+      if ((up.match(/\b(STR|DEX|CON|INT|WIS|CHA)\b/g) || []).length >= 5) {
+        for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+          const nums = (lines[j].match(/\b\d{1,2}\b/g) || []).map(Number);
+          if (nums.length >= 6) return { strength: nums[0], dexterity: nums[1], constitution: nums[2], intelligence: nums[3], wisdom: nums[4], charisma: nums[5] };
+        }
+      }
+    }
+    // layout B: inline named scores without modifiers ("Str 15 Dex 14 Con 13 …")
+    const re = /\b(Str|Dex|Con|Int|Wis|Cha)\b\s+(\d{1,2})\b/gi; const out = {}; let m;
+    while ((m = re.exec(text))) { const k = ABIL_KEY[m[1].toLowerCase()]; if (k && !(k in out)) out[k] = +m[2]; }
+    return Object.keys(out).length >= 6 ? out : null;
+  }
+
   const SIZES = { tiny: "Tiny", small: "Small", medium: "Medium", large: "Large", huge: "Huge", gargantuan: "Gargantuan" };
   const ABIL_BY_NAME = { strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha" };
   const SECTION_HEADER_WORDS = new Set(["aberrations", "beasts", "celestials", "constructs", "dragons", "elementals", "fey", "fiends", "giants", "humanoids", "monstrosities", "oozes", "plants", "undead"]);
@@ -630,6 +651,13 @@
       const idx = sb.traits.findIndex(isAct);
       if (idx >= 0) { sb.actions = sb.traits.slice(idx).map(e => (e.category = "action", e)); sb.traits = sb.traits.slice(0, idx); }
     }
+
+    // ---- ADAPTIVE RECOVERY (#2): for any field that FAILED, try slower/looser
+    // logic. Only fills gaps (never overwrites a good parse), so confidence can
+    // only rise — safe to run on every low-yield block. ----
+    if (!abF) { const ab2 = recoverAbilities(text); if (ab2) { sb.abilities = ab2; abF = true; found++; } }
+    if (!crF) { const cm = /\b(?:CR|Challenge(?:\s+Rating)?)\s*[:\-]?\s*([0-9]+(?:\/[0-9]+)?)\b/i.exec(text); if (cm) { sb.challenge_rating = cm[1]; crF = true; found++; } }
+    if (!hpF) { const hm = /(\d+)\s*(?:hit points|hp)\b/i.exec(text); if (hm) { sb.hit_points = +hm[1]; hpF = true; found++; } }
 
     // ---- quality scoring: weighted confidence + human-readable warnings ----
     // Unlike a raw field count, this catches the failure modes that matter:
