@@ -177,7 +177,7 @@
   const RE_SPEED = /Speed:?\s+(.+)/i;
   const RE_ABILITY_PAIR = /(\d+)\s*\(\s*[^)\d]*?(\d+)\s*\)/g;
   // matches 2014 "Challenge 5 (1,800 XP)", Free5e "Challenge 21", and 2024 "CR 2 (XP 450; PB +2)"
-  const RE_CHALLENGE = /(?:Challenges?|\bCR):?\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
+  const RE_CHALLENGE = /(?:Challenge(?:\s+Rating)?s?|\bCR):?\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
   const RE_PROF = /Proficiency Bonus:?\s+\+?(\d+)/i;
   const RE_SPEED_PART = /(?:(\w+)\s+)?(\d+)\s*ft/gi;
   const RE_AC_LINE = /^\s*[•▪◦·*\-]?\s*(?:Armor Class|AC):?\s+\d/i;
@@ -763,6 +763,115 @@
     return results;
   }
 
+  // ============================================================ variant synthesis
+  // Homebrew families (e.g. GM Binder golems) print one BASE stat block plus a set
+  // of "variant" blocks that are DELTAS — a title + a few field changes ("Armor
+  // Class Increases by 3", added resistances) + extra traits/actions, with no AC,
+  // HP or ability scores of their own. We combine each delta onto the Standard
+  // base to emit a ready-to-run "Standard X (Variant)" stat block.
+  const RE_DELTA = /\b(Armor Class|Challenge Rating|Hit Points|Speed)\s+(Increases|Decreases)\s+by\s+(\d+)/i;
+  const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const cloneSb = (sb) => JSON.parse(JSON.stringify(sb));
+  function bumpCR(cr, delta) {
+    if (cr == null) return cr;
+    const m = /^(\d+)/.exec(String(cr).trim());
+    return m ? String(Math.max(0, parseInt(m[1], 10) + delta)) : cr;
+  }
+
+  function parseVariantRegion(region, family) {
+    const lines = region.map(dedupeLine).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
+    if (lines.length < 2) return null;
+    const famTail = new RegExp("\\s*\\b" + reEsc(family) + "\\b\\s*$", "i");
+    const qualifier = lines[0].trim().replace(famTail, "").trim() || lines[0].trim();
+    const text = cleanExtractedText(lines.slice(1).join("\n"));
+    const v = { qualifier, acDelta: 0, crDelta: 0, hpDelta: 0, resist: [], immun: [], vuln: [],
+                condImmun: [], traits: [], actions: [], bonus_actions: [], reactions: [], replaces: [] };
+    let dm; const reD = new RegExp(RE_DELTA.source, "gi");
+    while ((dm = reD.exec(text))) {
+      const n = (/increase/i.test(dm[2]) ? 1 : -1) * parseInt(dm[3], 10), f = dm[1].toLowerCase();
+      if (f === "armor class") v.acDelta += n; else if (f === "challenge rating") v.crDelta += n; else if (f === "hit points") v.hpDelta += n;
+    }
+    let gm; const reDmg = new RegExp(RE_DMG.source, "gi");
+    while ((gm = reDmg.exec(text))) { const lst = parseList(gm[2]), k = gm[1].toLowerCase();
+      if (k === "resistances") v.resist.push(...lst); else if (k === "immunities") v.immun.push(...lst); else if (k === "vulnerabilities") v.vuln.push(...lst); }
+    const cmi = RE_COND.exec(text); if (cmi) v.condImmun.push(...parseList(cmi[1]));
+    // strip the field-delta / defense lines before parsing traits, so they don't
+    // bleed into the first trait's name ("Damage Resistances Necrotic Fire Powered")
+    const bodyText = cleanExtractedText(lines.slice(1).filter(l => {
+      const s = l.trim();
+      return !RE_DELTA.test(s) && !/^Damage (Vulnerabilities|Resistances|Immunities)\b/i.test(s)
+        && !/^Condition Immunities\b/i.test(s) && !/^(Armor Class|Hit Points|Speed|Challenge Rating)\b/i.test(s);
+    }).join("\n"));
+    const { traitsText, sections } = splitSections(bodyText);
+    v.traits = parseEntries(traitsText, "trait");
+    v.actions = parseEntries(sections["action"] || "", "action");
+    v.bonus_actions = parseEntries(sections["bonus_action"] || "", "bonus_action");
+    v.reactions = parseEntries(sections["reaction"] || "", "reaction");
+    for (const a of v.actions.concat(v.bonus_actions, v.reactions)) {
+      const mr = /\(\s*Replaces\s+([^)]+)\)/i.exec(a.raw_text || "") || /\(\s*Replaces\s+([^)]+)\)/i.exec(a.name || "");
+      if (mr) v.replaces.push(mr[1].trim().toLowerCase());
+    }
+    // require STRUCTURED delta content (so flavour prose with the same heading is ignored)
+    const structured = v.acDelta || v.crDelta || v.hpDelta || v.resist.length || v.immun.length
+      || v.condImmun.length || v.actions.length || v.bonus_actions.length || v.reactions.length;
+    return structured ? v : null;
+  }
+
+  function cloneBaseWithVariant(base, v, source) {
+    const sb = cloneSb(base);
+    sb.name = base.name + " (" + v.qualifier + ")";
+    sb.armor_class = Math.max(0, (sb.armor_class || 10) + v.acDelta);
+    if (v.hpDelta) sb.hit_points = Math.max(1, (sb.hit_points || 1) + v.hpDelta);
+    if (v.crDelta) sb.challenge_rating = bumpCR(sb.challenge_rating, v.crDelta);
+    const merge = (a, b) => Array.from(new Set([...(a || []), ...b]));
+    sb.damage_resistances = merge(sb.damage_resistances, v.resist);
+    sb.damage_immunities = merge(sb.damage_immunities, v.immun);
+    sb.damage_vulnerabilities = merge(sb.damage_vulnerabilities, v.vuln);
+    sb.condition_immunities = merge(sb.condition_immunities, v.condImmun);
+    sb.traits = (sb.traits || []).concat(v.traits);
+    if (v.replaces.length) sb.actions = (sb.actions || []).filter(a => !v.replaces.includes((a.name || "").trim().toLowerCase()));
+    sb.actions = (sb.actions || []).concat(v.actions);
+    sb.bonus_actions = (sb.bonus_actions || []).concat(v.bonus_actions);
+    sb.reactions = (sb.reactions || []).concat(v.reactions);
+    sb.is_variant = true; sb.variant_of = base.name; sb.source = source || base.source;
+    sb.raw_text = null; sb.parse_confidence = 0.95; sb.parse_warnings = [];
+    return sb;
+  }
+
+  function synthesizeVariants(linePages, baseBlocks, source) {
+    if (!baseBlocks.length) return [];
+    const trail = {};
+    for (const b of baseBlocks) { const w = (b.name || "").trim().split(/\s+/).pop(); if (w && /^[A-Za-z]/.test(w)) trail[w.toLowerCase()] = (trail[w.toLowerCase()] || 0) + 1; }
+    let family = null, fc = 1;
+    for (const k in trail) if (trail[k] > fc) { fc = trail[k]; family = k; }
+    if (!family) return [];
+    // combine onto the Standard base only (per user choice); bail if there isn't one
+    const base = baseBlocks.find(b => /^standard\b/i.test((b.name || "").trim()) && (b.name || "").toLowerCase().endsWith(family))
+              || baseBlocks.find(b => /^standard\b/i.test((b.name || "").trim()));
+    if (!base) return [];
+    const baseNames = new Set(baseBlocks.map(b => (b.name || "").trim().toLowerCase()));
+    const lines = [];
+    for (const page of linePages) for (const [t] of page) lines.push(t);
+    const famEnd = new RegExp("\\b" + reEsc(family) + "$", "i");
+    const idx = [];
+    for (let i = 0; i < lines.length; i++) {
+      const s = dedupeLine(lines[i] || "").trim();
+      if (!s || !famEnd.test(s) || !looksLikeTitle(s) || baseNames.has(s.toLowerCase())) continue;
+      let acNear = false; for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) if (RE_AC_LINE.test(lines[j])) { acNear = true; break; }
+      if (!acNear) idx.push(i);
+    }
+    const seenQual = new Set(), out = [];
+    for (let k = 0; k < idx.length; k++) {
+      let end = Math.min(k + 1 < idx.length ? idx[k + 1] : lines.length, idx[k] + 45);
+      for (let j = idx[k] + 1; j < end; j++) if (RE_AC_LINE.test(lines[j])) { end = j; break; }   // stop at next base block
+      const v = parseVariantRegion(lines.slice(idx[k], end), family);
+      if (!v) continue;
+      const q = v.qualifier.toLowerCase();
+      if (q && !seenQual.has(q)) { seenQual.add(q); out.push(cloneBaseWithVariant(base, v, source)); }
+    }
+    return out;
+  }
+
   // ================================================================ public: import
   let _abort = false;   // set by the Cancel button; checked between pages + inserts
 
@@ -784,6 +893,8 @@
       return { ok: false, name: file.name, error: "No text layer found. This looks like a scanned or image-only PDF, which MonsterBox can't read." };
     let blocks;
     try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error." }; }
+    // delta-style variants (base + "Increases by"/added abilities) -> "Standard X (Variant)"
+    try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
     // de-dupe against what's already stored (re-fetched per file so a duplicate
     // shared across several dropped PDFs is caught too)
     let existing = [];
