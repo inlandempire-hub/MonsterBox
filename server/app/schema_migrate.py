@@ -10,8 +10,9 @@ from .models import User, generate_public_id
 
 def ensure_schema() -> None:
     insp = inspect(engine)
-    if "users" not in insp.get_table_names():
-        return  # fresh DB: create_all already built the full table
+    tables = set(insp.get_table_names())
+    if "users" not in tables:
+        return  # fresh DB: create_all already built the full schema
 
     cols = {c["name"] for c in insp.get_columns("users")}
     if "public_id" not in cols:
@@ -21,8 +22,17 @@ def ensure_schema() -> None:
         with engine.begin() as conn:
             conn.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_public_id ON users (public_id)"))
-
     _backfill_public_ids()
+
+    # reports gained screenshot storage (for the in-app admin Reports view)
+    if "reports" in tables:
+        rcols = {c["name"] for c in insp.get_columns("reports")}
+        blob = "BYTEA" if engine.dialect.name == "postgresql" else "BLOB"
+        with engine.begin() as conn:
+            if "screenshot" not in rcols:
+                conn.execute(text(f"ALTER TABLE reports ADD COLUMN screenshot {blob}"))
+            if "screenshot_mime" not in rcols:
+                conn.execute(text("ALTER TABLE reports ADD COLUMN screenshot_mime VARCHAR"))
 
 
 def _backfill_public_ids() -> None:

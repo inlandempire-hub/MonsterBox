@@ -11,7 +11,7 @@ has_full_access == admin OR pro OR comp. Everything paywalled checks that.
 import datetime
 import secrets
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, LargeBinary, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -57,15 +57,17 @@ class User(Base):
 
 
 class Report(Base):
-    """A user-submitted bug/issue report. Always stored here as a backstop; also
-    emailed if SMTP is configured. The screenshot (if any) is kept in the email
-    only, but we record whether one was attached."""
+    """A user-submitted bug/issue report. Always stored here (read in the in-app
+    admin Reports view); also emailed if SMTP is configured. The screenshot is
+    kept here too so the admin view can show it."""
     __tablename__ = "reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)   # reporter's reply-to
     message: Mapped[str] = mapped_column(String)
     had_screenshot: Mapped[bool] = mapped_column(Boolean, default=False)
+    screenshot: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    screenshot_mime: Mapped[str | None] = mapped_column(String, nullable=True)
     emailed: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

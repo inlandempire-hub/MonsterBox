@@ -1,12 +1,12 @@
 """Admin-only: grant/revoke access by email (the API equivalent of the
-grant_access CLI). Lets a god account comp someone from inside the app later."""
-from fastapi import APIRouter, Depends, HTTPException
+grant_access CLI), and read submitted issue reports (the in-app Reports view)."""
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..auth import require_admin
 from ..db import get_db
-from ..models import User
+from ..models import Report, User
 from ..schemas import GrantIn
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -50,3 +50,24 @@ def grant(body: GrantIn, _admin: User = Depends(require_admin), db: Session = De
         "role": user.role,
         "has_full_access": user.has_full_access,
     }
+
+
+@router.get("/reports")
+def list_reports(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Submitted issue reports, newest first (drives the in-app Reports view)."""
+    rows = db.scalars(select(Report).order_by(Report.created_at.desc()).limit(200)).all()
+    return [{
+        "id": r.id,
+        "email": r.email,
+        "message": r.message,
+        "had_screenshot": r.had_screenshot,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    } for r in rows]
+
+
+@router.get("/reports/{report_id}/screenshot")
+def report_screenshot(report_id: int, _admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    r = db.get(Report, report_id)
+    if r is None or not r.screenshot:
+        raise HTTPException(404, "No screenshot for that report.")
+    return Response(content=r.screenshot, media_type=r.screenshot_mime or "image/png")

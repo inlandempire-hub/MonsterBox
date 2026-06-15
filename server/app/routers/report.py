@@ -60,7 +60,8 @@ async def report(
         image_name = screenshot.filename
 
     row = Report(email=(email or "").strip() or None, message=message,
-                 had_screenshot=bool(image_bytes))
+                 had_screenshot=bool(image_bytes),
+                 screenshot=image_bytes, screenshot_mime=(screenshot.content_type if image_bytes else None))
     db.add(row)
     db.commit()
 

@@ -179,7 +179,43 @@
       const v = $("authAcctIdVal");
       if (v) v.textContent = aid || "";
     }
+    // admin-only: the in-app issue Reports button
+    const rb = $("authReportsBtn");
+    if (rb) rb.style.display = (account && account.role === "admin") ? "inline-block" : "none";
   }
+
+  // ---- admin: in-app issue Reports view ----
+  async function openReports() {
+    if (!session || !account || account.role !== "admin") return;
+    const modal = $("reportsModal"), list = $("reportsList");
+    if (!modal || !list) return;
+    list.innerHTML = '<div class="rep-empty">Loading…</div>';
+    modal.style.display = "flex";
+    let reports;
+    try {
+      const r = await directFetch(API_BASE + "/api/admin/reports", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      reports = await r.json();
+    } catch (e) { list.innerHTML = '<div class="rep-empty">Couldn\'t load reports.</div>'; return; }
+    if (!reports.length) { list.innerHTML = '<div class="rep-empty">No reports yet.</div>'; return; }
+    list.innerHTML = reports.map(rp => {
+      const when = rp.created_at ? new Date(rp.created_at).toLocaleString() : "";
+      return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(rp.email || "(no email given)") +
+        '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' + esc(rp.message) + "</div>" +
+        (rp.had_screenshot ? '<button class="btn rep-shotbtn" onclick="cloudLoadShot(' + rp.id + ', this)">View screenshot</button>' : "") + "</div>";
+    }).join("");
+  }
+  async function loadShot(id, btn) {
+    btn.disabled = true; btn.textContent = "Loading…";
+    try {
+      const r = await directFetch(API_BASE + "/api/admin/reports/" + id + "/screenshot", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error();
+      const url = URL.createObjectURL(await r.blob());
+      const img = document.createElement("img"); img.src = url; img.className = "rep-img";
+      btn.parentNode.replaceChild(img, btn);
+    } catch (e) { btn.disabled = false; btn.textContent = "Couldn't load image"; }
+  }
+  function closeReports() { const m = $("reportsModal"); if (m) m.style.display = "none"; }
 
   async function copyId() {
     const aid = account && account.account_id;
@@ -286,6 +322,9 @@
   window.cloudSignOut = signOut;
   window.cloudCloseModal = closeModal;
   window.cloudCopyId = copyId;
+  window.cloudOpenReports = openReports;
+  window.cloudLoadShot = loadShot;
+  window.cloudCloseReports = closeReports;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;
 
