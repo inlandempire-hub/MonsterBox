@@ -31,22 +31,19 @@
     let run = 0;
     // signal A: faux-bold via double-strike — a leading run of double-drawn words
     if (words[0].bold) { while (run < words.length && words[run].bold) run++; }
-    // signal B: a leading run set in a distinct embedded font from the line body.
-    // Weight by CHARACTER count, not item count — pdf.js emits the bold name and
-    // the whole rest of the line as just two items, so a 1:1 item tie would wrongly
-    // pick the name's font as the body.
+    // signal B: the line STARTS in one embedded font and CHANGES font after a short
+    // leading run — that run is the bold name. (Don't weight by char count: on a
+    // wrapped line the bold name can be longer than the visible body fragment.)
     if (run === 0) {
-      const idChars = {};
-      words.forEach(w => { idChars[w.fontId] = (idChars[w.fontId] || 0) + (w.text.length || 1); });
-      let bodyId = null, bn = -1;
-      for (const k in idChars) if (idChars[k] > bn) { bn = idChars[k]; bodyId = k; }
       const leadId = words[0].fontId;
-      if (leadId && leadId !== bodyId) { while (run < words.length && words[run].fontId === leadId) run++; }
+      if (leadId) { let r = 0; while (r < words.length && words[r].fontId === leadId) r++; if (r < words.length) run = r; }
     }
     if (run < 1 || run > 5 || run === words.length) return text;   // not "short name + body"
     const name = words.slice(0, run).map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
     if (!name || !isUpper(name[0])) return text;
-    if (SENTENCE_END.includes(name[name.length - 1])) return text; // already delimited
+    // already delimited? only true sentence terminators count — NOT a trailing ")"
+    // ("Steam Blast(Replaces Catapult)" / "Frightful Presence (Recharge 6)" still need one)
+    if (/[.:!?]$/.test(name)) return text;
     if (BOLD_NAME_SKIP.has(name.toLowerCase().split(/\s+/)[0])) return text;
     const rest = words.slice(run).map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
     if (!rest || !/^[A-Za-z(]/.test(rest)) return text;        // description starts a word/paren
@@ -206,6 +203,8 @@
   // that clause is a strong enough signal that no period (or sentence-end) is needed.
   const RE_ENTRY_ATTACK_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9\\u2019'/\\-]+(?:\\s+[A-Za-z0-9\\u2019'/\\-]+){0,4}?)\\.?\\s+(?=(?:Melee|Ranged)(?:\\s+or\\s+(?:Melee|Ranged))?\\s+(?:Weapon\\s+|Spell\\s+)?Attack(?:\\s+Roll)?\\b)";
   const reEntryAttackG = () => new RegExp(RE_ENTRY_ATTACK_SRC, "gm");
+  // single-line test: does this line START a trait/action entry ("Name. Desc")?
+  const RE_ENTRY_LINE = new RegExp(RE_ENTRY_SRC);
 
   const SIZES = { tiny: "Tiny", small: "Small", medium: "Medium", large: "Large", huge: "Huge", gargantuan: "Gargantuan" };
   const ABIL_BY_NAME = { strength: "str", dexterity: "dex", constitution: "con", intelligence: "int", wisdom: "wis", charisma: "cha" };
@@ -366,6 +365,7 @@
       if ((mm = /recharge\s+([0-9–\-]+)/i.exec(p))) action.recharge = "Recharge " + mm[1];
       else if (/\d+\s*\/\s*day/i.test(p)) action.usage = p.trim();
       else if ((mm = /costs?\s+(\d+)\s+actions?/i.exec(p))) action.legendary_cost = +mm[1];
+      else if ((mm = /replaces?\s+(.+)/i.exec(p))) action.replaces = mm[1].trim();   // variant action supersedes a base action
     }
     const am = RE_ATTACK.exec(body);
     if (am) action.attack = { kind: am[1].toLowerCase() + "_" + am[2].toLowerCase(), to_hit: +am[3], reach_ft: am[4] ? +am[4] : null, range_ft: am[5] || null, targets: "one target" };
@@ -451,6 +451,10 @@
     if (/\bHit:?\s/i.test(s) || /\d+d\d+/.test(s) || /recharge/i.test(s)) return true;
     if (/^[•▪◦·*\-\s]*Multiattack\b/i.test(s)) return true;
     if (RE_CHALLENGE.test(s) || RE_PROF.test(s)) return true;
+    // a trait/action entry start ("False Appearance. While motionless…") — now that
+    // the font pass adds periods to bold names, these are detectable and must NOT be
+    // mistaken for trimmable lore (they were dropping whole trait blocks).
+    if (RE_ENTRY_LINE.test(s)) return true;
     return false;
   }
   // Trim trailing lore/rules prose that gets swept into a block when stat blocks
@@ -807,10 +811,7 @@
     v.actions = parseEntries(sections["action"] || "", "action");
     v.bonus_actions = parseEntries(sections["bonus_action"] || "", "bonus_action");
     v.reactions = parseEntries(sections["reaction"] || "", "reaction");
-    for (const a of v.actions.concat(v.bonus_actions, v.reactions)) {
-      const mr = /\(\s*Replaces\s+([^)]+)\)/i.exec(a.raw_text || "") || /\(\s*Replaces\s+([^)]+)\)/i.exec(a.name || "");
-      if (mr) v.replaces.push(mr[1].trim().toLowerCase());
-    }
+    for (const a of v.actions.concat(v.bonus_actions, v.reactions)) if (a.replaces) v.replaces.push(a.replaces.toLowerCase());
     // require STRUCTURED delta content (so flavour prose with the same heading is ignored)
     const structured = v.acDelta || v.crDelta || v.hpDelta || v.resist.length || v.immun.length
       || v.condImmun.length || v.actions.length || v.bonus_actions.length || v.reactions.length;
@@ -838,17 +839,29 @@
     return sb;
   }
 
+  // size/tier words that distinguish base stat blocks of ONE creature (e.g. golems:
+  // Small/Medium/Standard Golem, Golem Colossus). Variants apply to every tier base.
+  const TIER_WORDS = new Set(["tiny", "small", "medium", "large", "huge", "gargantuan",
+    "standard", "colossus", "greater", "lesser", "elder", "young", "adult", "ancient"]);
+
   function synthesizeVariants(linePages, baseBlocks, source) {
     if (!baseBlocks.length) return [];
-    const trail = {};
-    for (const b of baseBlocks) { const w = (b.name || "").trim().split(/\s+/).pop(); if (w && /^[A-Za-z]/.test(w)) trail[w.toLowerCase()] = (trail[w.toLowerCase()] || 0) + 1; }
+    // family = the word shared by >=2 base names (anywhere in the name, so
+    // "Golem Colossus" counts toward the "golem" family too)
+    const wordFreq = {};
+    for (const b of baseBlocks) for (const w of (b.name || "").toLowerCase().split(/\s+/)) if (/^[a-z]/.test(w) && !TIER_WORDS.has(w)) wordFreq[w] = (wordFreq[w] || 0) + 1;
     let family = null, fc = 1;
-    for (const k in trail) if (trail[k] > fc) { fc = trail[k]; family = k; }
+    for (const k in wordFreq) if (wordFreq[k] > fc) { fc = wordFreq[k]; family = k; }
     if (!family) return [];
-    // combine onto the Standard base only (per user choice); bail if there isn't one
-    const base = baseBlocks.find(b => /^standard\b/i.test((b.name || "").trim()) && (b.name || "").toLowerCase().endsWith(family))
-              || baseBlocks.find(b => /^standard\b/i.test((b.name || "").trim()));
-    if (!base) return [];
+    // bases to combine onto = family members distinguished ONLY by tier words
+    // (Small/Medium/Standard Golem, Golem Colossus). Avoids blanket-applying a
+    // variant to a family of DISTINCT creatures (e.g. the named clockworks).
+    const familyBases = baseBlocks.filter(b => {
+      const words = (b.name || "").toLowerCase().split(/\s+/);
+      if (!words.includes(family)) return false;
+      return words.every(w => w === family || TIER_WORDS.has(w));
+    });
+    if (!familyBases.length) return [];
     const baseNames = new Set(baseBlocks.map(b => (b.name || "").trim().toLowerCase()));
     const lines = [];
     for (const page of linePages) for (const [t] of page) lines.push(t);
@@ -860,15 +873,18 @@
       let acNear = false; for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) if (RE_AC_LINE.test(lines[j])) { acNear = true; break; }
       if (!acNear) idx.push(i);
     }
-    const seenQual = new Set(), out = [];
+    // collect each unique variant delta, then combine with EVERY tier base
+    const seenQual = new Set(), deltas = [];
     for (let k = 0; k < idx.length; k++) {
       let end = Math.min(k + 1 < idx.length ? idx[k + 1] : lines.length, idx[k] + 45);
       for (let j = idx[k] + 1; j < end; j++) if (RE_AC_LINE.test(lines[j])) { end = j; break; }   // stop at next base block
       const v = parseVariantRegion(lines.slice(idx[k], end), family);
       if (!v) continue;
       const q = v.qualifier.toLowerCase();
-      if (q && !seenQual.has(q)) { seenQual.add(q); out.push(cloneBaseWithVariant(base, v, source)); }
+      if (q && !seenQual.has(q)) { seenQual.add(q); deltas.push(v); }
     }
+    const out = [];
+    for (const v of deltas) for (const base of familyBases) out.push(cloneBaseWithVariant(base, v, source));
     return out;
   }
 
