@@ -260,6 +260,7 @@
     // is NOT a doubled bold artifact — collapsing it halved the ability scores.
     if (/\d\s*\(\s*[+\-−]?\d/.test(s)) return s;
     const w = s.trim().split(/\s+/);
+    // whole-line doubling ("Warforged Enforcer Warforged Enforcer", "Actions Actions")
     if (w.length >= 2 && w.length % 2 === 0) {
       const h = w.length / 2;
       if (w.slice(0, h).join(" ").toLowerCase() === w.slice(h).join(" ").toLowerCase()) return w.slice(0, h).join(" ");
@@ -574,7 +575,7 @@
       condition_immunities: [], senses: {}, passive_perception: null, languages: [],
       challenge_rating: null, xp: null, proficiency_bonus: null,
       traits: [], actions: [], bonus_actions: [], reactions: [], legendary_actions: [], legendary_action_count: 0,
-      spellcasting: null, source: source || null, source_page: sourcePage || null,
+      spellcasting: null, has_spellcasting: false, source: source || null, source_page: sourcePage || null,
       raw_text: text || null, parse_confidence: 0, parse_warnings: [],
     };
     for (const ln of lines.slice(1, 7)) {
@@ -651,6 +652,11 @@
       const idx = sb.traits.findIndex(isAct);
       if (idx >= 0) { sb.actions = sb.traits.slice(idx).map(e => (e.category = "action", e)); sb.traits = sb.traits.slice(0, idx); }
     }
+
+    // spellcasting flag (drives the "Innate Spellcasting" filter, which had nothing
+    // setting it). The spell list itself stays in the trait/action text.
+    sb.has_spellcasting = [].concat(sb.traits, sb.actions, sb.bonus_actions)
+      .some(e => /\bspellcasting\b/i.test(e && e.name || ""));
 
     // ---- ADAPTIVE RECOVERY (#2): for any field that FAILED, try slower/looser
     // logic. Only fills gaps (never overwrites a good parse), so confidence can
