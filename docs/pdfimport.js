@@ -235,6 +235,10 @@
   // which surfaces as a fully-doubled line ("Actions Actions", "Warforged Enforcer
   // Warforged Enforcer"). Collapse a line that is exactly two identical halves.
   function dedupeLine(s) {
+    // Never collapse a numeric stat row: an all-equal ability line
+    // ("10 (+0) 10 (+0) 10 (+0) 10 (+0) 10 (+0) 10 (+0)") has identical halves but
+    // is NOT a doubled bold artifact — collapsing it halved the ability scores.
+    if (/\d\s*\(\s*[+\-−]?\d/.test(s)) return s;
     const w = s.trim().split(/\s+/);
     if (w.length >= 2 && w.length % 2 === 0) {
       const h = w.length / 2;
