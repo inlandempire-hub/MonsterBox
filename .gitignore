@@ -12,6 +12,10 @@ compendium.json
 # Local test PDFs and any PDF (copyrighted) — never commit.
 docs/_test*.pdf
 *.pdf
+# Local regression-test corpus: drop copyrighted test books here. Never committed.
+MB Testing/
+# Throwaway diagnostic scripts used while developing the parser.
+server/_*.py
 
 # --- editor / tooling ---
 .claude/
