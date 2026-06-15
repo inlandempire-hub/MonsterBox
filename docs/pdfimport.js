@@ -13,6 +13,46 @@
     return String(name || "").split("+").pop().split("-")[0].split(",")[0];
   }
 
+  // Field labels / row starters that are ALSO bold in many books — never treat
+  // these as an entry name (they'd corrupt "Armor Class 15", the ability row, etc.)
+  const BOLD_NAME_SKIP = new Set(["tiny", "small", "medium", "large", "huge", "gargantuan",
+    "armor", "hit", "speed", "skills", "senses", "languages", "saving", "damage", "condition",
+    "challenge", "proficiency", "initiative", "gear", "str", "dex", "con", "int", "wis", "cha",
+    "ac", "hp", "cr", "melee", "ranged"]);
+
+  // FONT-AWARE name delimiting. Homebrew books print trait/action names in BOLD
+  // with NO period ("Vigil The warforged has advantage…"). pdf.js gives bold a
+  // different embedded-font id than the body, so when a line starts with a short
+  // run in a font distinct from the rest, treat that run as a NAME and insert a
+  // period — then the normal period-based entry parser picks it up. Heavily
+  // guarded so stat-field lines, the ability row, names and headers are untouched.
+  function insertBoldNamePeriod(words, text) {
+    if (words.length < 2) return text;
+    let run = 0;
+    // signal A: faux-bold via double-strike — a leading run of double-drawn words
+    if (words[0].bold) { while (run < words.length && words[run].bold) run++; }
+    // signal B: a leading run set in a distinct embedded font from the line body.
+    // Weight by CHARACTER count, not item count — pdf.js emits the bold name and
+    // the whole rest of the line as just two items, so a 1:1 item tie would wrongly
+    // pick the name's font as the body.
+    if (run === 0) {
+      const idChars = {};
+      words.forEach(w => { idChars[w.fontId] = (idChars[w.fontId] || 0) + (w.text.length || 1); });
+      let bodyId = null, bn = -1;
+      for (const k in idChars) if (idChars[k] > bn) { bn = idChars[k]; bodyId = k; }
+      const leadId = words[0].fontId;
+      if (leadId && leadId !== bodyId) { while (run < words.length && words[run].fontId === leadId) run++; }
+    }
+    if (run < 1 || run > 5 || run === words.length) return text;   // not "short name + body"
+    const name = words.slice(0, run).map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
+    if (!name || !isUpper(name[0])) return text;
+    if (SENTENCE_END.includes(name[name.length - 1])) return text; // already delimited
+    if (BOLD_NAME_SKIP.has(name.toLowerCase().split(/\s+/)[0])) return text;
+    const rest = words.slice(run).map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
+    if (!rest || !/^[A-Za-z(]/.test(rest)) return text;        // description starts a word/paren
+    return name + ". " + rest;
+  }
+
   // group words into (text, dominant-font) lines, top->bottom, left->right
   function linesFromWords(words) {
     words = words.slice().sort((a, b) => (a.top - b.top) || (a.x0 - b.x0));
@@ -21,12 +61,12 @@
     const flush = () => {
       if (!cur.length) return;
       const ordered = cur.slice().sort((a, b) => a.x0 - b.x0);
-      const text = ordered.map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
+      let text = ordered.map(w => w.text).join(" ").replace(/\s+/g, " ").trim();
       const counts = {};
       ordered.forEach(w => { counts[w.font] = (counts[w.font] || 0) + 1; });
       let best = "", bn = -1;
       for (const k in counts) if (counts[k] > bn) { bn = counts[k]; best = k; }
-      if (text) lines.push([text, best]);
+      if (text) { text = insertBoldNamePeriod(ordered, text); lines.push([text, best]); }
     };
     for (const w of words) {
       if (curTop === null || Math.abs(w.top - curTop) <= 4) { cur.push(w); if (curTop === null) curTop = w.top; }
@@ -86,7 +126,11 @@
       const tc = await page.getTextContent();
       const styles = tc.styles || {};
       const words = [];
-      const seen = new Set();   // drop double-rendered text (shadow/stroke "LAIR LAIR")
+      // map key -> first word at that spot. A glyph run drawn twice at ~one spot
+      // is FAUX BOLD (many homebrew/GM Binder PDFs bold by double-striking): we
+      // drop the duplicate but flag the original `bold`, which the font-aware
+      // name detector uses to find period-less trait/action names.
+      const seen = new Map();
       for (const it of tc.items) {
         const s = it.str;
         if (!s || !s.trim()) continue;
@@ -96,11 +140,12 @@
         const x0 = it.transform[4];
         const top = vp.height - it.transform[5];
         const key = s + "@" + Math.round(x0 / 2) + "," + Math.round(top / 2);
-        if (seen.has(key)) continue;     // same glyphs drawn twice at one spot
-        seen.add(key);
+        if (seen.has(key)) { const o = seen.get(key); if (o) o.bold = true; continue; }
         const size = Math.hypot(it.transform[0], it.transform[1]) || (it.height || 10);
         const fam = (styles[it.fontName] && styles[it.fontName].fontFamily) || it.fontName || "";
-        words.push({ text: s, x0, x1: x0 + (it.width || 0), top, font: normFont(fam) + "#" + Math.round(size) });
+        const w = { text: s, x0, x1: x0 + (it.width || 0), top, font: normFont(fam) + "#" + Math.round(size), fontId: it.fontName || "", bold: false };
+        seen.set(key, w);
+        words.push(w);
       }
       for (const col of pageColumns(words, vp.width)) pages.push(col);
       page.cleanup && page.cleanup();
@@ -159,7 +204,7 @@
   // actions with NO period after the bold name — "Stun Mace Melee Weapon Attack:
   // +4 ...". Detect a Title-Case name immediately followed by an attack clause;
   // that clause is a strong enough signal that no period (or sentence-end) is needed.
-  const RE_ENTRY_ATTACK_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9\\u2019'/\\-]+(?:\\s+[A-Za-z0-9\\u2019'/\\-]+){0,4}?)\\s+(?=(?:Melee|Ranged)(?:\\s+or\\s+(?:Melee|Ranged))?\\s+(?:Weapon\\s+|Spell\\s+)?Attack(?:\\s+Roll)?\\b)";
+  const RE_ENTRY_ATTACK_SRC = "^[ \\t>\\u2022*\\-]*([A-Z][A-Za-z0-9\\u2019'/\\-]+(?:\\s+[A-Za-z0-9\\u2019'/\\-]+){0,4}?)\\.?\\s+(?=(?:Melee|Ranged)(?:\\s+or\\s+(?:Melee|Ranged))?\\s+(?:Weapon\\s+|Spell\\s+)?Attack(?:\\s+Roll)?\\b)";
   const reEntryAttackG = () => new RegExp(RE_ENTRY_ATTACK_SRC, "gm");
 
   const SIZES = { tiny: "Tiny", small: "Small", medium: "Medium", large: "Large", huge: "Huge", gargantuan: "Gargantuan" };
@@ -171,6 +216,12 @@
     "skills", "senses", "languages", "hd", "cr", "hit dice", "proficiency bonus", "ability score increase",
     "natural armor", "damage vulnerabilities", "damage immunities", "damage resistances", "condition immunities"]);
   const NAME_CONNECTORS = new Set(["of", "with", "and", "the", "to", "a", "an", "in", "or", "from", "by", "for", "on", "at", "as", "into", "upon", "but"]);
+  // Words that begin prose, never an entry NAME. Used to keep the relaxed entry
+  // boundary (below) from grabbing a wrapped sentence that starts "Word. Capital".
+  const SENTENCE_STARTERS = new Set(["the", "this", "that", "these", "those", "a", "an", "it", "its",
+    "if", "when", "while", "as", "on", "at", "once", "each", "any", "all", "after", "before", "during",
+    "your", "you", "he", "she", "they", "then", "but", "and", "or", "also", "in", "of", "to", "with",
+    "for", "upon", "whenever", "until", "because", "however", "additionally"]);
   const STAT_FIELD_PREFIXES = ["armor class", "hit points", "speed", "saving throws", "skills", "senses", "languages", "challenge", "damage ", "condition ", "proficiency",
     "ac ", "hp ", "cr ", "initiative", "immunities", "resistances", "vulnerabilities", "gear ", "mod save"];
   const SENTENCE_END = ".!?\"')’”";
@@ -332,7 +383,13 @@
       if (NON_HEADER_NAMES.has(nm)) continue;
       if (!isFeatureName(m[1])) continue;
       const prev = sectionText.slice(0, m.index).replace(/\s+$/, "");
-      if (!prev || SENTENCE_END.includes(prev[prev.length - 1])) add(m[1], m.index, re.lastIndex);
+      // Accept when the previous text ends a sentence OR the name simply starts a
+      // new line (homebrew books frequently omit the trailing period on the prior
+      // entry). The sentence-starter guard stops wrapped prose from being grabbed.
+      const atLineStart = m.index === 0 || sectionText[m.index - 1] === "\n";
+      const firstWord = nm.split(/\s+/)[0];
+      const boundary = !prev || SENTENCE_END.includes(prev[prev.length - 1]) || atLineStart;
+      if (boundary && !SENTENCE_STARTERS.has(firstWord)) add(m[1], m.index, re.lastIndex);
     }
     // (2) homebrew attack actions with NO period after the name: "Stun Mace Melee
     // Weapon Attack: ...". The attack clause is signal enough — no sentence-end guard.
