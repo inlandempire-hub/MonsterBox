@@ -64,7 +64,7 @@
       const a = rollDie(20), b = rollDie(20); dice = [a, b];
       pick = advantage === "advantage" ? Math.max(a, b) : Math.min(a, b);
     } else { pick = rollDie(20); dice = [pick]; }
-    return { dice, total: pick + (modifier || 0) };
+    return { dice, total: pick + (modifier || 0), nat: pick };   // nat = the kept d20 before modifiers
   }
   function rollDiceExpr(diceStr, bonus) {
     const out = { results: [], total: bonus || 0 };
@@ -78,7 +78,7 @@
       source: o.source, roll_type: o.roll_type, label: o.label,
       expression: o.expression, dice_results: o.dice_results,
       modifier: o.modifier || 0, total: o.total, target: null,
-      advantage: o.advantage || null, private: true,
+      advantage: o.advantage || null, nat: o.nat != null ? o.nat : null, private: true,
     };
   }
   const signed = (n) => (n >= 0 ? "+" + n : "" + n);
@@ -199,7 +199,7 @@
       const a = findAction(sb, d.action_name); if (!a) return { _status: 404, error: "action not found" };
       const toHit = (a.attack && a.attack.to_hit) || 0;
       const r = rollD20(toHit, adv);
-      ev = makeEvent({ source, roll_type: "attack", label: `${a.name} to Hit`, expression: `1d20${signed(toHit)}`, dice_results: r.dice, modifier: toHit, total: r.total, advantage: adv });
+      ev = makeEvent({ source, roll_type: "attack", label: `${a.name} to Hit`, expression: `1d20${signed(toHit)}`, dice_results: r.dice, modifier: toHit, total: r.total, advantage: adv, nat: r.nat });
     } else if (kind === "damage") {
       const a = findAction(sb, d.action_name); if (!a) return { _status: 404, error: "action not found" };
       const comps = a.damage || []; let dice = [], total = 0, parts = [];
@@ -213,10 +213,10 @@
     } else if (kind === "skill") {
       const bonus = (() => { for (const [k, v] of Object.entries(sb.skills || {})) if (k.toLowerCase() === String(d.skill).toLowerCase()) return v; return 0; })();
       const r = rollD20(bonus, adv);
-      ev = makeEvent({ source, roll_type: "check", label: `${String(d.skill).replace(/\b[a-z]/g, c => c.toUpperCase())} Check`, expression: `1d20${signed(bonus)}`, dice_results: r.dice, modifier: bonus, total: r.total, advantage: adv });
+      ev = makeEvent({ source, roll_type: "check", label: `${String(d.skill).replace(/\b[a-z]/g, c => c.toUpperCase())} Check`, expression: `1d20${signed(bonus)}`, dice_results: r.dice, modifier: bonus, total: r.total, advantage: adv, nat: r.nat });
     } else if (kind === "initiative") {
       const m = abMod(sb.abilities && sb.abilities.dexterity); const r = rollD20(m, adv);
-      ev = makeEvent({ source, roll_type: "check", label: "Initiative", expression: `1d20${signed(m)}`, dice_results: r.dice, modifier: m, total: r.total, advantage: adv });
+      ev = makeEvent({ source, roll_type: "check", label: "Initiative", expression: `1d20${signed(m)}`, dice_results: r.dice, modifier: m, total: r.total, advantage: adv, nat: r.nat });
     } else if (kind === "save" || kind === "check") {
       const ab = d.ability; const mod = abMod(sb.abilities && sb.abilities[{ str: "strength", dex: "dexterity", con: "constitution", int: "intelligence", wis: "wisdom", cha: "charisma" }[ab]]);
       let modifier = mod, label;
@@ -225,7 +225,7 @@
         modifier = ov != null ? (parseInt(ov, 10) || 0) : mod; label = `${ab.toUpperCase()} Save`;   // ov may be "+13" (string)
       } else label = `${ab.toUpperCase()} Check`;
       const r = rollD20(modifier, adv);
-      ev = makeEvent({ source, roll_type: kind === "save" ? "save" : "check", label, expression: `1d20${signed(modifier)}`, dice_results: r.dice, modifier, total: r.total, advantage: adv });
+      ev = makeEvent({ source, roll_type: kind === "save" ? "save" : "check", label, expression: `1d20${signed(modifier)}`, dice_results: r.dice, modifier, total: r.total, advantage: adv, nat: r.nat });
     } else return { _status: 400, error: `unknown roll kind '${kind}'` };
     rolls.push(ev); if (rolls.length > 200) rolls = rolls.slice(-200); await saveRolls();
     return ev;
