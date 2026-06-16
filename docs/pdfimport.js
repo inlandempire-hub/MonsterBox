@@ -186,9 +186,9 @@
   const RE_DMG = /Damage (Vulnerabilities|Resistances|Immunities):?\s+(.+)/gi;
   const RE_COND = /Condition Immunities:?\s+(.+)/i;
   const RE_BONUS_PAIR = /(.+?)\s*([+-]\d+)/;
-  const RE_ATTACK = /(Melee|Ranged)\s+(Weapon|Spell)\s+Attack[.:]?\s*\+?(\d+)\s*to hit(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
+  const RE_ATTACK = /(Melee|Ranged)\s+(Weapon|Spell)\s+Attack[.:]?\s*\+?(\d+)\s*to hit(?:,\s*(?:reach\s*(\d+)\s*ft|range\s*([\d/]+)\s*ft))?/i;
   // 2024 form: "Melee Attack Roll: +5, reach 5 ft." / "Ranged Attack Roll: +5, range 30/90 ft."
-  const RE_ATTACK_2024 = /(Melee|Ranged)\s+Attack Roll:\s*\+?(\d+)(?:,\s*(?:reach\s+(\d+)\s*ft|range\s+([\d/]+)\s*ft))?/i;
+  const RE_ATTACK_2024 = /(Melee|Ranged)\s+Attack Roll:\s*\+?(\d+)(?:,\s*(?:reach\s*(\d+)\s*ft|range\s*([\d/]+)\s*ft))?/i;
   const RE_DAMAGE = /(\d+)\s*\(\s*(\d+d\d+)\s*([+-]\s*\d+)?\s*\)\s*([a-zA-Z]+)?\s*damage/gi;
   const RE_SAVE = /DC\s*(\d+)\s*(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\s*saving throw/i;
   const RE_LEG_COUNT = /(\d+)\s+legendary action/i;
@@ -582,6 +582,10 @@
     // Allow a space BEFORE the hyphen too ("night -\nmare", "Cha -\nrisma").
     text = text.replace(/([A-Za-z]+)[ \t]*-\n([a-z][A-Za-z]*)/g, (m, a, b) =>
       KEEP_HYPHEN.has(a.toLowerCase()) ? a + "-" + b : a + b);
+    // missing space after a sentence period ("damage.Upon", "Multiattack.The golem")
+    // — insert one so entry/sentence boundaries parse. Only a lowercase letter +
+    // period + uppercase letter (never decimals, which are digit.digit).
+    text = text.replace(/([a-z])\.([A-Z])/g, "$1. $2");
     // hyphen + SPACE mid-line ("30-foot- radius", "pre- defined"): the source
     // text broke a compound after its hyphen — rejoin keeping the hyphen, but
     // leave suspended hyphens alone ("one- or two-handed").
