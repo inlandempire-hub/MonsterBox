@@ -1457,11 +1457,24 @@
 
     <div class="auth-actions" id="authAcctActions" style="display:none">
       <button class="btn" id="authReportsBtn" onclick="cloudOpenReports()" style="display:none">Reports</button>
+      <button class="btn" id="booksBtn" onclick="cloudOpenBooks()" style="display:none">Books</button>
       <button class="btn danger" onclick="cloudSignOut()">Sign Out</button>
       <button class="btn" onclick="cloudCloseModal()">Close</button>
     </div>
 
     <button class="btn auth-close" id="authCloseShared" onclick="cloudCloseModal()">Close</button>
+  </div>
+</div>
+
+<!-- admin-only (BETA): auto-collected imported PDFs -->
+<div id="booksModal" class="modal-overlay" style="display:none">
+  <div class="modal-box reports-box">
+    <div class="about-h">Imported Books</div>
+    <div class="about-sub">Collected from testers (beta)</div>
+    <div id="booksList" class="reports-list"></div>
+    <div class="auth-actions" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="cloudCloseBooks()">Close</button>
+    </div>
   </div>
 </div>
 

@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     report_smtp_password: str = ""
     report_from: str = ""            # defaults to report_smtp_user if blank
 
+    # BETA-ONLY: auto-collect PDFs that signed-in testers import, for parser testing.
+    # Set false (or remove) when leaving beta. Bytes only stored up to the cap (MB).
+    beta_collect_pdfs: bool = True
+    beta_pdf_max_mb: int = 50
+
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

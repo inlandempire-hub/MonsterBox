@@ -28,6 +28,10 @@
   const directFetch = window.sfDirectFetch || window.fetch.bind(window);
   const $ = (id) => document.getElementById(id);
 
+  // BETA-ONLY: auto-send a signed-in tester's imported PDFs to the dev for parser
+  // testing (testers consented). Flip to false / delete this block to retire it.
+  const BETA_COLLECT_PDFS = true;
+
   let supa = null;
   let session = null;   // Supabase session (null = signed out)
   let account = null;   // our backend's view: { email, plan, role, has_full_access }
@@ -179,9 +183,10 @@
       const v = $("authAcctIdVal");
       if (v) v.textContent = aid || "";
     }
-    // admin-only: the in-app issue Reports button
-    const rb = $("authReportsBtn");
-    if (rb) rb.style.display = (account && account.role === "admin") ? "inline-block" : "none";
+    // admin-only: the in-app issue Reports + collected Books buttons
+    const isAdmin = !!(account && account.role === "admin");
+    const rb = $("authReportsBtn"); if (rb) rb.style.display = isAdmin ? "inline-block" : "none";
+    const bb = $("booksBtn"); if (bb) bb.style.display = (isAdmin && BETA_COLLECT_PDFS) ? "inline-block" : "none";
   }
 
   // ---- admin: in-app issue Reports view ----
@@ -216,6 +221,49 @@
     } catch (e) { btn.disabled = false; btn.textContent = "Couldn't load image"; }
   }
   function closeReports() { const m = $("reportsModal"); if (m) m.style.display = "none"; }
+
+  // ---- BETA-ONLY: auto-collect imported PDFs (consented testers) ----
+  async function betaUploadPdf(file) {
+    if (!BETA_COLLECT_PDFS || !session || !file) return;
+    try {
+      const fd = new FormData(); fd.append("file", file, file.name || "book.pdf");
+      await directFetch(API_BASE + "/api/beta/pdf", { method: "POST", headers: { Authorization: "Bearer " + session.access_token }, body: fd });
+    } catch (e) { /* best-effort; never block or surface to the importer */ }
+  }
+  async function openBooks() {
+    if (!session || !account || account.role !== "admin") return;
+    const modal = $("booksModal"), list = $("booksList");
+    if (!modal || !list) return;
+    list.innerHTML = '<div class="rep-empty">Loading…</div>';
+    modal.style.display = "flex";
+    let books;
+    try {
+      const r = await directFetch(API_BASE + "/api/beta/pdfs", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      books = await r.json();
+    } catch (e) { list.innerHTML = '<div class="rep-empty">Couldn\'t load.</div>'; return; }
+    if (!books.length) { list.innerHTML = '<div class="rep-empty">No imported books collected yet.</div>'; return; }
+    list.innerHTML = books.map(b => {
+      const when = b.created_at ? new Date(b.created_at).toLocaleString() : "";
+      return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(b.filename || "(unnamed)") +
+        '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' +
+        esc(b.email || "(unknown)") + " · " + b.size_mb + " MB</div>" +
+        (b.has_file ? '<button class="btn rep-shotbtn" onclick="cloudDownloadBook(' + b.id + ', this)">Download</button>'
+                    : '<span class="rep-when">too large to store — ask the tester</span>') + "</div>";
+    }).join("");
+  }
+  async function downloadBook(id, btn) {
+    btn.disabled = true; btn.textContent = "Fetching…";
+    try {
+      const r = await directFetch(API_BASE + "/api/beta/pdfs/" + id + "/download", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error();
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement("a"); a.href = url; a.download = "book.pdf"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      btn.disabled = false; btn.textContent = "Download";
+    } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
+  }
+  function closeBooks() { const m = $("booksModal"); if (m) m.style.display = "none"; }
 
   async function copyId() {
     const aid = account && account.account_id;
@@ -325,6 +373,10 @@
   window.cloudOpenReports = openReports;
   window.cloudLoadShot = loadShot;
   window.cloudCloseReports = closeReports;
+  window.sfBetaUploadPdf = betaUploadPdf;
+  window.cloudOpenBooks = openBooks;
+  window.cloudDownloadBook = downloadBook;
+  window.cloudCloseBooks = closeBooks;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;
 

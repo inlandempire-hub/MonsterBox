@@ -72,6 +72,21 @@ class Report(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class PdfUpload(Base):
+    """BETA-ONLY: a PDF a signed-in tester imported, auto-collected for parser
+    testing (gated by settings.beta_collect_pdfs / a frontend flag). Deduped by
+    content hash. Drop this table + the flag when leaving beta."""
+    __tablename__ = "pdf_uploads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sha256: Mapped[str] = mapped_column(String, unique=True, index=True)
+    filename: Mapped[str] = mapped_column(String, default="")
+    size: Mapped[int] = mapped_column(default=0)
+    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)   # null if over the size cap
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class StatBlock(Base):
     """A user's synced stat block. The full client JSON is stored verbatim in
     `data`; `client_id` is the id the browser generated, unique per user."""

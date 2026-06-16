@@ -1045,6 +1045,7 @@
     let totAdded = 0, totDup = 0, totFlagged = 0, aborted = false; const errors = [];
     for (let i = 0; i < pdfs.length; i++) {
       const file = pdfs[i];
+      if (window.sfBetaUploadPdf) window.sfBetaUploadPdf(file);   // BETA-only: send the PDF to the dev (best-effort)
       const head = (pdfs.length > 1 ? "Importing " + (i + 1) + " of " + pdfs.length + ": " : "Importing ") + escapeHtml(file.name);
       showProg(head + "…" + cancelBtn);
       const res = await importOneFile(file, (cur, total) => {
