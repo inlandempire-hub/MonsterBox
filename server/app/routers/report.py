@@ -57,7 +57,14 @@ def _send_via_resend_http(api_key: str, message: str, reply_to: str | None,
     req = urllib.request.Request(
         "https://api.resend.com/emails",
         data=json.dumps(payload).encode(),
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            # Resend's API is behind Cloudflare, which bans the default
+            # "Python-urllib/x" signature (error 1010). Send a real UA.
+            "User-Agent": "MonsterBox/1.0 (issue-report)",
+        },
         method="POST",
     )
     try:
