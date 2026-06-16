@@ -766,9 +766,20 @@
     return found;
   }
   const allTen = (ab) => ab.strength === 10 && ab.dexterity === 10 && ab.constitution === 10 && ab.intelligence === 10 && ab.wisdom === 10 && ab.charisma === 10;
-  // a "block" with no name, no real AC, no real abilities and no real HP is a false
-  // anchor (e.g. an "AC" mentioned in rules prose), not a creature — drop it
-  const isFalseAnchor = (sb) => (!sb.name || sb.name === "Unknown Creature") && sb.armor_class === 10 && sb.hit_points === 1 && allTen(sb.abilities);
+  // A block that anchored on an "AC" but is not actually a creature:
+  //  (a) no name, default AC + HP + abilities (an "AC" mentioned in rules prose), or
+  //  (b) it has NO ability scores, NO hit points, NO challenge rating and NO
+  //      actions/traits — i.e. only a stray AC (magic items like "Transmuter Stone",
+  //      decorative sidebars). Real creatures always carry more than a lone AC.
+  const isFalseAnchor = (sb) => {
+    const noAbil = allTen(sb.abilities), noHp = sb.hit_points === 1, noCr = !sb.challenge_rating;
+    // Every real creature has ability scores AND a hit-point/CR line; a thing that
+    // anchored on an AC but has none of abilities, HP or CR is a magic item / rules
+    // sidebar (e.g. "Transmuter Stone"), not a creature — even if stray text became
+    // a "trait".
+    if (noAbil && noHp && noCr) return true;
+    return (!sb.name || sb.name === "Unknown Creature") && sb.armor_class === 10 && noHp && noAbil;
+  };
 
   function blocksFromPages(linePages, source) {
     linePages = stripPageChrome(linePages);
