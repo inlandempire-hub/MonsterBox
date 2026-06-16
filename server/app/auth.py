@@ -130,6 +130,22 @@ def current_user(
     return _get_or_create_user(db, sub=claims.get("sub"), email=(claims.get("email") or "").lower())
 
 
+def optional_user(
+    authorization: str | None = Header(default=None),
+    x_dev_user: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """Like current_user, but returns None instead of raising when there's no
+    (valid) token. For endpoints that accept both signed-in and anonymous callers
+    (e.g. BETA PDF collection from testers who haven't made an account)."""
+    if not authorization and not (settings.dev_auth and x_dev_user):
+        return None
+    try:
+        return current_user(authorization=authorization, x_dev_user=x_dev_user, db=db)
+    except HTTPException:
+        return None
+
+
 def require_full_access(user: User = Depends(current_user)) -> User:
     """Gate paid features. 402 = payment required (or ask an admin to comp you)."""
     if not user.has_full_access:

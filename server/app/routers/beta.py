@@ -11,29 +11,36 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..auth import current_user, require_admin
+from ..auth import optional_user, require_admin
 from ..config import settings
 from ..db import get_db
 from ..models import PdfUpload, User
 
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
+MAX_ROWS = 5000   # hard cap on stored rows (abuse guard for the open endpoint)
+
 
 @router.post("/pdf")
 async def collect_pdf(
     file: UploadFile = File(...),
-    user: User = Depends(current_user),
+    user: User | None = Depends(optional_user),
     db: Session = Depends(get_db),
 ):
     if not settings.beta_collect_pdfs:
         return {"collected": False, "reason": "disabled"}
     # The admin's own imports are skipped — those books are already on the dev's
-    # machine, so collecting them just wastes backend storage.
-    if user.role == "admin":
+    # machine, so collecting them just wastes backend storage. Anonymous (no
+    # account) testers ARE collected, with email recorded as null.
+    if user is not None and user.role == "admin":
         return {"collected": False, "reason": "admin"}
     data = await file.read()
     if not data:
         raise HTTPException(400, "empty file")
+    if not data[:5].startswith(b"%PDF"):
+        return {"collected": False, "reason": "not a pdf"}   # ignore non-PDF uploads
+    if db.scalar(select(func.count()).select_from(PdfUpload)) >= MAX_ROWS:
+        return {"collected": False, "reason": "full"}        # don't grow unbounded
     sha = hashlib.sha256(data).hexdigest()
     existing = db.scalar(select(PdfUpload).where(PdfUpload.sha256 == sha))
     if existing:
@@ -49,7 +56,7 @@ async def collect_pdf(
         if used + len(data) > settings.beta_pdf_total_mb * 1024 * 1024:
             keep = None                                # backend full → metadata only
     db.add(PdfUpload(sha256=sha, filename=(file.filename or "")[:200], size=len(data),
-                     email=user.email, data=keep))
+                     email=(user.email if user else None), data=keep))
     db.commit()
     return {"collected": True, "stored_bytes": keep is not None}
 

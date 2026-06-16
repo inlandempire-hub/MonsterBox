@@ -207,7 +207,8 @@
       const when = rp.created_at ? new Date(rp.created_at).toLocaleString() : "";
       return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(rp.email || "(no email given)") +
         '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' + esc(rp.message) + "</div>" +
-        (rp.had_screenshot ? '<button class="btn rep-shotbtn" onclick="cloudLoadShot(' + rp.id + ', this)">View screenshot</button>' : "") + "</div>";
+        (rp.had_screenshot ? '<button class="btn rep-shotbtn" onclick="cloudLoadShot(' + rp.id + ', this)">View screenshot</button>' : "") +
+        '<button class="btn rep-shotbtn" onclick="cloudResolveReport(' + rp.id + ', this)">Resolve &amp; remove</button>' + "</div>";
     }).join("");
   }
   async function loadShot(id, btn) {
@@ -220,15 +221,27 @@
       btn.parentNode.replaceChild(img, btn);
     } catch (e) { btn.disabled = false; btn.textContent = "Couldn't load image"; }
   }
+  async function resolveReport(id, btn) {
+    if (!confirm("Resolve and permanently remove this report?")) return;
+    btn.disabled = true; btn.textContent = "Removing…";
+    try {
+      const r = await directFetch(API_BASE + "/api/admin/reports/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error();
+      const rep = btn.closest(".rep"); if (rep) rep.remove();
+    } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
+  }
   function closeReports() { const m = $("reportsModal"); if (m) m.style.display = "none"; }
 
   // ---- BETA-ONLY: auto-collect imported PDFs (consented testers) ----
   async function betaUploadPdf(file) {
-    if (!BETA_COLLECT_PDFS || !session || !file) return;
-    if (account && account.role === "admin") return;   // skip the dev's own imports
+    if (!BETA_COLLECT_PDFS || !file || !API_BASE) return;
+    if (session && account && account.role === "admin") return;   // skip the dev's own imports
     try {
       const fd = new FormData(); fd.append("file", file, file.name || "book.pdf");
-      await directFetch(API_BASE + "/api/beta/pdf", { method: "POST", headers: { Authorization: "Bearer " + session.access_token }, body: fd });
+      // Signed-in testers send their token (records their email); anonymous
+      // testers (no account) are collected too, with no email attached.
+      const headers = session ? { Authorization: "Bearer " + session.access_token } : {};
+      await directFetch(API_BASE + "/api/beta/pdf", { method: "POST", headers, body: fd });
     } catch (e) { /* best-effort; never block or surface to the importer */ }
   }
   async function openBooks() {
@@ -385,6 +398,7 @@
   window.cloudCopyId = copyId;
   window.cloudOpenReports = openReports;
   window.cloudLoadShot = loadShot;
+  window.cloudResolveReport = resolveReport;
   window.cloudCloseReports = closeReports;
   window.sfBetaUploadPdf = betaUploadPdf;
   window.cloudOpenBooks = openBooks;

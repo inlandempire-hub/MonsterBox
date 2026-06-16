@@ -71,3 +71,14 @@ def report_screenshot(report_id: int, _admin: User = Depends(require_admin), db:
     if r is None or not r.screenshot:
         raise HTTPException(404, "No screenshot for that report.")
     return Response(content=r.screenshot, media_type=r.screenshot_mime or "image/png")
+
+
+@router.delete("/reports/{report_id}")
+def delete_report(report_id: int, _admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Resolve/dismiss a report: delete it (and its screenshot) so it leaves the list."""
+    r = db.get(Report, report_id)
+    if r is None:
+        raise HTTPException(404, "not found")
+    db.delete(r)
+    db.commit()
+    return {"ok": True}
