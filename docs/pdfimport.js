@@ -424,6 +424,20 @@
     action.damage = parseDamage(body);
     const sm = RE_SAVE.exec(body);
     if (sm) action.save = { ability: ABIL_BY_NAME[sm[2].toLowerCase()], dc: +sm[1], on_success: /half/i.test(body) ? "half damage" : null };
+    // looser save fallback: ability + 'saving throw' and a DC anywhere in the body
+    // (handles "...Dexterity saving throw. The DC equals 15", DC-after phrasings).
+    else {
+      const dc = /\bDC\s*(\d+)\b/i.exec(body);
+      const ab = /\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\s+saving throw/i.exec(body);
+      if (dc && ab) action.save = { ability: ABIL_BY_NAME[ab[1].toLowerCase()], dc: +dc[1], on_success: /half/i.test(body) ? "half damage" : null };
+    }
+    // recharge / usage stated in the BODY rather than the name (some books do this)
+    if (!action.recharge && !action.usage) {
+      let mm;
+      if ((mm = /\brecharge\s+([0-9–\-]+)/i.exec(body))) action.recharge = "Recharge " + mm[1];
+      else if ((mm = /recharges?\s+after\s+a\s+(?:short|long)(?:\s+or\s+(?:short|long))?\s+rest/i.exec(body))) action.usage = mm[0].trim();
+      else if ((mm = /(\d+)\s*\/\s*(?:day|short rest|long rest|round|turn)/i.exec(body))) action.usage = mm[0].trim();
+    }
     return action;
   }
 
