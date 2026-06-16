@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     report_smtp_user: str = ""
     report_smtp_password: str = ""
     report_from: str = ""            # defaults to report_smtp_user if blank
+    # Resend HTTP API key (re_...). Optional: if blank but the SMTP password is a
+    # Resend key, that's reused. The HTTP path avoids hosts that block SMTP ports.
+    report_resend_api_key: str = ""
 
     # BETA-ONLY: auto-collect PDFs that signed-in testers import, for parser testing.
     # Set false (or remove) when leaving beta. Bytes only stored up to the cap (MB).
@@ -44,6 +47,15 @@ class Settings(BaseSettings):
     @property
     def smtp_ready(self) -> bool:
         return bool(self.report_smtp_host and self.report_smtp_user and self.report_smtp_password)
+
+    @property
+    def email_ready(self) -> bool:
+        """Can we send email at all — via SMTP, or the Resend HTTP API?"""
+        resend_http = bool(self.report_to) and (
+            bool(self.report_resend_api_key)
+            or ("resend.com" in self.report_smtp_host.lower() and self.report_smtp_password.startswith("re_"))
+        )
+        return self.smtp_ready or resend_http
 
 
 settings = Settings()

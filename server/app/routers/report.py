@@ -1,8 +1,16 @@
 """Public "report an issue" endpoint. Anyone (signed in or not) can send a bug
-report with an optional screenshot. Every report is stored in the DB; if SMTP is
-configured it's also emailed to settings.report_to with the screenshot attached.
+report with an optional screenshot. Every report is stored in the DB; if email is
+configured it's also sent to settings.report_to with the screenshot attached.
+
+Delivery prefers Resend's HTTP API (port 443) over SMTP, because hosts like
+Render block outbound SMTP ports (25/465/587) — there, smtplib just times out.
+Falls back to SMTP when no Resend key is available.
 """
+import base64
+import json
 import smtplib
+import urllib.error
+import urllib.request
 from email.message import EmailMessage
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -19,7 +27,49 @@ MAX_MESSAGE = 5000
 MAX_IMAGE_BYTES = 6 * 1024 * 1024   # 6 MB
 
 
-def _send_email(message: str, reply_to: str | None, image: bytes | None, image_name: str | None) -> None:
+def _resend_api_key() -> str:
+    """The Resend HTTP API key, if we can use the HTTP path. An explicit
+    REPORT_RESEND_API_KEY wins; otherwise reuse the SMTP password when it's a
+    Resend key (re_...) so no extra env var is needed."""
+    if settings.report_resend_api_key:
+        return settings.report_resend_api_key
+    if "resend.com" in (settings.report_smtp_host or "").lower() \
+            and settings.report_smtp_password.startswith("re_"):
+        return settings.report_smtp_password
+    return ""
+
+
+def _send_via_resend_http(api_key: str, message: str, reply_to: str | None,
+                          image: bytes | None, image_name: str | None) -> None:
+    payload = {
+        "from": settings.report_from or "onboarding@resend.dev",
+        "to": [settings.report_to],
+        "subject": "MonsterBox issue report",
+        "text": f"From: {reply_to or '(not provided)'}\n\n{message}",
+    }
+    if reply_to:
+        payload["reply_to"] = reply_to
+    if image:
+        payload["attachments"] = [{
+            "filename": image_name or "screenshot.png",
+            "content": base64.b64encode(image).decode(),
+        }]
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            if resp.status >= 300:
+                raise RuntimeError(f"Resend HTTP {resp.status}")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")[:300]
+        raise RuntimeError(f"Resend HTTP {e.code}: {body}") from None
+
+
+def _send_via_smtp(message: str, reply_to: str | None, image: bytes | None, image_name: str | None) -> None:
     msg = EmailMessage()
     msg["Subject"] = "MonsterBox issue report"
     msg["From"] = settings.report_from or settings.report_smtp_user
@@ -37,6 +87,14 @@ def _send_email(message: str, reply_to: str | None, image: bytes | None, image_n
         s.starttls()
         s.login(settings.report_smtp_user, settings.report_smtp_password)
         s.send_message(msg)
+
+
+def _send_email(message: str, reply_to: str | None, image: bytes | None, image_name: str | None) -> None:
+    key = _resend_api_key()
+    if key:
+        _send_via_resend_http(key, message, reply_to, image, image_name)
+    else:
+        _send_via_smtp(message, reply_to, image, image_name)
 
 
 @router.post("/report")
@@ -67,7 +125,7 @@ async def report(
     db.commit()
 
     emailed = False
-    if settings.smtp_ready:
+    if settings.email_ready:
         try:
             _send_email(message, row.email, image_bytes, image_name)
             emailed = True
@@ -84,8 +142,11 @@ def report_diag(_admin: User = Depends(require_admin)):
     """Admin-only: show whether SMTP is configured and attempt a live test send,
     surfacing the exact error so email delivery can be diagnosed. Reveals only
     whether secrets are present (not their values), plus the From/To addresses."""
+    transport = "resend-http" if _resend_api_key() else ("smtp" if settings.smtp_ready else "none")
     info = {
         "smtp_ready": settings.smtp_ready,
+        "email_ready": settings.email_ready,
+        "transport": transport,
         "host": settings.report_smtp_host or "(unset)",
         "port": settings.report_smtp_port,
         "user_set": bool(settings.report_smtp_user),
@@ -93,8 +154,8 @@ def report_diag(_admin: User = Depends(require_admin)):
         "from": settings.report_from or settings.report_smtp_user or "(unset)",
         "to": settings.report_to or "(unset)",
     }
-    if not settings.smtp_ready:
-        info["test_send"] = "skipped — SMTP not configured"
+    if not settings.email_ready:
+        info["test_send"] = "skipped — email not configured"
         return info
     try:
         _send_email("MonsterBox SMTP diagnostic test (admin /report/diag).", None, None, None)
