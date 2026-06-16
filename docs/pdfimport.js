@@ -329,6 +329,31 @@
     const sig = words.filter(w => !NAME_CONNECTORS.has(w.toLowerCase()));
     return sig.length > 0 && sig.every(w => !/[A-Za-z]/.test(w[0]) || isUpper(w[0]));
   }
+  // Names that are NOT creatures: decorative zine headers ("LAIR", "HOARD THEMES",
+  // "REGIONAL EFFECTS"), stat-field fragments ("Perception 15", "from Nonmagical
+  // Attacks"), or anything starting with a number. Used to reject bad name guesses.
+  const DECOR_WORDS = new Set(["lair", "hoard", "themes", "locations", "regional", "effects",
+    "traits", "actions", "reactions", "reaction", "legendary", "bonus", "description",
+    "variant", "variants", "options", "table", "lore", "encounter", "tactics", "treasure",
+    "sidebar", "preferences", "behavior"]);
+  // strip a trailing run of decorative headers glued onto a name by a zine layout
+  // ("Spring Fey Dragon. LAIR LAIR TRAITS" -> "Spring Fey Dragon")
+  function stripTrailingDecor(name) {
+    const w = name.split(/\s+/);
+    let end = w.length;
+    while (end > 1 && DECOR_WORDS.has(w[end - 1].toLowerCase().replace(/[^a-z]/g, ""))) end--;
+    return end < w.length ? (w.slice(0, end).join(" ").replace(/[.\s]+$/, "").trim() || name) : name;
+  }
+  function looksLikeJunkName(s) {
+    s = (s || "").trim(); if (!s) return true;
+    const low = s.toLowerCase();
+    if (/^\W*\d/.test(s)) return true;
+    if (/^(perception|passive perception|senses|languages|skills|saving throws?|damage|condition|hit points|armor class|speed|challenge|proficiency|initiative)\b/.test(low)) return true;
+    if (/\bnonmagical attacks?\b|\bfrom nonmagical\b/.test(low)) return true;
+    const words = low.replace(/[^a-z\s]/g, " ").split(/\s+/).filter(Boolean);
+    if (words.length && words.every(w => DECOR_WORDS.has(w) || NAME_CONNECTORS.has(w))) return true;
+    return false;
+  }
   // Resolve a creature name from the 1–2 title lines above the meta line. Layouts
   // that print a family/group header above the name produce "Aboleth Aboleth",
   // "Air Elemental Air Elemental", "Bandits Bandit", "Black Dragons Black Dragon
@@ -358,12 +383,16 @@
       titles.unshift(lines[j].trim()); j--;
     }
     // title path: titles sit directly above the meta line, so the body starts at meta
-    if (titles.length) return { name: resolveName(titles), bodyStart: metaI };
+    if (titles.length) {
+      const nm = stripTrailingDecor(resolveName(titles));
+      if (!looksLikeJunkName(nm)) return { name: nm, bodyStart: metaI };
+      // junk title (decorative header / field fragment): fall through and look higher
+    }
     // fallback: name is further up (e.g. a flavour line or a "Challenge N" line sits
     // between it and the meta line). Include those in-between lines in the body so
     // fields printed above the meta line (some layouts put Challenge there) aren't lost.
     j = metaI - 1; let steps = 0;
-    while (j >= lower && steps < 30) { const s = lines[j].trim(); if (s && nameLike(s)) return { name: s, bodyStart: j + 1 }; j--; steps++; }
+    while (j >= lower && steps < 30) { const s = lines[j].trim(); if (s && nameLike(s) && !looksLikeJunkName(s)) return { name: stripTrailingDecor(s), bodyStart: j + 1 }; j--; steps++; }
     return { name: "", bodyStart: metaI };
   }
   function stripFooter(body) { return body.replace(/[ \t\r\n]+\d{1,4}\s*$/, "").replace(/\s+$/, ""); }
