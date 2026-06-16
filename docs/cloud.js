@@ -225,6 +225,7 @@
   // ---- BETA-ONLY: auto-collect imported PDFs (consented testers) ----
   async function betaUploadPdf(file) {
     if (!BETA_COLLECT_PDFS || !session || !file) return;
+    if (account && account.role === "admin") return;   // skip the dev's own imports
     try {
       const fd = new FormData(); fd.append("file", file, file.name || "book.pdf");
       await directFetch(API_BASE + "/api/beta/pdf", { method: "POST", headers: { Authorization: "Bearer " + session.access_token }, body: fd });
@@ -260,8 +261,20 @@
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement("a"); a.href = url; a.download = "book.pdf"; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 4000);
-      btn.disabled = false; btn.textContent = "Download";
+      // Once downloaded, offer to delete it from the server to free space.
+      const del = document.createElement("button");
+      del.className = "btn rep-shotbtn"; del.textContent = "Delete from server";
+      del.onclick = function () { cloudDeleteBook(id, del); };
+      btn.parentNode.replaceChild(del, btn);
     } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
+  }
+  async function deleteBook(id, btn) {
+    btn.disabled = true; btn.textContent = "Deleting…";
+    try {
+      const r = await directFetch(API_BASE + "/api/beta/pdfs/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error();
+      const rep = btn.closest(".rep"); if (rep) rep.remove();   // drop the row
+    } catch (e) { btn.disabled = false; btn.textContent = "Delete failed"; }
   }
   function closeBooks() { const m = $("booksModal"); if (m) m.style.display = "none"; }
 
@@ -376,6 +389,7 @@
   window.sfBetaUploadPdf = betaUploadPdf;
   window.cloudOpenBooks = openBooks;
   window.cloudDownloadBook = downloadBook;
+  window.cloudDeleteBook = deleteBook;
   window.cloudCloseBooks = closeBooks;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;

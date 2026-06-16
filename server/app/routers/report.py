@@ -8,9 +8,10 @@ from email.message import EmailMessage
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from ..auth import require_admin
 from ..config import settings
 from ..db import get_db
-from ..models import Report
+from ..models import Report, User
 
 router = APIRouter(prefix="/api", tags=["report"])
 
@@ -76,3 +77,28 @@ async def report(
             emailed = False   # stored anyway; don't fail the user's submission
 
     return {"ok": True, "emailed": emailed}
+
+
+@router.get("/report/diag")
+def report_diag(_admin: User = Depends(require_admin)):
+    """Admin-only: show whether SMTP is configured and attempt a live test send,
+    surfacing the exact error so email delivery can be diagnosed. Reveals only
+    whether secrets are present (not their values), plus the From/To addresses."""
+    info = {
+        "smtp_ready": settings.smtp_ready,
+        "host": settings.report_smtp_host or "(unset)",
+        "port": settings.report_smtp_port,
+        "user_set": bool(settings.report_smtp_user),
+        "password_set": bool(settings.report_smtp_password),
+        "from": settings.report_from or settings.report_smtp_user or "(unset)",
+        "to": settings.report_to or "(unset)",
+    }
+    if not settings.smtp_ready:
+        info["test_send"] = "skipped — SMTP not configured"
+        return info
+    try:
+        _send_email("MonsterBox SMTP diagnostic test (admin /report/diag).", None, None, None)
+        info["test_send"] = "ok"
+    except Exception as e:
+        info["test_send"] = f"{type(e).__name__}: {e}"
+    return info
