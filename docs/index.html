@@ -2917,9 +2917,12 @@ function toggleMode() {
 
 // Heartbeat: lets the hidden local launcher (serve_local.py) auto-close when
 // this page is closed. /__ping is NOT an /api/ route, so it bypasses the
-// in-page fetch shim and actually reaches the local server. On the hosted PWA
-// (no local server) the POST just fails and is ignored — harmless.
+// in-page fetch shim and actually reaches the local server. Only runs on the
+// desktop build (localhost) — on the hosted PWA there's no local server, and a
+// POST there would 405 every few seconds and spam the console.
 (function() {
+  const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+  if (!local) return;
   const ping = () => fetch("/__ping", { method: "POST" }).catch(() => {});
   ping();
   setInterval(ping, 4000);
