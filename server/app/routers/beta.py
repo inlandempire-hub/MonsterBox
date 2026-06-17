@@ -83,6 +83,18 @@ def list_pdfs(_admin: User = Depends(require_admin), db: Session = Depends(get_d
     } for r in rows]
 
 
+@router.delete("/pdfs/unstored")
+def delete_unstored(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Tidy-up: drop all metadata-only rows (books that were over the size cap and
+    never stored). Declared before /pdfs/{pdf_id} so 'unstored' isn't read as an id."""
+    rows = db.scalars(select(PdfUpload).where(PdfUpload.data.is_(None))).all()
+    n = len(rows)
+    for r in rows:
+        db.delete(r)
+    db.commit()
+    return {"deleted": n}
+
+
 @router.get("/pdfs/{pdf_id}/download")
 def download_pdf(pdf_id: int, _admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     r = db.get(PdfUpload, pdf_id)

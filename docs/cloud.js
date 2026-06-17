@@ -187,6 +187,20 @@
     const isAdmin = !!(account && account.role === "admin");
     const rb = $("authReportsBtn"); if (rb) rb.style.display = isAdmin ? "inline-block" : "none";
     const bb = $("booksBtn"); if (bb) bb.style.display = (isAdmin && BETA_COLLECT_PDFS) ? "inline-block" : "none";
+    checkAdminAlerts();
+  }
+
+  // Admin only: show a red dot on the sign-in button when there are reports or
+  // collected books waiting. Cleared automatically once both lists are empty.
+  async function checkAdminAlerts() {
+    const setDot = (on) => { for (const id of ["signinbtn", "mAccountBtn"]) { const b = $(id); if (b) b.classList.toggle("has-alert", !!on); } };
+    if (!session || !account || account.role !== "admin") { setDot(false); return; }
+    try {
+      const auth = { Authorization: "Bearer " + session.access_token };
+      const grab = (url) => directFetch(API_BASE + url, { headers: auth }).then(r => r.ok ? r.json() : []).catch(() => []);
+      const [reports, books] = await Promise.all([grab("/api/admin/reports"), BETA_COLLECT_PDFS ? grab("/api/beta/pdfs") : Promise.resolve([])]);
+      setDot((reports.length || 0) + (books.length || 0) > 0);
+    } catch (e) { /* leave dot as-is on a transient error */ }
   }
 
   // ---- admin: in-app issue Reports view ----
@@ -228,6 +242,7 @@
       const r = await directFetch(API_BASE + "/api/admin/reports/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
       if (!r.ok) throw new Error();
       const rep = btn.closest(".rep"); if (rep) rep.remove();
+      checkAdminAlerts();
     } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
   }
   function closeReports() { const m = $("reportsModal"); if (m) m.style.display = "none"; }
@@ -257,7 +272,9 @@
       books = await r.json();
     } catch (e) { list.innerHTML = '<div class="rep-empty">Couldn\'t load.</div>'; return; }
     if (!books.length) { list.innerHTML = '<div class="rep-empty">No imported books collected yet.</div>'; return; }
-    list.innerHTML = books.map(b => {
+    const anyUnstored = books.some(b => !b.has_file);
+    const clearBar = anyUnstored ? '<button class="btn rep-shotbtn" style="margin-bottom:8px" onclick="cloudClearUnstored()">Clear the "too large to store" entries</button>' : "";
+    list.innerHTML = clearBar + books.map(b => {
       const when = b.created_at ? new Date(b.created_at).toLocaleString() : "";
       return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(b.filename || "(unnamed)") +
         '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' +
@@ -287,7 +304,17 @@
       const r = await directFetch(API_BASE + "/api/beta/pdfs/" + id, { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
       if (!r.ok) throw new Error();
       const rep = btn.closest(".rep"); if (rep) rep.remove();   // drop the row
+      checkAdminAlerts();
     } catch (e) { btn.disabled = false; btn.textContent = "Delete failed"; }
+  }
+  // Tidy up: remove the metadata-only ("too large to store") rows from the list.
+  async function clearUnstored() {
+    if (!confirm("Remove all “too large to store” entries? They were never stored — this just tidies the list. Note the filenames first if you still need them from the tester.")) return;
+    try {
+      const r = await directFetch(API_BASE + "/api/beta/pdfs/unstored", { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error();
+    } catch (e) {}
+    openBooks(); checkAdminAlerts();
   }
   function closeBooks() { const m = $("booksModal"); if (m) m.style.display = "none"; }
 
@@ -404,6 +431,7 @@
   window.cloudOpenBooks = openBooks;
   window.cloudDownloadBook = downloadBook;
   window.cloudDeleteBook = deleteBook;
+  window.cloudClearUnstored = clearUnstored;
   window.cloudCloseBooks = closeBooks;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;
