@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     # BETA-ONLY: auto-collect PDFs that signed-in testers import, for parser testing.
     # Set false (or remove) when leaving beta. Bytes only stored up to the cap (MB).
     beta_collect_pdfs: bool = True
-    beta_pdf_max_mb: int = 50        # per-file cap (bigger files: metadata only)
-    beta_pdf_total_mb: int = 400     # total stored-bytes budget; over this = metadata only
+    beta_pdf_max_mb: int = 250       # per-file cap (bigger files: metadata only)
+    beta_pdf_total_mb: int = 450     # total stored-bytes budget; over this = metadata only
 
     @property
     def cors_list(self) -> list[str]:

@@ -39,22 +39,31 @@ async def collect_pdf(
         raise HTTPException(400, "empty file")
     if not data[:5].startswith(b"%PDF"):
         return {"collected": False, "reason": "not a pdf"}   # ignore non-PDF uploads
-    if db.scalar(select(func.count()).select_from(PdfUpload)) >= MAX_ROWS:
-        return {"collected": False, "reason": "full"}        # don't grow unbounded
     sha = hashlib.sha256(data).hexdigest()
-    existing = db.scalar(select(PdfUpload).where(PdfUpload.sha256 == sha))
-    if existing:
-        return {"collected": True, "dedup": True}     # already have this exact book
 
-    # Only keep the bytes if (a) the file is under the per-file cap AND (b) storing
-    # it won't push us past the total storage budget. Otherwise record metadata
-    # only — the import is NEVER failed for lack of space (free-tier safe).
-    keep = data if len(data) <= settings.beta_pdf_max_mb * 1024 * 1024 else None
-    if keep is not None:
+    # Can we keep the bytes? (a) under the per-file cap AND (b) storing won't push
+    # past the total budget. Otherwise metadata only — import is NEVER failed for
+    # lack of space (free-tier safe).
+    def _can_keep(nbytes: int) -> bool:
+        if nbytes > settings.beta_pdf_max_mb * 1024 * 1024:
+            return False
         used = db.scalar(select(func.coalesce(func.sum(PdfUpload.size), 0))
                          .where(PdfUpload.data.isnot(None))) or 0
-        if used + len(data) > settings.beta_pdf_total_mb * 1024 * 1024:
-            keep = None                                # backend full → metadata only
+        return used + nbytes <= settings.beta_pdf_total_mb * 1024 * 1024
+
+    existing = db.scalar(select(PdfUpload).where(PdfUpload.sha256 == sha))
+    if existing:
+        # If we previously kept metadata only (over the old cap) but it now fits,
+        # backfill the bytes on this re-import instead of skipping as a duplicate.
+        if existing.data is None and _can_keep(len(data)):
+            existing.data = data
+            db.commit()
+            return {"collected": True, "dedup": True, "backfilled": True}
+        return {"collected": True, "dedup": True}     # already have this exact book
+
+    if db.scalar(select(func.count()).select_from(PdfUpload)) >= MAX_ROWS:
+        return {"collected": False, "reason": "full"}        # don't grow unbounded
+    keep = data if _can_keep(len(data)) else None
     db.add(PdfUpload(sha256=sha, filename=(file.filename or "")[:200], size=len(data),
                      email=(user.email if user else None), data=keep))
     db.commit()
