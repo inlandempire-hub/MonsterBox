@@ -28,12 +28,15 @@
   let _db = null;
   function openDB() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open("monsterbox", 1);
+      const req = indexedDB.open("monsterbox", 2);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains("statblocks")) db.createObjectStore("statblocks", { keyPath: "id" });
         if (!db.objectStoreNames.contains("encounters")) db.createObjectStore("encounters", { keyPath: "id" });
         if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv", { keyPath: "k" });
+        // LOCAL-ONLY: cropped PDF screenshots for flagged stat blocks, shown beside
+        // the review editor. Keyed by stat-block id. Never synced to the backend.
+        if (!db.objectStoreNames.contains("shots")) db.createObjectStore("shots", { keyPath: "id" });
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
@@ -48,6 +51,12 @@
   const dbClear = (s) => pr(tx(s, "readwrite").clear());
   async function kvGet(k, dflt) { const r = await dbGet("kv", k); return r ? r.v : dflt; }
   const kvPut = (k, v) => dbPut("kv", { k, v });
+
+  // LOCAL-ONLY review screenshots (cropped PDF image per flagged stat block).
+  // Kept out of the statblocks store so they never sync to the backend.
+  window.sfSaveShot = async (id, img) => { await dbReady; try { await dbPut("shots", { id, img }); } catch (e) {} };
+  window.sfGetShot = async (id) => { await dbReady; try { const r = await dbGet("shots", id); return r ? r.img : null; } catch (e) { return null; } };
+  window.sfDeleteShot = async (id) => { await dbReady; try { await dbDel("shots", id); } catch (e) {} };
 
   // ------------------------------------------------------------- live state
   let currentEnc = { round: 0, active_index: 0, combatants: [], started: false };

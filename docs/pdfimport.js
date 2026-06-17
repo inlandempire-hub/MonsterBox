@@ -144,12 +144,44 @@
         seen.set(key, w);
         words.push(w);
       }
-      for (const col of pageColumns(words, vp.width)) pages.push(col);
+      for (const col of pageColumns(words, vp.width)) { col._page = p; pages.push(col); }   // _page: true PDF page (for review screenshots)
       page.cleanup && page.cleanup();
       if (progress) progress(p, pdf.numPages);
     }
     pdf.destroy && pdf.destroy();
     return pages;
+  }
+
+  // Render one PDF page to a JPEG data URL (capped width). Shared by the review
+  // screenshot capture and (later) the OCR fallback.
+  async function renderPageToDataUrl(pdfPage, targetWidth, quality) {
+    const v1 = pdfPage.getViewport({ scale: 1 });
+    const scale = Math.min(3, Math.max(1, (targetWidth || 1100) / v1.width));
+    const vp = pdfPage.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+    await pdfPage.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    return canvas.toDataURL("image/jpeg", quality || 0.7);
+  }
+
+  // LOCAL-ONLY: store a screenshot of each flagged stat block's source PDF page so
+  // the review editor can show it beside the form. Best-effort; never blocks import.
+  async function captureReviewShots(file, flagged) {
+    if (!flagged || !flagged.length || !window.pdfjsLib || !window.sfSaveShot) return;
+    let buf, pdf;
+    try { buf = await file.arrayBuffer(); pdf = await window.pdfjsLib.getDocument({ data: buf }).promise; }
+    catch (e) { return; }
+    const cache = new Map();   // page -> dataURL (several blocks can share a page)
+    const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("render timeout")), ms))]);
+    for (const { id, page } of flagged.slice(0, 80)) {   // cap work; review sets are small
+      if (!page || page < 1 || page > pdf.numPages) continue;
+      try {
+        let url = cache.get(page);
+        if (!url) { const pg = await pdf.getPage(page); url = await withTimeout(renderPageToDataUrl(pg, 1100, 0.7), 20000); pg.cleanup && pg.cleanup(); cache.set(page, url); }
+        await window.sfSaveShot(id, url);
+      } catch (e) {}
+    }
+    pdf.destroy && pdf.destroy();
   }
 
   // ===================================================================== regexes
@@ -781,7 +813,7 @@
       const s = k.slice(0, k.indexOf("\u0000"));
       if (freq[k] >= threshold && s.length <= 30 && !".!?".includes(s[s.length - 1]) && !isStructuralLine(s)) chrome.add(k);
     }
-    return linePages.map(page => page.filter(([t, f]) => { const s = t.trim(); return !chrome.has(key(s, f)) && !isFurniture(s); }));
+    return linePages.map(page => { const f = page.filter(([t, ft]) => { const s = t.trim(); return !chrome.has(key(s, ft)) && !isFurniture(s); }); f._page = page._page; return f; });
   }
 
   // ============================================================ blocks from pages
@@ -836,6 +868,7 @@
     const flush = () => { if (pending !== null) { try { push(parseText(pending.body, pending.page, source)); } catch (e) {} pending = null; } };
     let carryF = [];
     for (let i = 0; i < linePages.length; i++) {
+      const pageNo = linePages[i]._page || (i + 1);   // true PDF page (for review screenshots)
       let lines = carry.concat(linePages[i].map(([t]) => t));
       let lfonts = carryF.concat(linePages[i].map(([, f]) => f || ""));
       carry = []; carryF = [];
@@ -851,8 +884,8 @@
       if (pending !== null) { const pre = preAcTextLines(lines); if (pre.trim()) pending.body += "\n" + pre; flush(); }
       for (let j = 0; j < blocks.length; j++) {
         const isLast = j === blocks.length - 1;
-        if (isLast && !hasActionsSection(blocks[j])) pending = { body: blocks[j], page: i + 1 };
-        else { try { push(parseText(blocks[j], i + 1, source)); } catch (e) {} }
+        if (isLast && !hasActionsSection(blocks[j])) pending = { body: blocks[j], page: pageNo };
+        else { try { push(parseText(blocks[j], pageNo, source)); } catch (e) {} }
       }
     }
     flush();
@@ -1008,7 +1041,7 @@
     let existing = [];
     try { existing = await (await fetch("/api/statblocks")).json(); } catch (e) {}
     const seen = new Set((existing || []).map(fingerprint));
-    let added = 0, dup = 0, flagged = 0;
+    let added = 0, dup = 0, flagged = 0; const flaggedShots = [];
     for (const sb of blocks) {
       if (_abort) return { ok: false, name: file.name, aborted: true, added, dup, flagged };
       const f = fingerprint(sb);
@@ -1017,9 +1050,12 @@
       sb.id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : "sb-" + Date.now() + "-" + added;
       try {
         await fetch("/api/statblocks/" + sb.id, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sb) });
-        added++; if (sb.parse_confidence < 0.85) flagged++;
+        added++; if (sb.parse_confidence < 0.85) { flagged++; flaggedShots.push({ id: sb.id, page: sb.source_page }); }
       } catch (e) {}
     }
+    // LOCAL-ONLY review screenshots for the flagged blocks. Fire-and-forget so a
+    // slow/blocked render can NEVER delay or hang the import itself.
+    captureReviewShots(file, flaggedShots).catch(() => {});
     return { ok: true, name: file.name, parsed: blocks.length, added, dup, flagged };
   }
 
