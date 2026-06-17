@@ -1020,30 +1020,15 @@
   // it is the same creature, so re-importing a PDF won't add it twice
   const fingerprint = (b) => `${(b.name || "").trim().toLowerCase()}|${b.armor_class}|${b.hit_points}|${b.challenge_rating}`;
 
-  // parse + insert ONE file, skipping any block already in the compendium.
-  // Returns a summary; never touches the shared progress UI itself.
-  async function importOneFile(file, onProgress) {
-    if (!/\.pdf$/i.test(file.name)) return { ok: false, name: file.name, error: "Not a PDF file." };
-    let buf;
-    try { buf = await file.arrayBuffer(); } catch (e) { return { ok: false, name: file.name, error: "Couldn't read the file." }; }
-    let pages;
-    try { pages = await extractColumnLinePages(buf, onProgress); }
-    catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
-    const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
-    if (!pages.length || totalChars < 40 * pages.length)
-      return { ok: false, name: file.name, error: "No text layer found. This looks like a scanned or image-only PDF, which MonsterBox can't read." };
-    let blocks;
-    try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error." }; }
-    // delta-style variants (base + "Increases by"/added abilities) -> "Standard X (Variant)"
-    try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
-    // de-dupe against what's already stored (re-fetched per file so a duplicate
-    // shared across several dropped PDFs is caught too)
+  // de-dupe + insert a parsed set of blocks; capture review screenshots. Shared by
+  // the text path and the OCR fallback. Returns { added, dup, flagged }.
+  async function persistBlocks(file, blocks) {
     let existing = [];
     try { existing = await (await fetch("/api/statblocks")).json(); } catch (e) {}
     const seen = new Set((existing || []).map(fingerprint));
     let added = 0, dup = 0, flagged = 0; const flaggedShots = [];
     for (const sb of blocks) {
-      if (_abort) return { ok: false, name: file.name, aborted: true, added, dup, flagged };
+      if (_abort) return { added, dup, flagged, aborted: true };
       const f = fingerprint(sb);
       if (seen.has(f)) { dup++; continue; }
       seen.add(f);
@@ -1056,7 +1041,106 @@
     // LOCAL-ONLY review screenshots for the flagged blocks. Fire-and-forget so a
     // slow/blocked render can NEVER delay or hang the import itself.
     captureReviewShots(file, flaggedShots).catch(() => {});
-    return { ok: true, name: file.name, parsed: blocks.length, added, dup, flagged };
+    return { added, dup, flagged };
+  }
+
+  // parse + insert ONE file via the normal TEXT path. Returns a summary; flags
+  // needsOcr when there's no readable text layer or no stat blocks were found, so
+  // the caller can offer the (slower) OCR fallback.
+  async function importOneFile(file, onProgress) {
+    if (!/\.pdf$/i.test(file.name)) return { ok: false, name: file.name, error: "Not a PDF file." };
+    let buf;
+    try { buf = await file.arrayBuffer(); } catch (e) { return { ok: false, name: file.name, error: "Couldn't read the file." }; }
+    let pages;
+    try { pages = await extractColumnLinePages(buf, onProgress); }
+    catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
+    const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
+    if (!pages.length || totalChars < 40 * pages.length)
+      return { ok: false, name: file.name, error: "No readable text layer — the stat blocks look image-based.", needsOcr: true };
+    let blocks;
+    try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error." }; }
+    // delta-style variants (base + "Increases by"/added abilities) -> "Standard X (Variant)"
+    try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
+    if (!blocks.length) return { ok: false, name: file.name, error: "No stat blocks found in the text.", needsOcr: true };
+    const r = await persistBlocks(file, blocks);
+    if (r.aborted) return { ok: false, name: file.name, aborted: true, added: r.added, dup: r.dup, flagged: r.flagged };
+    return { ok: true, name: file.name, parsed: blocks.length, added: r.added, dup: r.dup, flagged: r.flagged };
+  }
+
+  // ============================================================ OCR FALLBACK
+  // FREE, fully client-side OCR (Tesseract.js, WASM) for PDFs whose stat blocks
+  // are images or use a broken font encoding (so the text layer is unreadable).
+  // Only ever runs when the normal text path finds nothing, so it can't affect
+  // books that already import. Tesseract loads from a CDN on first use and is
+  // cached by the browser thereafter — no bundling, no server, no cost.
+  let _tessPromise = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve(window.Tesseract);
+    if (_tessPromise) return _tessPromise;
+    _tessPromise = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      s.onload = () => res(window.Tesseract);
+      s.onerror = () => { _tessPromise = null; rej(new Error("OCR engine failed to load (no connection?)")); };
+      document.head.appendChild(s);
+    });
+    return _tessPromise;
+  }
+
+  // Render each page, OCR it to words+boxes, then reuse the SAME column/line/block
+  // pipeline as the text path (so all the existing parsing logic applies).
+  async function extractOcrLinePages(arrayBuffer, progress) {
+    const Tesseract = await loadTesseract();
+    const pdfjsLib = window.pdfjsLib;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const worker = await Tesseract.createWorker("eng");
+    const pages = [];
+    try {
+      for (let p = 1; p <= pdf.numPages; p++) {
+        if (_abort) throw new Error("__abort__");
+        const page = await pdf.getPage(p);
+        const v1 = page.getViewport({ scale: 1 });
+        const scale = Math.min(3, Math.max(1.6, 1700 / v1.width));   // ~150-200 dpi reads well
+        const vp = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+        let data = {};
+        try { data = (await worker.recognize(canvas, {}, { blocks: true })).data || {}; } catch (e) { data = {}; }
+        // Prefer word-level boxes; fall back to line-level if words are absent.
+        let items = (data.words && data.words.length) ? data.words
+                  : [].concat(...((data.lines || []).map(l => l.words || [l])));
+        const words = [];
+        for (const w of items) {
+          const t = (w.text || "").trim(); if (!t) continue;
+          const b = w.bbox || w; if (b.x0 == null) continue;
+          words.push({ text: t, x0: b.x0 / scale, x1: b.x1 / scale, top: b.y0 / scale, font: "ocr#10", fontId: "ocr", bold: false });
+        }
+        for (const col of pageColumns(words, vp.width / scale)) { col._page = p; pages.push(col); }
+        page.cleanup && page.cleanup();
+        if (progress) progress(p, pdf.numPages);
+      }
+    } finally { try { await worker.terminate(); } catch (e) {} pdf.destroy && pdf.destroy(); }
+    return pages;
+  }
+
+  async function ocrOneFile(file, onProgress) {
+    let buf;
+    try { buf = await file.arrayBuffer(); } catch (e) { return { ok: false, name: file.name, error: "Couldn't read the file." }; }
+    let pages;
+    try { pages = await extractOcrLinePages(buf, onProgress); }
+    catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "OCR failed: " + (e && e.message || e) }; }
+    let blocks;
+    try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error after OCR." }; }
+    try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
+    if (!blocks.length) return { ok: false, name: file.name, error: "OCR found no stat blocks." };
+    // OCR is imperfect: force every OCR'd block into the review queue (so it gets a
+    // screenshot and a human check) and tag its provenance.
+    blocks.forEach(b => { b.ocr = true; b.parse_confidence = Math.min(b.parse_confidence || 0, 0.8); (b.parse_warnings = b.parse_warnings || []).push("Imported via OCR — please verify every field against the screenshot."); });
+    const r = await persistBlocks(file, blocks);
+    if (r.aborted) return { ok: false, name: file.name, aborted: true, added: r.added, dup: r.dup, flagged: r.flagged };
+    return { ok: true, name: file.name, parsed: blocks.length, added: r.added, dup: r.dup, flagged: r.flagged, ocr: true };
   }
 
   // import one OR MANY PDFs in sequence, with shared progress + a combined result
@@ -1078,7 +1162,7 @@
     hideEmpty();
     _abort = false;   // fresh run
     const cancelBtn = '<div style="margin-top:10px"><button class="btn" onclick="sfCancelImport()">Cancel</button></div>';
-    let totAdded = 0, totDup = 0, totFlagged = 0, aborted = false; const errors = [];
+    let totAdded = 0, totDup = 0, totFlagged = 0, aborted = false; const errors = []; const ocrCandidates = [];
     for (let i = 0; i < pdfs.length; i++) {
       const file = pdfs[i];
       if (window.sfBetaUploadPdf) window.sfBetaUploadPdf(file);   // BETA-only: send the PDF to the dev (best-effort)
@@ -1090,7 +1174,7 @@
           '<div class="pbar"><div style="width:' + pct + '%"></div></div>' + cancelBtn);
       });
       if (res.aborted) { totAdded += res.added || 0; totDup += res.dup || 0; totFlagged += res.flagged || 0; aborted = true; break; }
-      if (!res.ok) { errors.push(escapeHtml(res.name) + ": " + escapeHtml(res.error)); continue; }
+      if (!res.ok) { if (res.needsOcr) ocrCandidates.push(file); else errors.push(escapeHtml(res.name) + ": " + escapeHtml(res.error)); continue; }
       totAdded += res.added; totDup += res.dup; totFlagged += res.flagged;
     }
     if (typeof window.loadLibrary === "function") window.loadLibrary();
@@ -1112,8 +1196,52 @@
       result = "<b>No stat blocks found in " + (pdfs.length > 1 ? "these PDFs." : "this PDF.") + "</b>";
     }
     if (errors.length && totAdded > 0) result += "<br><i>" + errors.join("<br>") + "</i>";
+    // Offer the OCR fallback for files with no readable text / no stat blocks.
+    if (!aborted && ocrCandidates.length) {
+      _ocrFiles = ocrCandidates;
+      const n = ocrCandidates.length;
+      result += '<div style="margin-top:10px"><i>' + n + (n === 1 ? " PDF has" : " PDFs have") +
+        ' image-based or unreadable stat blocks.</i><br>' +
+        '<button class="btn" style="margin-top:6px" onclick="sfRunOcr()">Read images with OCR (slower, free)</button> ' +
+        '<button class="btn" onclick="sfDismissImport()">Dismiss</button></div>';
+      showProg(result);
+      return;   // keep the offer on screen until the user acts
+    }
     showProg(result);
     setTimeout(() => { showProg(""); showEmpty(); }, 4500);
+  }
+
+  // Run the OCR fallback on the files the text path couldn't read (user-initiated).
+  let _ocrFiles = null;
+  async function runOcrImport() {
+    const files = _ocrFiles || []; if (!files.length) return;
+    _ocrFiles = null;
+    const prog = document.getElementById("importprogress");
+    const showProg = (html) => { if (prog) { prog.innerHTML = html || ""; prog.classList.toggle("show", !!html); } };
+    _abort = false;
+    const cancelBtn = '<div style="margin-top:10px"><button class="btn" onclick="sfCancelImport()">Cancel</button></div>';
+    let totAdded = 0, totFlagged = 0, aborted = false; const errors = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const head = (files.length > 1 ? "Reading " + (i + 1) + " of " + files.length + ": " : "Reading ") + escapeHtml(file.name) + " with OCR";
+      showProg(head + "<br><i>First run downloads the free OCR engine once. This is much slower than text import.</i>" + cancelBtn);
+      const res = await ocrOneFile(file, (cur, total) => {
+        const pct = total ? Math.round((100 * cur) / total) : 0;
+        showProg(head + "<br>" + cur + "/" + total + " pages read" +
+          '<div class="pbar"><div style="width:' + pct + '%"></div></div>' + cancelBtn);
+      });
+      if (res.aborted) { totAdded += res.added || 0; aborted = true; break; }
+      if (!res.ok) { errors.push(escapeHtml(res.name) + ": " + escapeHtml(res.error)); continue; }
+      totAdded += res.added; totFlagged += res.flagged;
+    }
+    if (typeof window.loadLibrary === "function") window.loadLibrary();
+    let result;
+    if (aborted) result = "<b>OCR cancelled.</b>" + (totAdded ? "<br><i>" + totAdded + " kept.</i>" : "");
+    else if (totAdded > 0) result = "<b>OCR imported " + totAdded + " " + (totAdded === 1 ? "monster" : "monsters") + ":</b><br><i>" +
+        (totFlagged ? totFlagged + " in the review queue — check each against its screenshot." : "Review recommended.") + "</i>";
+    else result = "<b>OCR couldn't find stat blocks.</b>" + (errors.length ? "<br><i>" + errors.join("<br>") + "</i>" : "");
+    showProg(result);
+    setTimeout(() => { showProg(""); }, 6000);
   }
   function escapeHtml(s) { return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 
@@ -1121,4 +1249,6 @@
   window.sfImportPdf = (file) => sfImportPdfs(file ? [file] : []);
   window.sfImportPdfs = sfImportPdfs;
   window.sfCancelImport = () => { _abort = true; };
+  window.sfRunOcr = runOcrImport;
+  window.sfDismissImport = () => { _ocrFiles = null; const p = document.getElementById("importprogress"); if (p) { p.innerHTML = ""; p.classList.remove("show"); } };
 })();
