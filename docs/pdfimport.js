@@ -647,6 +647,16 @@
   const LIGATURES = { "ﬁ": "fi", "ﬂ": "fl", "ﬀ": "ff", "ﬃ": "ffi", "ﬄ": "ffl", "ﬅ": "ft", "ﬆ": "st" };
   // true prefix compounds keep their hyphen when rejoined: "half-\norc" -> "half-orc"
   const KEEP_HYPHEN = new Set(["self", "off", "non", "half", "well", "ill", "quasi", "semi", "pseudo", "demi", "anti", "multi"]);
+  // OCR ONLY: scanned pages glue margin/gutter artifacts onto the START of lines
+  // ("hi | ACTIONS", "i Bite.", "| Hit Points"). Those break line-start detection
+  // of section headers and entry names, so strip them. Text-layer PDFs never see this.
+  function cleanOcrLines(text) {
+    return String(text).split("\n").map(l => l
+      .replace(/^\s*[A-Za-z0-9)\]}·•*§¥]{0,3}\s*\|\s*/, "")        // "hi | ", "| ", "ld | "
+      .replace(/^\s*[a-z)\]}·•*§¥]{1,2}\s+(?=[A-Z0-9])/, "")        // "i Bite", ") -", "§ The"
+    ).join("\n");
+  }
+
   function cleanExtractedText(text) {
     text = String(text).replace(/[ﬁﬂﬀﬃﬄﬅﬆ]/g, c => LIGATURES[c] || c).replace(/\u00AD/g, "");
     // a word fragment + hyphen at a line end, continued by a lowercase fragment:
@@ -669,6 +679,7 @@
   }
 
   function parseText(text, sourcePage, source, ocr) {
+    if (ocr) text = cleanOcrLines(text);   // strip scanned-page margin junk first
     text = cleanExtractedText(text);
     let lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
     lines = lines.map(dedupeLine);      // collapse bold double-draw ("Actions Actions")
@@ -1286,7 +1297,7 @@
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const head = (files.length > 1 ? "Reading " + (i + 1) + " of " + files.length + ": " : "Reading ") + escapeHtml(file.name) + " with OCR";
-      showProg(head + "<br><i>First run downloads the free OCR engine once. This is much slower than text import.</i>" + cancelBtn);
+      showProg(head + "<br><i>This is much slower than text import.</i>" + cancelBtn);
       const res = await ocrOneFile(file, (cur, total) => {
         const pct = total ? Math.round((100 * cur) / total) : 0;
         showProg(head + "<br>" + cur + "/" + total + " pages read" +
