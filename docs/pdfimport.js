@@ -266,7 +266,10 @@
   const NON_HEADER_NAMES = new Set(["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma",
     // stat-field labels that get absorbed from interleaved rules/archetype text
     "skills", "senses", "languages", "hd", "cr", "hit dice", "proficiency bonus", "ability score increase",
-    "natural armor", "damage vulnerabilities", "damage immunities", "damage resistances", "condition immunities"]);
+    "natural armor", "damage vulnerabilities", "damage immunities", "damage resistances", "condition immunities",
+    // Open Game License / legal boilerplate terms (backstop to the license cut)
+    "content", "identity", "trademark", "registered trademark", "product identity", "open game content",
+    "open game license", "copyright", "contributors", "derivative material"]);
   const NAME_CONNECTORS = new Set(["of", "with", "and", "the", "to", "a", "an", "in", "or", "from", "by", "for", "on", "at", "as", "into", "upon", "but"]);
   // Words that begin prose, never an entry NAME. Used to keep the relaxed entry
   // boundary (below) from grabbing a wrapped sentence that starts "Word. Capital".
@@ -473,7 +476,9 @@
     return action;
   }
 
-  function parseEntries(sectionText, category) {
+  // words that end an action name (so "Bite Melee Weapon Attack" -> name "Bite")
+  const NAME_STOP = new Set(["melee", "ranged", "weapon", "spell", "attack", "hit", "recharge", "save", "dc", "saving", "ranged", "reach", "range"]);
+  function parseEntries(sectionText, category, ocr) {
     if (!sectionText.trim()) return [];
     const accepted = []; const seenStart = new Set();
     const add = (name, start, end) => { if (!seenStart.has(start)) { seenStart.add(start); accepted.push({ name, start, end }); } };
@@ -500,6 +505,31 @@
       if (NON_HEADER_NAMES.has(nm)) continue;
       if (!isFeatureName(am[1])) continue;
       add(am[1], am.index, reA.lastIndex);
+    }
+    // (3) OCR ONLY, and only when (1)+(2) found nothing: scanned pages carry no
+    // bold/period cues, so detect entries as lines that START with a short
+    // Title-Case phrase (stopping at sentence-starters / attack keywords). Recovers
+    // action NAMES as stubs to flesh out from the screenshot, instead of zero.
+    if (ocr && !accepted.length) {
+      let pos = 0;
+      for (const line of sectionText.split("\n")) {
+        const at = pos; pos += line.length + 1;
+        const s = line.trim(); if (s.length < 3) continue;
+        const words = s.split(/\s+/); const nameWords = [];
+        for (const w of words) {
+          const lw = w.toLowerCase().replace(/[^a-z]/g, "");
+          if (nameWords.length >= 4) break;
+          if (!/^[A-Z][A-Za-z'’/\-]*$/.test(w)) break;
+          if (SENTENCE_STARTERS.has(lw) || NAME_STOP.has(lw)) break;
+          nameWords.push(w);
+        }
+        const nm = nameWords.join(" ");
+        if (nm.length < 3 || nm.length > 40) continue;
+        if (NON_HEADER_NAMES.has(nm.toLowerCase()) || !isFeatureName(nm)) continue;
+        if (s.length <= nm.length + 1) continue;   // require a description after the name
+        const nameAt = at + (line.length - line.replace(/^\s+/, "").length);
+        add(nm, nameAt, nameAt + nm.length);
+      }
     }
     accepted.sort((a, b) => a.start - b.start);
     const entries = [];
@@ -638,7 +668,7 @@
     return text.replace(/([A-Za-z])- (?!(?:and|or|nor|to)\b)([a-z][A-Za-z]*)/g, "$1-$2");
   }
 
-  function parseText(text, sourcePage, source) {
+  function parseText(text, sourcePage, source, ocr) {
     text = cleanExtractedText(text);
     let lines = text.split(/\r?\n/).map(l => l.replace(/\s+$/, "")).filter(l => l.trim());
     lines = lines.map(dedupeLine);      // collapse bold double-draw ("Actions Actions")
@@ -714,12 +744,12 @@
     if ((m = RE_COND.exec(text))) sb.condition_immunities = parseList(m[1]);
 
     const { traitsText, sections } = splitSections(text);
-    sb.traits = parseEntries(traitsText, "trait");
-    sb.actions = parseEntries(sections["action"] || "", "action");
-    sb.bonus_actions = parseEntries(sections["bonus_action"] || "", "bonus_action");
-    sb.reactions = parseEntries(sections["reaction"] || "", "reaction");
+    sb.traits = parseEntries(traitsText, "trait", ocr);
+    sb.actions = parseEntries(sections["action"] || "", "action", ocr);
+    sb.bonus_actions = parseEntries(sections["bonus_action"] || "", "bonus_action", ocr);
+    sb.reactions = parseEntries(sections["reaction"] || "", "reaction", ocr);
     const legText = sections["legendary"] || "";
-    sb.legendary_actions = parseEntries(legText, "legendary");
+    sb.legendary_actions = parseEntries(legText, "legendary", ocr);
     const lm = RE_LEG_COUNT.exec(legText); if (lm) sb.legendary_action_count = +lm[1];
 
     // Some books (e.g. Fey Dragons) omit the "Actions" header, so attacks land in
@@ -860,12 +890,30 @@
     return (!sb.name || sb.name === "Unknown Creature") && sb.armor_class === 10 && noHp && noAbil;
   };
 
-  function blocksFromPages(linePages, source) {
-    linePages = stripPageChrome(linePages);
+  // Strip the Open Game License / legal boilerplate that trails many SRD-style PDFs.
+  // Its definition list ("Open Game Content", "Product Identity", "Registered
+  // Trademark"...) was being parsed as bogus stat blocks or absorbed into the last
+  // creature's actions. Cut the line stream at the first license header.
+  const RE_OGL = /^\s*open\s*game\s*license\b|^\s*designation\s+of\s+(?:product\s+identity|open\s+game\s+content)\b/i;
+  function cutAtLicense(linePages) {
+    for (let i = 0; i < linePages.length; i++) {
+      const col = linePages[i];
+      for (let j = 0; j < col.length; j++) {
+        if (RE_OGL.test(col[j][0] || "")) {
+          const head = col.slice(0, j); head._page = col._page;
+          return linePages.slice(0, i).concat(head.length ? [head] : []);
+        }
+      }
+    }
+    return linePages;
+  }
+
+  function blocksFromPages(linePages, source, ocr) {
+    linePages = cutAtLicense(stripPageChrome(linePages));
     const results = [];
     let pending = null, carry = [];
     const push = (sb) => { if (sb && !isFalseAnchor(sb)) results.push(sb); };
-    const flush = () => { if (pending !== null) { try { push(parseText(pending.body, pending.page, source)); } catch (e) {} pending = null; } };
+    const flush = () => { if (pending !== null) { try { push(parseText(pending.body, pending.page, source, ocr)); } catch (e) {} pending = null; } };
     let carryF = [];
     for (let i = 0; i < linePages.length; i++) {
       const pageNo = linePages[i]._page || (i + 1);   // true PDF page (for review screenshots)
@@ -885,7 +933,7 @@
       for (let j = 0; j < blocks.length; j++) {
         const isLast = j === blocks.length - 1;
         if (isLast && !hasActionsSection(blocks[j])) pending = { body: blocks[j], page: pageNo };
-        else { try { push(parseText(blocks[j], pageNo, source)); } catch (e) {} }
+        else { try { push(parseText(blocks[j], pageNo, source, ocr)); } catch (e) {} }
       }
     }
     flush();
@@ -1146,7 +1194,7 @@
     try { pages = await extractOcrLinePages(buf, onProgress); }
     catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "OCR failed: " + (e && e.message || e) }; }
     let blocks;
-    try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error after OCR." }; }
+    try { blocks = blocksFromPages(pages, file.name, true); } catch (e) { return { ok: false, name: file.name, error: "Parse error after OCR." }; }
     try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
     if (!blocks.length) return { ok: false, name: file.name, error: "OCR found no stat blocks." };
     // OCR is imperfect: force every OCR'd block into the review queue (so it gets a
