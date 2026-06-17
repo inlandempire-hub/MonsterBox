@@ -177,7 +177,7 @@
       if (!page || page < 1 || page > pdf.numPages) continue;
       try {
         let url = cache.get(page);
-        if (!url) { const pg = await pdf.getPage(page); url = await withTimeout(renderPageToDataUrl(pg, 1100, 0.7), 20000); pg.cleanup && pg.cleanup(); cache.set(page, url); }
+        if (!url) { const pg = await pdf.getPage(page); url = await withTimeout(renderPageToDataUrl(pg, 1500, 0.72), 20000); pg.cleanup && pg.cleanup(); cache.set(page, url); }
         await window.sfSaveShot(id, url);
       } catch (e) {}
     }
@@ -1101,11 +1101,25 @@
         if (_abort) throw new Error("__abort__");
         const page = await pdf.getPage(p);
         const v1 = page.getViewport({ scale: 1 });
-        const scale = Math.min(3, Math.max(1.6, 1700 / v1.width));   // ~150-200 dpi reads well
+        const scale = Math.min(4, Math.max(2.5, 2400 / v1.width));   // ~300 dpi: far cleaner OCR
         const vp = page.getViewport({ scale });
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);   // flatten transparency to white
+        await page.render({ canvasContext: ctx, viewport: vp }).promise;
+        // Preprocess: grayscale + contrast stretch so coloured / low-contrast art
+        // (textured stat-block backgrounds) reads much cleaner.
+        try {
+          const im = ctx.getImageData(0, 0, canvas.width, canvas.height), d = im.data;
+          for (let k = 0; k < d.length; k += 4) {
+            let g = 0.299 * d[k] + 0.587 * d[k + 1] + 0.114 * d[k + 2];
+            g = (g - 128) * 1.4 + 128;          // boost contrast around mid-grey
+            g = g < 0 ? 0 : g > 255 ? 255 : g;
+            d[k] = d[k + 1] = d[k + 2] = g;
+          }
+          ctx.putImageData(im, 0, 0);
+        } catch (e) { /* tainted/oversized canvas: OCR the raw render instead */ }
         let data = {};
         try { data = (await worker.recognize(canvas, {}, { blocks: true })).data || {}; } catch (e) { data = {}; }
         // Prefer word-level boxes; fall back to line-level if words are absent.
