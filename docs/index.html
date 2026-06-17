@@ -1220,6 +1220,7 @@
         </label>
         <button class="btn" onclick="sfExport()">Export Compendium</button>
         <button class="btn" onclick="showAbout()">About &amp; Legal</button>
+        <button class="btn" onclick="showParseInfo()">PDF Importing</button>
         <button class="btn" onclick="reportOpen()">Report an Issue</button>
       </div>
       <div id="backupnag" class="backupnag">
@@ -1377,6 +1378,32 @@
     <div class="about-foot">
       <label class="about-dontshow"><input type="checkbox" id="aboutDontShow"> Don't show this information again</label>
       <button class="btn save" id="aboutOk">Got it</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF parsing expectations (shown once after About on first use) -->
+<div id="parseInfoModal" class="modal-overlay" style="display:none">
+  <div class="modal-box about-box">
+    <div class="about-h">MonsterBox</div>
+    <div class="about-sub">A note on PDF importing</div>
+    <div class="about-body">
+      <p><b>Text-based import</b> is the main system, and it's working well across a
+         wide range of books — but it's still being actively tested. Most stat blocks
+         come through cleanly; a few are flagged for a quick review so you can confirm
+         them before use.</p>
+      <p><b>OCR import is experimental.</b> When a PDF's stat blocks are images, or use
+         a font the text layer can't read, MonsterBox offers an OCR pass as a last
+         resort. It reads the page like a scanner — good enough to turn an otherwise
+         unreadable PDF into something you can review and fix, but <b>not</b> as accurate
+         as text import. Expect typos and to-be-checked fields; every OCR'd creature is
+         sent to the review queue with a screenshot of its page beside the editor.</p>
+      <p>In short: if a book imports cleanly, great. If it doesn't, OCR is there to
+         rescue what it can. Either way, give flagged entries a quick look before play.</p>
+    </div>
+    <div class="about-foot">
+      <label class="about-dontshow"><input type="checkbox" id="parseDontShow"> Don't show this information again</label>
+      <button class="btn save" id="parseOk">Got it</button>
     </div>
   </div>
 </div>
@@ -2982,6 +3009,17 @@ $("aboutOk").onclick = () => {
   // shows on every startup unless the user ticks "Don't show this again"
   if ($("aboutDontShow").checked) localStorage.setItem("sf-hide-about", "1");
   else localStorage.removeItem("sf-hide-about");
+  // first use only: follow About with the PDF-parsing note
+  if (!localStorage.getItem("sf-hide-parseinfo")) showParseInfo();
+};
+function showParseInfo() {
+  $("parseDontShow").checked = !!localStorage.getItem("sf-hide-parseinfo");
+  $("parseInfoModal").style.display = "flex";
+}
+$("parseOk").onclick = () => {
+  $("parseInfoModal").style.display = "none";
+  if ($("parseDontShow").checked) localStorage.setItem("sf-hide-parseinfo", "1");
+  else localStorage.removeItem("sf-hide-parseinfo");
 };
 const BACKUP_GAP = 14 * 864e5;            // 14 days
 function refreshBackupNag() {
@@ -3001,6 +3039,9 @@ window.refreshBackupNag = refreshBackupNag;
 // (type 1.45s + typing ~1.5s + hold 2s + fade/UI-crossfade ~1s)
 if (!localStorage.getItem("sf-hide-about")) {
   setTimeout(() => showAbout(), 6400);
+} else if (!localStorage.getItem("sf-hide-parseinfo")) {
+  // About already dismissed, but the PDF-parsing note hasn't been seen yet
+  setTimeout(() => showParseInfo(), 6400);
 }
 
 // empty-state hint: touch layouts can't drag-and-drop, so point them at Import

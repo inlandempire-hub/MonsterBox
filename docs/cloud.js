@@ -92,7 +92,9 @@
     if (!btn && !macct) return;
     if (session) {
       const full = !!(account && account.has_full_access);
-      const tag = ' <span class="signin-tag' + (full ? "" : " free") + '">' + esc(accessTag()) + "</span>";
+      // Only show a plan tag for full-access accounts (Pro/Full access/Admin). The
+      // "Free" tag is unnecessary exposition for now, so free accounts show none.
+      const tag = full ? ' <span class="signin-tag">' + esc(accessTag()) + "</span>" : "";
       const ttl = ((session.user && session.user.email) || "") + " — " + accessTag();
       if (btn) {
         btn.innerHTML = "Signed in: " + esc(displayName()) + tag;
@@ -171,8 +173,10 @@
   function paintTag() {
     const el = $("authAcctTag");
     if (!el) return;
-    el.textContent = accessTag();
-    el.classList.toggle("full", !!(account && account.has_full_access));
+    const full = !!(account && account.has_full_access);
+    el.textContent = full ? accessTag() : "";   // hide the "Free" tag (unnecessary for now)
+    el.style.display = full ? "" : "none";
+    el.classList.toggle("full", full);
     const d = $("authAcctDiag");
     if (d) d.textContent = (!account && acctErr) ? ("Access not confirmed: " + acctErr) : "";
     // shareable account id (so a friend can be comped by code, not email)
