@@ -8,7 +8,7 @@ frontend hook + drop the pdf_uploads table)."""
 import hashlib
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..auth import optional_user, require_admin
@@ -87,13 +87,19 @@ async def collect_pdf(
 
 @router.get("/pdfs")
 def list_pdfs(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    rows = db.scalars(select(PdfUpload).order_by(PdfUpload.created_at.desc()).limit(300)).all()
+    # Select ONLY metadata columns — never the data BLOB. Loading the bytes of every
+    # row (a big stored book) into memory here OOM'd the instance on open.
+    rows = db.execute(
+        select(PdfUpload.id, PdfUpload.filename, PdfUpload.email, PdfUpload.size,
+               PdfUpload.data.isnot(None).label("has_file"), PdfUpload.created_at)
+        .order_by(PdfUpload.created_at.desc()).limit(300)
+    ).all()
     return [{
         "id": r.id,
         "filename": r.filename,
         "email": r.email,
         "size_mb": round((r.size or 0) / 1048576, 1),
-        "has_file": r.data is not None,
+        "has_file": bool(r.has_file),
         "created_at": r.created_at.isoformat() if r.created_at else None,
     } for r in rows]
 
@@ -102,12 +108,9 @@ def list_pdfs(_admin: User = Depends(require_admin), db: Session = Depends(get_d
 def delete_unstored(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Tidy-up: drop all metadata-only rows (books that were over the size cap and
     never stored). Declared before /pdfs/{pdf_id} so 'unstored' isn't read as an id."""
-    rows = db.scalars(select(PdfUpload).where(PdfUpload.data.is_(None))).all()
-    n = len(rows)
-    for r in rows:
-        db.delete(r)
+    res = db.execute(delete(PdfUpload).where(PdfUpload.data.is_(None)))
     db.commit()
-    return {"deleted": n}
+    return {"deleted": res.rowcount}
 
 
 @router.get("/pdfs/{pdf_id}/download")
@@ -121,10 +124,10 @@ def download_pdf(pdf_id: int, _admin: User = Depends(require_admin), db: Session
 
 @router.delete("/pdfs/{pdf_id}")
 def delete_pdf(pdf_id: int, _admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    """Admin removes a collected book once it's been downloaded, to free space."""
-    r = db.get(PdfUpload, pdf_id)
-    if r is None:
-        raise HTTPException(404, "not found")
-    db.delete(r)
+    """Admin removes a collected book to free space. Deletes by id WITHOUT loading
+    the row's bytes (loading a big BLOB just to delete it would risk an OOM)."""
+    res = db.execute(delete(PdfUpload).where(PdfUpload.id == pdf_id))
     db.commit()
+    if not res.rowcount:
+        raise HTTPException(404, "not found")
     return {"ok": True}
