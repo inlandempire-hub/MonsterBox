@@ -34,37 +34,52 @@ async def collect_pdf(
     # account) testers ARE collected, with email recorded as null.
     if user is not None and user.role == "admin":
         return {"collected": False, "reason": "admin"}
-    data = await file.read()
-    if not data:
-        raise HTTPException(400, "empty file")
-    if not data[:5].startswith(b"%PDF"):
-        return {"collected": False, "reason": "not a pdf"}   # ignore non-PDF uploads
-    sha = hashlib.sha256(data).hexdigest()
 
-    # Can we keep the bytes? (a) under the per-file cap AND (b) storing won't push
-    # past the total budget. Otherwise metadata only — import is NEVER failed for
-    # lack of space (free-tier safe).
-    def _can_keep(nbytes: int) -> bool:
-        if nbytes > settings.beta_pdf_max_mb * 1024 * 1024:
-            return False
+    # Stream the upload so we NEVER hold a big file in RAM (that OOM'd the 512MB
+    # free instance). Hash incrementally; keep the bytes only while under the
+    # per-file cap, then stop accumulating but keep reading to finish the hash.
+    cap = settings.beta_pdf_max_mb * 1024 * 1024
+    h = hashlib.sha256()
+    buf = bytearray()
+    keeping, size, first = True, 0, True
+    while True:
+        chunk = await file.read(1024 * 1024)
+        if not chunk:
+            break
+        if first:
+            if not chunk[:5].startswith(b"%PDF"):
+                return {"collected": False, "reason": "not a pdf"}   # ignore non-PDF uploads
+            first = False
+        h.update(chunk)
+        size += len(chunk)
+        if keeping and size <= cap:
+            buf.extend(chunk)
+        elif keeping:
+            keeping = False
+            buf = bytearray()   # over the per-file cap: drop the bytes, keep hashing
+    if size == 0:
+        raise HTTPException(400, "empty file")
+    sha = h.hexdigest()
+
+    # Storing the kept bytes also requires headroom in the total budget.
+    def _budget_ok(nbytes: int) -> bool:
         used = db.scalar(select(func.coalesce(func.sum(PdfUpload.size), 0))
                          .where(PdfUpload.data.isnot(None))) or 0
         return used + nbytes <= settings.beta_pdf_total_mb * 1024 * 1024
 
     existing = db.scalar(select(PdfUpload).where(PdfUpload.sha256 == sha))
     if existing:
-        # If we previously kept metadata only (over the old cap) but it now fits,
-        # backfill the bytes on this re-import instead of skipping as a duplicate.
-        if existing.data is None and _can_keep(len(data)):
-            existing.data = data
+        # Backfill bytes on re-import if we previously kept metadata only and it now fits.
+        if existing.data is None and keeping and _budget_ok(size):
+            existing.data = bytes(buf)
             db.commit()
             return {"collected": True, "dedup": True, "backfilled": True}
         return {"collected": True, "dedup": True}     # already have this exact book
 
     if db.scalar(select(func.count()).select_from(PdfUpload)) >= MAX_ROWS:
         return {"collected": False, "reason": "full"}        # don't grow unbounded
-    keep = data if _can_keep(len(data)) else None
-    db.add(PdfUpload(sha256=sha, filename=(file.filename or "")[:200], size=len(data),
+    keep = bytes(buf) if (keeping and _budget_ok(size)) else None
+    db.add(PdfUpload(sha256=sha, filename=(file.filename or "")[:200], size=size,
                      email=(user.email if user else None), data=keep))
     db.commit()
     return {"collected": True, "stored_bytes": keep is not None}

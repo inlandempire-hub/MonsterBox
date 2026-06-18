@@ -37,7 +37,9 @@ class Settings(BaseSettings):
     # BETA-ONLY: auto-collect PDFs that signed-in testers import, for parser testing.
     # Set false (or remove) when leaving beta. Bytes only stored up to the cap (MB).
     beta_collect_pdfs: bool = True
-    beta_pdf_max_mb: int = 250       # per-file cap (bigger files: metadata only)
+    # Per-file cap kept modest: the file is held in RAM while it's stored, and the
+    # free tier only has 512MB (250MB OOM'd it). Bigger books record metadata only.
+    beta_pdf_max_mb: int = 40
     beta_pdf_total_mb: int = 450     # total stored-bytes budget; over this = metadata only
 
     @property
