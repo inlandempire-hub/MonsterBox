@@ -409,8 +409,13 @@
   /* sheet — styled like a stat block / character sheet */
   .sheet h2.title { font: 700 26px/1.1 var(--serif); color: var(--red);
         text-transform: uppercase; letter-spacing: 0; margin: 0; }
-  .sheet .meta { color: var(--dim); font-style: italic; margin: 2px 0 10px;
+  .sheet .meta { color: var(--dim); font-style: italic; margin: 2px 0 4px; }
+  /* the red divider normally sits under .meta; when a source caption follows,
+     move it under the caption instead so both stay above the rule */
+  .sheet .meta:not(:has(+ .srcbook)) { margin-bottom: 10px;
         border-bottom: 2px solid var(--red); padding-bottom: 10px; }
+  .sheet .srcbook { color: var(--dim); font-size: 11px; letter-spacing: .02em;
+        margin: 0 0 10px; border-bottom: 2px solid var(--red); padding-bottom: 10px; }
   .defenses { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
   .defenses .d { background: var(--panel); border: 1px solid var(--line2);
         border-radius: 7px; padding: 6px 14px; text-align: center; min-width: 84px; }
@@ -1332,7 +1337,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v117</div>
+    <div class="appver" id="appver">v118</div>
   </div>
 </div>
 </div><!-- /#app -->
@@ -1698,6 +1703,7 @@ async function loadLibrary() {
     if (q && !(m.name||"").toLowerCase().includes(q)
           && !(m.creature_type||"").toLowerCase().includes(q)) return false;
     if (adv.cr && (m.challenge_rating || "?") !== adv.cr) return false;
+    if (adv.source && (m.source || "") !== adv.source) return false;
     if (adv.type && baseType(m.creature_type) !== adv.type) return false;
     if (adv.size && (m.size||"") !== adv.size) return false;
     if (adv.acMin != null && (m.armor_class ?? 0) < adv.acMin) return false;
@@ -1827,7 +1833,7 @@ const ABIL6 = [["STR","strength"],["DEX","dexterity"],["CON","constitution"],["I
 // positions 0-1000 (the source of truth for the UI). The sliders are mapped
 // through the value distribution, so position is a percentile of monster count,
 // not a linear value — moving a handle halfway covers ~half the monsters.
-const ADV_DEFAULT = () => ({ cr:"", type:"", size:"",
+const ADV_DEFAULT = () => ({ cr:"", type:"", size:"", source:"",
   acMin:null, acMax:null, hpMin:null, hpMax:null,
   acMinPos:0, acMaxPos:1000, hpMinPos:0, hpMaxPos:1000,
   abil:{ strength:null, dexterity:null, constitution:null, intelligence:null, wisdom:null, charisma:null },
@@ -1888,6 +1894,8 @@ function populateFilterPanel(mons) {
   const opts = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(o)}</option>`).join("");
   const optsCap = (arr, sel) => '<option value="">Any</option>' + arr.map(o => `<option value="${esc(o)}" ${o===sel?"selected":""}>${esc(capWords(o))}</option>`).join("");
   const crs = [...new Set(mons.map(m => m.challenge_rating || "?"))].sort((a,b)=>crValue(a)-crValue(b));
+  // source-book list: raw filename is the value, tidied name is the label
+  const sources = [...new Set(mons.map(m => m.source).filter(Boolean))].sort((a,b)=>sourceName(a).localeCompare(sourceName(b)));
   const types = [...new Set(mons.map(m => baseType(m.creature_type)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const sizes = [...new Set(mons.map(m => m.size).filter(Boolean))].sort((a,b)=>SIZE_ORDER.indexOf(a)-SIZE_ORDER.indexOf(b));
   const acs = mons.map(m => m.armor_class).filter(v => v != null); const hps = mons.map(m => m.hit_points).filter(v => v != null);
@@ -1909,6 +1917,8 @@ function populateFilterPanel(mons) {
       <input type="range" id="f_${key}min" min="0" max="1000" value="${mnPos}" oninput="onAdvFilter()">
       <input type="range" id="f_${key}max" min="0" max="1000" value="${mxPos}" oninput="onAdvFilter()"></div>`;
   el.innerHTML = `
+    ${sources.length ? `<div class="frow"><label>Source Book</label><select id="f_source" onchange="onAdvFilter()">${
+      '<option value="">All books</option>' + sources.map(s=>`<option value="${esc(s)}" ${s===adv.source?"selected":""}>${esc(sourceName(s))}</option>`).join("")}</select></div>` : ""}
     <div class="frow"><label>Challenge Rating</label><select id="f_cr" onchange="onAdvFilter()">${
       '<option value="">Any CR</option>' + crs.map(c=>`<option value="${esc(c)}" ${c===adv.cr?"selected":""}>CR ${esc(c)}</option>`).join("")}</select></div>
     <div class="frow"><label>Creature Type</label><select id="f_type" onchange="onAdvFilter()">${opts(types, adv.type)}</select></div>
@@ -1939,6 +1949,7 @@ function updateRangeLabels() {
 }
 function onAdvFilter() {
   adv.cr = $("f_cr").value; adv.type = $("f_type").value; adv.size = $("f_size").value;
+  { const fs = $("f_source"); adv.source = fs ? fs.value : ""; }
   let acMin = +$("f_acmin").value, acMax = +$("f_acmax").value; if (acMin > acMax) { const t = acMin; acMin = acMax; acMax = t; }
   let hpMin = +$("f_hpmin").value, hpMax = +$("f_hpmax").value; if (hpMin > hpMax) { const t = hpMin; hpMin = hpMax; hpMax = t; }
   // sliders are in position space (0-1000); map each handle to its distribution value
@@ -1982,6 +1993,13 @@ function capWords(s){
     (i>0 && _SMALLWORDS.has(w.toLowerCase())) ? w.toLowerCase()
       : (w.charAt(0).toUpperCase() + w.slice(1))
   ).join(" ");
+}
+
+// Tidy a stored source filename for display: drop the .pdf extension and turn
+// the "_"/"+" separators many uploads use back into spaces. ("Crooked Moon.pdf"
+// -> "Crooked Moon", "Tome+of+Beasts+3.pdf" -> "Tome of Beasts 3").
+function sourceName(s){
+  return String(s||"").replace(/\.pdf$/i, "").replace(/[_+]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function entryHtml(a, sid) {
@@ -2120,6 +2138,7 @@ async function showSheet(id, opts = {}) {
         </div>
       </div>
       <div class="meta">${esc(sb.size||"")} ${esc(sb.creature_type||"")}${sb.alignment?", "+esc(sb.alignment):""}</div>
+      ${sb.source ? `<div class="srcbook" title="Imported from ${escAttr(sb.source)}">Source: ${esc(sourceName(sb.source))}</div>` : ""}
       ${(sb.parse_warnings && sb.parse_warnings.length) ? `<div class="reviewbanner">
         <div class="rb-txt"><b>Needs review:</b> ${sb.parse_warnings.map(esc).join(" · ")}. The PDF didn't give a clear value here. Fix it in a couple of clicks.</div>
         <button class="btn" onclick="startEdit()">Fix</button>

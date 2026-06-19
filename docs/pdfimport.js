@@ -283,7 +283,12 @@
   const HEADER_TO_CAT = { ACTIONS: "action", ACTION: "action", "BONUS ACTIONS": "bonus_action", "BONUS ACTION": "bonus_action", REACTIONS: "reaction", REACTION: "reaction", "LEGENDARY ACTIONS": "legendary", "LEGENDARY ACTION": "legendary" };
 
   // ===================================================================== helpers
-  const titleCase = (s) => String(s || "").toLowerCase().replace(/\b[a-z]/g, c => c.toUpperCase());
+  // Title-case but keep connector words lowercase mid-string, so a type like
+  // "swarm of tiny fey" reads "Swarm of Tiny Fey" (not "Swarm Of Tiny Fey").
+  const TITLE_SMALL = new Set(["of", "the", "and", "a", "an", "to", "in", "or", "with"]);
+  const titleCase = (s) => String(s || "").toLowerCase().split(/\s+/)
+    .map((w, i) => (i > 0 && TITLE_SMALL.has(w)) ? w : w.replace(/^[a-z]/, c => c.toUpperCase()))
+    .join(" ");
   const isUpper = (c) => c >= "A" && c <= "Z";
   const stripEdge = (s, chars) => { let i = 0, j = s.length; while (i < j && chars.includes(s[i])) i++; while (j > i && chars.includes(s[j - 1])) j--; return s.slice(i, j); };
   // Bold text is faked in some PDFs by drawing the glyphs twice with a tiny offset,
@@ -609,6 +614,49 @@
     return out;
   }
 
+  // Some books (e.g. Crooked Moon) interleave a flavour SIDEBAR into the stat
+  // block via column ordering: a repeated all-caps NAME heading, a subtitle, a
+  // "Habitat:/Treasure:" line, a prose paragraph, and a "Secret." flavour note —
+  // sometimes BETWEEN the real entries, and the next creature's heading + lore can
+  // trail in too. Excise each such region in place: it starts at a name-style
+  // heading or Habitat/Treasure line and runs through the flavour until genuine
+  // stat-block content (a real entry or a stat line) resumes. Unlike a blunt
+  // trailing cut, this keeps the real entries that follow embedded lore.
+  const LORE_LABELS = new Set(["secret"]);   // recurring flavour label, never a real trait
+  const loreEntryName = (raw) => (raw.match(RE_ENTRY_LINE) || [,""])[1]
+    .replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
+  function isNameHeading(raw) {
+    if (!raw || raw !== raw.toUpperCase() || !/[A-Z]/.test(raw)) return false;   // all-caps only
+    if (raw.length < 4 || raw.length > 40) return false;
+    if (!/^[A-Z][A-Z0-9.'’\-]*(?:\s+[A-Z0-9.'’\-]+){0,4}$/.test(raw)) return false;  // <=5 short words
+    if (isStatLine(raw)) return false;          // not a section header / ability row / field
+    return true;
+  }
+  const isLoreStart = (raw) => isNameHeading(raw) || /\b(?:HABITAT|TREASURE)\s*:/i.test(raw);
+  function stripLoreRegions(text) {
+    const bl = text.split("\n");
+    const out = [];
+    for (let i = 0; i < bl.length; i++) {
+      const raw = bl[i].trim();
+      // never touch the stat header (name/meta/AC/abilities); lore sidebars only
+      // appear once entries have started, so begin looking a few lines in.
+      if (i >= 4 && isLoreStart(raw)) {
+        let j = i + 1;
+        for (; j < bl.length; j++) {
+          const r = bl[j].trim();
+          if (!r || isLoreStart(r)) continue;                 // blank / another lore heading -> still lore
+          if (RE_ENTRY_LINE.test(r)) { if (LORE_LABELS.has(loreEntryName(r))) continue; break; }
+          if (isStatLine(r)) break;                           // a real field / attack / save resumes
+          // otherwise prose (subtitle, flavour paragraph) -> still lore
+        }
+        i = j - 1;   // skip the excised region (the for-loop ++ lands on j)
+        continue;
+      }
+      out.push(bl[i]);
+    }
+    return out.join("\n");
+  }
+
   // ============================================================ split into blocks
   function splitIntoBlocks(pageText, fonts, titleFonts) {
     const lines = pageText.split("\n");
@@ -758,52 +806,31 @@
     if ((m = RE_SKILLS.exec(text))) sb.skills = parseBonuses(m[1]);
     if ((m = RE_SENSES.exec(text))) sb.senses = parseSenses(m[1]);
     if ((m = RE_PASSIVE.exec(text))) sb.passive_perception = +m[1];
-    if ((m = RE_LANGS.exec(text))) sb.languages = parseList(m[1]);
+    if ((m = RE_LANGS.exec(text))) {
+      // A narrow column can wrap the Languages value onto the next line(s)
+      // ("...but can't\nspeak"). Stitch a continuation back on; stop at a blank
+      // line, the next stat field, or a capitalised word that isn't continuing a
+      // comma-separated list (so we don't swallow the following field).
+      let langs = m[1];
+      const after = text.slice(m.index + m[0].length).split("\n");
+      for (let li = 1; li < after.length; li++) {
+        const ln = after[li].trim();
+        if (!ln || isStatLine(ln) || RE_CHALLENGE.test(ln)) break;
+        if (/^[A-Z]/.test(ln) && !/[,;]\s*$/.test(langs)) break;
+        langs += " " + ln;
+        if (/[.;]$/.test(ln)) break;
+      }
+      sb.languages = parseList(langs);
+    }
     let dm; RE_DMG.lastIndex = 0;
     while ((dm = RE_DMG.exec(text))) { const lst = parseList(dm[2]); const k = dm[1].toLowerCase(); if (k === "vulnerabilities") sb.damage_vulnerabilities = lst; else if (k === "resistances") sb.damage_resistances = lst; else if (k === "immunities") sb.damage_immunities = lst; }
     if ((m = RE_COND.exec(text))) sb.condition_immunities = parseList(m[1]);
 
-    // Trim a trailing lore sidebar (after the stat fields are read above, before
-    // entries are parsed below). Many books follow the stat block with flavour that
-    // repeats the creature's NAME as a heading and/or starts with "Habitat:/
-    // Treasure:", which otherwise bleeds into Actions and pulls in the next creature.
-    {
-      const bl = text.split("\n");
-      const nameUp = (sb.name || "").toUpperCase().trim();
-      let cut = -1;
-      for (let i = 4; i < bl.length; i++) {
-        const raw = bl[i].trim();
-        if (!raw) continue;
-        const lu = raw.toUpperCase();
-        // A repeated-name lore HEADING is rendered in the same all-caps style as the
-        // creature's title — so require the line to actually be all-caps. Without this,
-        // a wrapped body line that happens to start with the creature's own name
-        // (e.g. "fleshdobbin has the Charmed condition...") looks like a heading once
-        // upper-cased and would wrongly trigger a cut through the real stat block.
-        const isHeading = raw === lu && /[A-Z]/.test(raw);
-        const repeatedName = isHeading && nameUp.length >= 4 && (lu === nameUp || lu.startsWith(nameUp + " "));
-        if (repeatedName || /\b(HABITAT|TREASURE)\s*:/.test(lu)) { cut = i; break; }
-      }
-      // Only trim when the region being removed is PURELY lore. Some books (e.g.
-      // Crooked Moon's Hospital Horror) embed the flavour block BETWEEN the stat
-      // header and the actions — cutting there would delete real Multiattack/attack
-      // entries. If any mechanical content follows the cut, the lore isn't trailing,
-      // so leave the block intact rather than destroy it.
-      const RE_MECH = /\bMultiattack\b|\b(?:Melee|Ranged)\s+(?:Weapon\s+|Spell\s+)?Attack(?:\s+Roll)?[.:]|\(Recharge\b|^\s*(?:Bonus Actions?|Reactions?|Legendary Actions?)\s*$/im;
-      if (cut >= 0 && !RE_MECH.test(bl.slice(cut).join("\n"))) {
-        // Back up over the lore HEADING that precedes the cut — the creature name,
-        // its subtitle, and a "(...)" parenthetical. Those never end in a sentence
-        // period, whereas the last real entry description does — so stop at the first
-        // line ending in . ! ? (don't use isStatLine here: a "Subtitle. (paren)" line
-        // looks like an entry start and would stop us one line too early).
-        while (cut > 0) {
-          const p = bl[cut - 1].trim();
-          if (p && !/[.!?]$/.test(p)) cut--;
-          else break;
-        }
-        text = bl.slice(0, cut).join("\n");
-      }
-    }
+    // Excise interleaved/trailing lore sidebars (repeated NAME heading, subtitle,
+    // Habitat/Treasure, flavour prose, "Secret." note, and any next-creature lore
+    // that trailed in). Done after the stat fields are read above, before entries
+    // are parsed below.
+    text = stripLoreRegions(text);
 
     const { traitsText, sections } = splitSections(text);
     sb.traits = parseEntries(traitsText, "trait", ocr);

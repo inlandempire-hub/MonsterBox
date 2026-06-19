@@ -124,6 +124,7 @@
       id: sb.id, name: sb.name, challenge_rating: sb.challenge_rating,
       armor_class: sb.armor_class, hit_points: sb.hit_points,
       creature_type: sb.creature_type, size: sb.size,
+      source: sb.source || null,
       abilities: sb.abilities || null,
       damage_resistances: sb.damage_resistances || [], damage_immunities: sb.damage_immunities || [],
       condition_immunities: sb.condition_immunities || [],
