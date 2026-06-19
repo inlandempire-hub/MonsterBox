@@ -108,6 +108,15 @@
     const L = words.filter(w => (w.x0 + w.x1) / 2 < bestX);
     const R = words.filter(w => (w.x0 + w.x1) / 2 >= bestX);
     if (L.length / words.length < 0.12 || R.length / words.length < 0.12) return [linesFromWords(words)];
+    // Guard against a FALSE gutter running through a full-width ability TABLE. The
+    // 2024 / D&D Beyond stat block lays abilities out as Score | Mod | Save columns;
+    // the gap between Score and Mod mimics a page gutter, which would scatter the
+    // table (scores left, modifiers right) and lose the ability scores. A real
+    // second column is prose; an ability table's right side is almost entirely
+    // numbers (+3, −2) plus the "Mod"/"Save" headers — so if the right side is
+    // mostly numeric, keep ONE column and let the rows stay intact ("Str 16 +3 +3").
+    const numish = R.filter(w => /^[+\-−]?\d+$/.test(w.text) || /^(Mod|Save)$/.test(w.text)).length;
+    if (numish / R.length > 0.5) return [linesFromWords(words)];
     return [linesFromWords(L), linesFromWords(R)];
   }
 
@@ -900,6 +909,11 @@
     if (RE_SECTION_LINE.test(s)) return true;
     const toks = s.toUpperCase().split(/\s+/);
     if (toks.filter(t => ["STR", "DEX", "CON", "INT", "WIS", "CHA"].includes(t)).length >= 3) return true;
+    // A single 2024 ability row ("Str 16 +3 +3", "Dex 14 +2 +2"). These repeat
+    // identically across creatures (Dex 14 is extremely common), so without this
+    // they hit the chrome threshold and get stripped — wiping the ability scores
+    // from every D&D Beyond / 2024-layout stat block.
+    if (/^(?:str|dex|con|int|wis|cha)\b\s*\d/i.test(s.replace(/^[•▪◦·*\-\s]+/, ""))) return true;
     // de-bullet before matching: Fateforge prints fields as "• Armor Class 12",
     // and identical short field lines repeat across its many small creatures —
     // without this they get classified as page chrome and stripped (losing the
