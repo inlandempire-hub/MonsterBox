@@ -772,12 +772,25 @@
       const nameUp = (sb.name || "").toUpperCase().trim();
       let cut = -1;
       for (let i = 4; i < bl.length; i++) {
-        const lu = bl[i].trim().toUpperCase();
-        if (!lu) continue;
-        const repeatedName = nameUp.length >= 4 && (lu === nameUp || lu.startsWith(nameUp + " "));
+        const raw = bl[i].trim();
+        if (!raw) continue;
+        const lu = raw.toUpperCase();
+        // A repeated-name lore HEADING is rendered in the same all-caps style as the
+        // creature's title — so require the line to actually be all-caps. Without this,
+        // a wrapped body line that happens to start with the creature's own name
+        // (e.g. "fleshdobbin has the Charmed condition...") looks like a heading once
+        // upper-cased and would wrongly trigger a cut through the real stat block.
+        const isHeading = raw === lu && /[A-Z]/.test(raw);
+        const repeatedName = isHeading && nameUp.length >= 4 && (lu === nameUp || lu.startsWith(nameUp + " "));
         if (repeatedName || /\b(HABITAT|TREASURE)\s*:/.test(lu)) { cut = i; break; }
       }
-      if (cut >= 0) {
+      // Only trim when the region being removed is PURELY lore. Some books (e.g.
+      // Crooked Moon's Hospital Horror) embed the flavour block BETWEEN the stat
+      // header and the actions — cutting there would delete real Multiattack/attack
+      // entries. If any mechanical content follows the cut, the lore isn't trailing,
+      // so leave the block intact rather than destroy it.
+      const RE_MECH = /\bMultiattack\b|\b(?:Melee|Ranged)\s+(?:Weapon\s+|Spell\s+)?Attack(?:\s+Roll)?[.:]|\(Recharge\b|^\s*(?:Bonus Actions?|Reactions?|Legendary Actions?)\s*$/im;
+      if (cut >= 0 && !RE_MECH.test(bl.slice(cut).join("\n"))) {
         // Back up over the lore HEADING that precedes the cut — the creature name,
         // its subtitle, and a "(...)" parenthetical. Those never end in a sentence
         // period, whereas the last real entry description does — so stop at the first
