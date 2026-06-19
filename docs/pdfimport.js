@@ -314,12 +314,15 @@
     return parseAbilities2024(text);
   }
   // 2024 SRD ability TABLE: "Str 15 +2 +4 Dex 16 +3 +5 Con 14 +2 +2" over two rows.
-  // pdf.js often splits the first letter ("S tr", "W IS"), so allow inner spaces.
+  // pdf.js often splits a letter off the abbreviation ("S tr", "Wi S", "W is"), so
+  // allow a space between ANY of its letters (e.g. Crooked Moon prints "WiS" which
+  // extracts as "Wi S"). The trailing \b keeps these from matching inside words
+  // like Strength / Wisdom / Charisma.
   function parseAbilities2024(text) {
     const norm = text
-      .replace(/\bS[ \t]*tr\b/gi, "Str").replace(/\bD[ \t]*ex\b/gi, "Dex")
-      .replace(/\bC[ \t]*on\b/gi, "Con").replace(/\bI[ \t]*nt\b/gi, "Int")
-      .replace(/\bW[ \t]*is\b/gi, "Wis").replace(/\bC[ \t]*ha\b/gi, "Cha");
+      .replace(/\bS[ \t]*t[ \t]*r\b/gi, "Str").replace(/\bD[ \t]*e[ \t]*x\b/gi, "Dex")
+      .replace(/\bC[ \t]*o[ \t]*n\b/gi, "Con").replace(/\bI[ \t]*n[ \t]*t\b/gi, "Int")
+      .replace(/\bW[ \t]*i[ \t]*s\b/gi, "Wis").replace(/\bC[ \t]*h[ \t]*a\b/gi, "Cha");
     // mod + save follow the score; pdf.js sometimes drops a +/− sign, so keep them optional
     const re = /\b(Str|Dex|Con|Int|Wis|Cha)\b\s+(\d{1,2})\s+[+\-−]?\d+\s+[+\-−]?\d+/gi;
     const out = {}; let m;
