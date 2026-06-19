@@ -9,6 +9,7 @@ small DB-bytes path (RAM-capped). Metadata is always recorded either way.
 To retire after beta: set BETA_COLLECT_PDFS=false (or delete this router + the
 frontend hook + drop the pdf_uploads table + the storage bucket)."""
 import hashlib
+import io
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import delete, func, or_, select
@@ -110,6 +111,40 @@ async def collect_pdf(
                      storage_path=(val if kind == "storage" else None)))
     db.commit()
     return {"collected": True, "stored": kind is not None, "where": kind or "none"}
+
+
+@router.get("/storage-diag")
+def storage_diag(_admin: User = Depends(require_admin)):
+    """Admin-only: report Supabase Storage config and run a tiny upload/sign/delete,
+    surfacing the exact error so storage can be diagnosed (mirrors /api/report/diag)."""
+    info = {
+        "storage_ready": settings.storage_ready,
+        "bucket": settings.beta_storage_bucket,
+        "base": settings.supabase_base or "(unset)",
+        "service_key_set": bool(settings.supabase_service_key),
+    }
+    if not settings.storage_ready:
+        info["result"] = "storage not configured (need SUPABASE_SERVICE_KEY + SUPABASE_URL)"
+        return info
+    data = b"%PDF-1.4 storage diag\n"
+    path = "_diag/storage_test.pdf"
+    try:
+        storage.upload(path, io.BytesIO(data), len(data))
+        info["upload"] = "ok"
+    except Exception as e:
+        info["upload"] = f"{type(e).__name__}: {e}"
+        return info
+    try:
+        info["signed_url_ok"] = bool(storage.signed_url(path))
+    except Exception as e:
+        info["signed_url"] = f"{type(e).__name__}: {e}"
+    try:
+        storage.delete(path)
+        info["delete"] = "ok"
+    except Exception as e:
+        info["delete"] = f"{type(e).__name__}: {e}"
+    info["result"] = "ok"
+    return info
 
 
 @router.get("/pdfs")
