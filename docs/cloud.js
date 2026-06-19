@@ -283,8 +283,9 @@
       return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(b.filename || "(unnamed)") +
         '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' +
         esc(b.email || "(unknown)") + " · " + b.size_mb + " MB</div>" +
-        (b.has_file ? '<button class="btn rep-shotbtn" onclick="cloudDownloadBook(' + b.id + ', this)">Download</button>'
-                    : '<span class="rep-when">too large to store — ask the tester</span>') + "</div>";
+        (b.has_file ? '<button class="btn rep-shotbtn" onclick="cloudDownloadBook(' + b.id + ', this)">Download</button> '
+                    : '<span class="rep-when">too large to store — ask the tester</span> ') +
+        '<button class="btn rep-shotbtn" onclick="cloudDeleteBook(' + b.id + ', this)">Delete</button>' + "</div>";
     }).join("");
   }
   async function downloadBook(id, btn) {
@@ -292,14 +293,18 @@
     try {
       const r = await directFetch(API_BASE + "/api/beta/pdfs/" + id + "/download", { headers: { Authorization: "Bearer " + session.access_token } });
       if (!r.ok) throw new Error();
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement("a"); a.href = url; a.download = "book.pdf"; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      // Once downloaded, offer to delete it from the server to free space.
-      const del = document.createElement("button");
-      del.className = "btn rep-shotbtn"; del.textContent = "Delete from server";
-      del.onclick = function () { cloudDeleteBook(id, del); };
-      btn.parentNode.replaceChild(del, btn);
+      const ct = r.headers.get("content-type") || "";
+      if (ct.includes("application/json")) {
+        // Supabase-storage path: a short-lived signed URL — download straight from Supabase.
+        const { url } = await r.json();
+        if (url) window.open(url, "_blank");
+      } else {
+        // Legacy DB-stored bytes.
+        const blobUrl = URL.createObjectURL(await r.blob());
+        const a = document.createElement("a"); a.href = blobUrl; a.download = "book.pdf"; a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+      }
+      btn.disabled = false; btn.textContent = "Download";
     } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
   }
   async function deleteBook(id, btn) {

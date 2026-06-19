@@ -83,7 +83,8 @@ class PdfUpload(Base):
     filename: Mapped[str] = mapped_column(String, default="")
     size: Mapped[int] = mapped_column(default=0)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
-    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)   # null if over the size cap
+    data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)   # DB-stored bytes (fallback path)
+    storage_path: Mapped[str | None] = mapped_column(String, nullable=True)  # Supabase Storage object path (preferred)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

@@ -34,6 +34,13 @@ def ensure_schema() -> None:
             if "screenshot_mime" not in rcols:
                 conn.execute(text("ALTER TABLE reports ADD COLUMN screenshot_mime VARCHAR"))
 
+    # pdf_uploads gained a Supabase Storage path (object storage instead of DB bytes)
+    if "pdf_uploads" in tables:
+        pcols = {c["name"] for c in insp.get_columns("pdf_uploads")}
+        if "storage_path" not in pcols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE pdf_uploads ADD COLUMN storage_path VARCHAR"))
+
 
 def _backfill_public_ids() -> None:
     db = SessionLocal()

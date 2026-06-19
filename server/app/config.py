@@ -37,14 +37,43 @@ class Settings(BaseSettings):
     # BETA-ONLY: auto-collect PDFs that signed-in testers import, for parser testing.
     # Set false (or remove) when leaving beta. Bytes only stored up to the cap (MB).
     beta_collect_pdfs: bool = True
-    # Per-file cap kept modest: the file is held in RAM while it's stored, and the
-    # free tier only has 512MB (250MB OOM'd it). Bigger books record metadata only.
+    # DB-storage fallback (used only when Supabase Storage isn't configured). Per-file
+    # cap kept modest: the file is held in RAM while it's stored, and the free tier
+    # only has 512MB (250MB OOM'd it). Bigger books record metadata only.
     beta_pdf_max_mb: int = 40
-    beta_pdf_total_mb: int = 450     # total stored-bytes budget; over this = metadata only
+    beta_pdf_total_mb: int = 450     # total DB stored-bytes budget; over this = metadata only
+
+    # PREFERRED storage: Supabase Storage (object storage). When the service key is
+    # set, collected PDFs are streamed there instead of into the DB — large files
+    # work without using the app's RAM, and downloads are signed URLs served direct
+    # from Supabase. service_role key: Supabase Dashboard -> Settings -> API.
+    supabase_service_key: str = ""
+    beta_storage_bucket: str = "beta-pdfs"
+    beta_storage_max_mb: int = 300       # per-file cap on the storage path
+    beta_storage_total_mb: int = 900     # total budget (Supabase free Storage ~1GB)
 
     @property
     def cors_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def supabase_base(self) -> str:
+        """Project base URL (https://<ref>.supabase.co): explicit, else derived from
+        the Postgres DATABASE_URL (username 'postgres.<ref>')."""
+        if self.supabase_url:
+            return self.supabase_url.rstrip("/")
+        try:
+            from sqlalchemy.engine import make_url
+            user = make_url(self.database_url).username or ""
+            if user.startswith("postgres."):
+                return f"https://{user.split('.', 1)[1]}.supabase.co"
+        except Exception:
+            pass
+        return ""
+
+    @property
+    def storage_ready(self) -> bool:
+        return bool(self.supabase_service_key and self.supabase_base)
 
     @property
     def smtp_ready(self) -> bool:
