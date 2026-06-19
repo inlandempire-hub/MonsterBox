@@ -678,7 +678,13 @@
     // hyphen + SPACE mid-line ("30-foot- radius", "pre- defined"): the source
     // text broke a compound after its hyphen — rejoin keeping the hyphen, but
     // leave suspended hyphens alone ("one- or two-handed").
-    return text.replace(/([A-Za-z])- (?!(?:and|or|nor|to)\b)([a-z][A-Za-z]*)/g, "$1-$2");
+    text = text.replace(/([A-Za-z])- (?!(?:and|or|nor|to)\b)([a-z][A-Za-z]*)/g, "$1-$2");
+    // Some books (Crooked Moon) split the trailing small-cap 's' off section
+    // headers, so pdf.js extracts "Bonu S Action S" / "Reaction S". Rejoin so the
+    // section detector sees real "Bonus Actions" / "Reactions" / "Actions" headers.
+    return text.replace(/\bBonu[ \t]+S\b/g, "Bonus")
+               .replace(/\bReaction[ \t]+S\b/g, "Reactions")
+               .replace(/\bAction[ \t]+S\b/g, "Actions");
   }
 
   function parseText(text, sourcePage, source, ocr) {
@@ -756,6 +762,35 @@
     let dm; RE_DMG.lastIndex = 0;
     while ((dm = RE_DMG.exec(text))) { const lst = parseList(dm[2]); const k = dm[1].toLowerCase(); if (k === "vulnerabilities") sb.damage_vulnerabilities = lst; else if (k === "resistances") sb.damage_resistances = lst; else if (k === "immunities") sb.damage_immunities = lst; }
     if ((m = RE_COND.exec(text))) sb.condition_immunities = parseList(m[1]);
+
+    // Trim a trailing lore sidebar (after the stat fields are read above, before
+    // entries are parsed below). Many books follow the stat block with flavour that
+    // repeats the creature's NAME as a heading and/or starts with "Habitat:/
+    // Treasure:", which otherwise bleeds into Actions and pulls in the next creature.
+    {
+      const bl = text.split("\n");
+      const nameUp = (sb.name || "").toUpperCase().trim();
+      let cut = -1;
+      for (let i = 4; i < bl.length; i++) {
+        const lu = bl[i].trim().toUpperCase();
+        if (!lu) continue;
+        const repeatedName = nameUp.length >= 4 && (lu === nameUp || lu.startsWith(nameUp + " "));
+        if (repeatedName || /\b(HABITAT|TREASURE)\s*:/.test(lu)) { cut = i; break; }
+      }
+      if (cut >= 0) {
+        // Back up over the lore HEADING that precedes the cut — the creature name,
+        // its subtitle, and a "(...)" parenthetical. Those never end in a sentence
+        // period, whereas the last real entry description does — so stop at the first
+        // line ending in . ! ? (don't use isStatLine here: a "Subtitle. (paren)" line
+        // looks like an entry start and would stop us one line too early).
+        while (cut > 0) {
+          const p = bl[cut - 1].trim();
+          if (p && !/[.!?]$/.test(p)) cut--;
+          else break;
+        }
+        text = bl.slice(0, cut).join("\n");
+      }
+    }
 
     const { traitsText, sections } = splitSections(text);
     sb.traits = parseEntries(traitsText, "trait", ocr);
