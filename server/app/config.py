@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # work without using the app's RAM, and downloads are signed URLs served direct
     # from Supabase. service_role key: Supabase Dashboard -> Settings -> API.
     supabase_service_key: str = ""
-    beta_storage_bucket: str = "beta-pdfs"
+    beta_storage_bucket: str = "beta_pdfs"   # matches the bucket created in Supabase
     beta_storage_max_mb: int = 300       # per-file cap on the storage path
     beta_storage_total_mb: int = 900     # total budget (Supabase free Storage ~1GB)
 
