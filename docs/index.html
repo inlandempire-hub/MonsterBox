@@ -56,9 +56,16 @@
   body.mode-fading *::before,
   body.mode-fading *::after {
     transition: color var(--fade) ease, background-color var(--fade) ease,
-      border-color var(--fade) ease, box-shadow var(--fade) ease, fill var(--fade) ease,
+      border-color var(--fade) ease, fill var(--fade) ease,
       text-shadow var(--fade) ease !important;   /* title accents: teal <-> green */
   }
+  /* PERF: the compendium can hold hundreds of rows. Crossfading every one of
+     them (and their children) over the glass panels forces a full re-blur each
+     frame for the whole fade — the one thing that made the toggle lag. Their
+     colour shift is invisible behind the search field, so snap them instantly
+     and let only the chrome + wallpaper crossfade. */
+  body.mode-fading #monlist,
+  body.mode-fading #monlist * { transition: none !important; }
   /* the universal rule above omits `opacity` (interpolating it on the glass
      panels caused repaint flicker) — but the wallpaper crossfade IS an opacity
      fade, so restore it specifically for the two wallpaper layers. */
@@ -1340,7 +1347,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v120</div>
+    <div class="appver" id="appver">v121</div>
   </div>
 </div>
 </div><!-- /#app -->
