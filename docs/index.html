@@ -768,9 +768,16 @@
   /* signed-in: a calm status label (still clickable for the account panel) */
   .signin-btn.signed { background: var(--panel); color: var(--ink); }
   .signin-btn.signed:hover { border-color: var(--red); }
-  /* tiny build/version indicator under the account button */
-  .appver { text-align: center; font: 500 9px/1 system-ui, "Segoe UI", sans-serif;
-        color: var(--dim); opacity: .6; margin-top: 3px; letter-spacing: .3px; user-select: text; }
+  /* build/version indicator: overlaid on the right edge of the sign-in button.
+     The button's label is re-rendered (innerHTML) on auth changes, so the version
+     lives as a SIBLING inside a wrapper, not a child of the button. */
+  .signin-wrap { position: relative; flex-shrink: 0; }
+  .signin-wrap > .signin-btn { padding: 0 46px; }   /* clear the version on the right; symmetric so the label stays centred */
+  .appver { position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+        font: 600 9px/1 system-ui, "Segoe UI", sans-serif; letter-spacing: .3px;
+        pointer-events: none; user-select: text; color: #45433f; }   /* darker grey (signed-in panel bg) */
+  body.dark .appver { color: #8a857c; }                              /* lighter grey to read on the dark panel */
+  .signin-wrap:has(.signin-btn.primary) > .appver { color: rgba(255,255,255,.72); }  /* readable on the red Sign In state */
 
   /* auth modal */
   .auth-box { max-width: 360px; text-align: center; }
@@ -1445,8 +1452,10 @@
       </div>
       <div id="log" class="log-scroll"></div>
     </div>
-    <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v129</div>
+    <div class="signin-wrap">
+      <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
+      <span class="appver" id="appver">v130</span>
+    </div>
   </div>
 </div>
 </div><!-- /#app -->
