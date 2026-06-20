@@ -121,7 +121,7 @@
      left panels and the two right panels, and the gaps between columns. */
   .layout {
     display: grid;
-    grid-template-columns: 250px 1fr 340px;
+    grid-template-columns: 250px 1fr 250px;   /* left + right equal so the centre panel is truly centred */
     grid-template-rows: 1fr;             /* panels fill the full height (title overlays) */
     gap: var(--gap);
     padding: var(--gap);
@@ -1222,6 +1222,76 @@
   <div class="bgmark-logo"></div>
   <div class="bgmark-word">MonsterBox</div>
 </div>
+<!-- ===== TEMP PLACEMENT TEST HARNESS (remove this whole block when locked in) =====
+     Add ?bgedit to the URL to enable. Drag the logo / wordmark to move them; mouse
+     wheel over each to resize (logo = width, text = font size). A green readout shows
+     each item's size, top-left pixel position, and offset from the viewport centre. -->
+<script>
+(function(){
+  if (!/bgedit/.test(location.search + location.hash)) return;
+  function init(){
+    var mark = document.getElementById('bgmark'); if (!mark) return;
+    mark.style.display = 'block';
+    var items = [
+      { el: mark.querySelector('.bgmark-logo'), name: 'LOGO', kind: 'logo' },
+      { el: mark.querySelector('.bgmark-word'), name: 'TEXT', kind: 'text' }
+    ];
+    var panel = document.createElement('div');
+    panel.style.cssText = 'position:fixed;top:8px;left:8px;z-index:100000;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 monospace;padding:8px 11px;border:1px solid #3f6;border-radius:6px;white-space:pre;pointer-events:none;';
+    document.body.appendChild(panel);
+    items.forEach(function(it){
+      var r = it.el.getBoundingClientRect();
+      it.el.style.position = 'fixed';
+      it.el.style.left = r.left + 'px';
+      it.el.style.top  = r.top + 'px';
+      it.el.style.margin = '0';
+      it.el.style.zIndex = '9990';          /* above panels, below the boot cover */
+      it.el.style.pointerEvents = 'auto';
+      it.el.style.cursor = 'move';
+      it.tag = document.createElement('div');
+      it.tag.style.cssText = 'position:fixed;z-index:100000;background:#3f6;color:#000;font:700 11px/1.3 monospace;padding:2px 5px;border-radius:4px;pointer-events:none;white-space:nowrap;';
+      document.body.appendChild(it.tag);
+      it.el.addEventListener('mousedown', function(e){
+        e.preventDefault();
+        var sx = e.clientX, sy = e.clientY;
+        var bl = parseFloat(it.el.style.left), bt = parseFloat(it.el.style.top);
+        function mv(ev){ it.el.style.left = (bl + ev.clientX - sx) + 'px'; it.el.style.top = (bt + ev.clientY - sy) + 'px'; render(); }
+        function up(){ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+      });
+      it.el.addEventListener('wheel', function(e){
+        e.preventDefault();
+        var d = (e.deltaY < 0 ? 1 : -1);
+        if (it.kind === 'logo') {
+          var w = it.el.getBoundingClientRect().width + d * 8; if (w < 40) w = 40; it.el.style.width = w + 'px';
+        } else {
+          var fs = parseFloat(getComputedStyle(it.el).fontSize) + d * 4; if (fs < 12) fs = 12; it.el.style.fontSize = fs + 'px';
+        }
+        render();
+      }, { passive: false });
+    });
+    function render(){
+      var vw = window.innerWidth, vh = window.innerHeight, cx = vw / 2, cy = vh / 2;
+      var out = 'viewport ' + vw + ' x ' + vh + '  (centre ' + Math.round(cx) + ',' + Math.round(cy) + ')\n';
+      items.forEach(function(it){
+        var r = it.el.getBoundingClientRect();
+        var dx = Math.round(r.left + r.width / 2 - cx), dy = Math.round(r.top + r.height / 2 - cy);
+        var sz = Math.round(r.width) + ' x ' + Math.round(r.height) + 'px';
+        if (it.kind === 'text') sz += '  font ' + Math.round(parseFloat(getComputedStyle(it.el).fontSize)) + 'px';
+        out += '\n' + it.name + '\n  size ' + sz + '\n  top-left ' + Math.round(r.left) + ',' + Math.round(r.top)
+             + '\n  from-centre ' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + '\n';
+        it.tag.textContent = it.name + ' ' + sz + '  c(' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + ')';
+        it.tag.style.left = Math.round(r.left) + 'px';
+        it.tag.style.top  = Math.round(Math.max(0, r.top - 18)) + 'px';
+      });
+      panel.textContent = out;
+    }
+    render(); window.addEventListener('resize', render);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+<!-- ===== END TEMP PLACEMENT TEST HARNESS ===== -->
 <div id="bootcover"></div>
 <div id="splash">
   <div class="splash-logo-wrap"><img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt=""></div>
@@ -1368,7 +1438,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v127</div>
+    <div class="appver" id="appver">v128</div>
   </div>
 </div>
 </div><!-- /#app -->
