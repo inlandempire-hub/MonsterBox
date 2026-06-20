@@ -24,9 +24,10 @@
   :root {
     --glasspct: 0%;           /* side-panel glass fill — 0 = blur only (readability from inner cards) */
     --gap: 12px;              /* uniform gap: window margin + between all panels */
-    --fade: 0.3s;            /* one duration for the whole light/dark crossfade
-                                (short: the wallpaper-crossfade + glass re-blur is
-                                the toggle's main cost, so keep that window brief) */
+    --fade: 0s;              /* light/dark switches INSTANTLY. Any crossfade forces
+                                every frosted-glass panel to re-blur each frame while
+                                the wallpaper animates underneath it, which made the
+                                toggle stutter. Snapping costs nothing per frame. */
     --bg: #e7e6e4;            /* app background, neutral warm gray */
     --panel: #ffffff;         /* cards (library / tracker) */
     --panel2: #f2f1ef;        /* secondary fill */
@@ -1148,7 +1149,7 @@
   @media (max-width: 1024px) and (pointer: coarse) {
     /* faster light/dark crossfade on touch devices (0.9s feels sluggish there).
        Must be :root, not html — :root outspecifies html so the base wins otherwise. */
-    :root { --fade: 0.35s; }
+    :root { --fade: 0s; }   /* snap instantly on mobile too (see desktop note) */
 
     /* slimmer top bar + buttons */
     #mtopbar { height: 44px; padding: 0 6px; gap: 6px; }
@@ -1349,7 +1350,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v122</div>
+    <div class="appver" id="appver">v123</div>
   </div>
 </div>
 </div><!-- /#app -->
@@ -2971,14 +2972,13 @@ function closeDrawers() {
   $('mscrim').classList.remove('show');
 }
 
-let _modeFadeTimer = null;
 function toggleMode() {
-  // crossfade the whole UI (colours + wallpaper) at one shared speed
-  document.body.classList.add('mode-fading');
+  // Snap light/dark instantly. We deliberately do NOT animate: crossfading the
+  // wallpaper forces every frosted-glass panel to re-blur each frame, which made
+  // the toggle stutter (worse online, where the panels composite over a
+  // network-loaded background). An instant swap costs nothing per frame.
   const dark = document.body.classList.toggle('dark');
   localStorage.setItem('sf-dark', dark ? '1' : '0');
-  clearTimeout(_modeFadeTimer);
-  _modeFadeTimer = setTimeout(() => document.body.classList.remove('mode-fading'), 350);  // ~ --fade
   // icon + knob position handled entirely by CSS (::after on #modetoggle)
 }
 // restore saved preference
