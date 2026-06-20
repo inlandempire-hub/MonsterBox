@@ -78,33 +78,11 @@
        panels to repaint each frame, which caused the fade flicker. */
   }
   body.dark { background-image: url('bg-dark.jpg'); }
-  /* title (no ribbon) — sits in its own space atop the background, above the
-     import panel in the left column */
-  .titlebar { display: flex; align-items: center; gap: 4px; pointer-events: none;
-        padding: 2px 4px; flex-shrink: 0; }
   /* decorative display face for the background wordmark (CC0 / public domain) */
   @font-face { font-family: "Mississauga"; src: url("Mississauga.otf"); font-weight: 400 700; font-display: swap; }
-  .title-icon { width: 46px; height: 46px; flex-shrink: 0;
-        filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
-  /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
-     contrast is obvious. White with teal accents in light, white with emerald
-     accents in dark. The boot intro types this out then flies here, so the
-     styles must match. */
-  .title-text { font-family: var(--mono); font-size: 22px; line-height: 1; white-space: nowrap; }
+  /* weight classes shared by the boot-splash wordmark: "Monster" heavy, "Box" light */
   .tm-monster { font-weight: 700; }
   .tm-box { font-weight: 400; }
-  /* both modes: WHITE text with a bathymetry depth stack of coloured contours —
-     light uses descending teal, dark uses the emerald palette (leafy mint nearest
-     the text, descending to deep forest) — so the wordmark reads the same way in
-     each mode, just tinted to suit its wallpaper. */
-  body:not(.dark) .title-text { color: #fff;
-        text-shadow: 0 0 1px rgba(0,40,55,.6),
-          0 1px 0 rgba(8,74,94,.9), 0 2px 0 rgba(8,68,88,.62), 0 3px 0 rgba(8,62,82,.46),
-          0 4px 0 rgba(8,56,76,.33), 0 5px 0 rgba(8,50,70,.22), 0 7px 10px rgba(0,24,38,.55); }
-  body.dark .title-text { color: #fff;
-        text-shadow: 0 0 1px rgba(8,40,24,.6),
-          0 1px 0 rgba(80,199,149,.9), 0 2px 0 rgba(65,168,122,.62), 0 3px 0 rgba(56,147,98,.46),
-          0 4px 0 rgba(52,139,90,.33), 0 5px 0 rgba(47,128,77,.22), 0 7px 10px rgba(6,28,15,.6); }
   /* themed scrollbars (follow light / dark via --dim) */
   * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--dim) 60%, transparent) transparent; }
   ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -154,20 +132,24 @@
 
   /* ---- persistent background watermark: the line-art logo + Mississauga wordmark
      pressed/engraved into the wallpaper. Sits above the wallpaper but BELOW the
-     glass UI (.layout z-index 1), centred in the viewport. Deliberately uses ONE
-     fixed palette so it looks identical in light and dark mode (does not crossfade
-     with the wallpaper). ---- */
+     glass UI (.layout z-index 1). Locked to the bottom-right corner of the CENTRE
+     panel, responsive to window size. Deliberately uses ONE fixed palette so it
+     looks identical in light and dark mode (does not crossfade). ---- */
+  /* the centre panel's right edge is one right-column width + two gaps in from the
+     window's right edge; reused as the anchor for both the logo and the wordmark. */
+  #bgmark { --mark-right: calc(250px + var(--gap) * 2); }   /* = 274px at --gap:12 */
   #bgmark {
     position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 6px;
   }
   /* white line-art: the PNG's opaque strokes become a flat white fill via mask, so
      the "lines" are white in both modes. The emboss is a paired shadow stack:
      a dark top edge + light bottom edge make it read as carved into the surface,
      plus a soft cast shadow for depth. */
   #bgmark .bgmark-logo {
-    width: min(34vw, 340px); aspect-ratio: 1 / 1;
+    position: absolute;
+    width: 148px; height: 148px;
+    right: var(--mark-right);            /* bottom-right corner sits at the centre */
+    bottom: var(--gap);                  /* panel's bottom-right corner (12px in)   */
     background: rgba(255,255,255,.82);
     -webkit-mask: url('logo-line.png') center / contain no-repeat;
             mask: url('logo-line.png') center / contain no-repeat;
@@ -176,9 +158,14 @@
       drop-shadow(0 1.5px 0.5px rgba(255,255,255,.35))
       drop-shadow(0 4px 10px rgba(0,0,0,.5));
   }
+  /* wordmark tucked to the logo's lower-left: the end of "Box" sits just left of
+     the mimic's bottom lip. Anchored by right/bottom so it tracks the logo. */
   #bgmark .bgmark-word {
+    position: absolute;
+    right: calc(var(--mark-right) + 94px);
+    bottom: 30px;
     font-family: "Mississauga", cursive; font-weight: 400;
-    font-size: min(15vw, 150px); line-height: .9; color: rgba(255,255,255,.82);
+    font-size: 92px; line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
       0 -1.5px 0.5px rgba(0,0,0,.55),
       0 1.5px 0.5px rgba(255,255,255,.3),
@@ -1101,7 +1088,6 @@
 
     /* single column: only the centre scroll stays in flow */
     .layout { display: block; height: var(--apph, 100dvh); padding: 0; gap: 0; }
-    .titlebar { display: none; }            /* replaced by the top bar */
     #sheet { height: 100%; padding: 58px 0 8px; }
     .scroll-wrap, #encounterrun { width: 94%; }
 
@@ -1330,10 +1316,6 @@
   <div id="mscrim" onclick="closeDrawers()"></div>
   <!-- LEFT: title (atop background) + import panel + compendium panel -->
   <div class="side" id="leftside">
-    <div class="titlebar">
-      <img class="title-icon" src="monsterbox-logo.png" alt="">
-      <span class="title-text"><span class="tm-monster">Monster</span><span class="tm-box">Box</span></span>
-    </div>
     <div class="glass" id="importpanel">
       <input type="file" id="file" accept="application/pdf" multiple hidden>
       <div class="impbtns">
@@ -1454,7 +1436,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v130</span>
+      <span class="appver" id="appver">v131</span>
     </div>
   </div>
 </div>
