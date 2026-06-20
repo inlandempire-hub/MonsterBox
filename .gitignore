@@ -32,3 +32,8 @@ build/
 
 # parser test harness (dev only)
 docs/_harness.html
+# corpus junction (dev only) -> Downloads/MB Testing
+docs/_corpus
+docs/_corpus/
+# corpus regression baseline (dev only)
+docs/_baseline.json

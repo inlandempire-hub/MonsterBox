@@ -78,12 +78,11 @@
   // handled by the same continuation logic that joins a block across a page break
   // — far more reliable than mashing both columns into one text and guessing
   // boundaries. Single-column pages return one column.
-  function pageColumns(words, pageWidth) {
-    if (!words.length) return [[]];
-    // Detect a real two-column layout by finding a vertical GUTTER: a central x
-    // position where most text rows have a gap. This is robust to a full-width
-    // header sitting above a two-column body (which defeats a simple straddle
-    // ratio), and it splits at the actual gutter rather than the page midpoint.
+  // Find a vertical GUTTER splitting the page into two columns: a central x where
+  // most text rows have a gap. Robust to a full-width header over a two-column body
+  // (which defeats a simple straddle ratio), and it splits at the actual gutter
+  // rather than the page midpoint. Returns { bestX, L, R } or null (single column).
+  function findGutter(words) {
     const sorted = words.slice().sort((a, b) => a.top - b.top);
     const rows = []; let cur = [], curTop = null;
     for (const w of sorted) {
@@ -94,7 +93,7 @@
     const left = Math.min(...words.map(w => w.x0));
     const right = Math.max(...words.map(w => w.x1));
     const span = right - left;
-    if (span < 80 || rows.length < 6) return [linesFromWords(words)];
+    if (span < 80 || rows.length < 6) return null;
     let bestX = -1, bestEmpty = -1;
     for (let f = 0.34; f <= 0.66; f += 0.02) {
       const gx = left + span * f;
@@ -103,28 +102,102 @@
       const frac = empty / rows.length;
       if (frac > bestEmpty) { bestEmpty = frac; bestX = gx; }
     }
-    // need a clear gutter (most rows gap here) AND real content on both sides
-    if (bestEmpty < 0.60) return [linesFromWords(words)];
+    if (bestEmpty < 0.60) return null;                       // no clear gutter
     const L = words.filter(w => (w.x0 + w.x1) / 2 < bestX);
     const R = words.filter(w => (w.x0 + w.x1) / 2 >= bestX);
-    if (L.length / words.length < 0.12 || R.length / words.length < 0.12) return [linesFromWords(words)];
-    // Guard against a FALSE gutter running through a full-width ability TABLE. The
-    // 2024 / D&D Beyond stat block lays abilities out as Score | Mod | Save columns;
-    // the gap between Score and Mod mimics a page gutter, which would scatter the
-    // table (scores left, modifiers right) and lose the ability scores. A real
-    // second column is prose; an ability table's right side is almost entirely
-    // numbers (+3, −2) plus the "Mod"/"Save" headers — so if the right side is
-    // mostly numeric, keep ONE column and let the rows stay intact ("Str 16 +3 +3").
+    if (L.length / words.length < 0.12 || R.length / words.length < 0.12) return null;   // real content both sides
+    return { bestX, L, R };
+  }
+  // an AC anchor ("AC 14 …" / "Armor Class 15") starts a stat block; its presence in
+  // a column means that column carries a stat block of its own.
+  const wordsHaveAc = (ws) => ws.some(w => /^(?:AC|Armor)$/i.test(w.text));
+  // BOOK column mode, set per import before splitting (see extractColumnLinePages):
+  // "one" (single-column stat blocks), "two", or "mixed".
+  let _bookColMode = "mixed";
+
+  function pageColumns(words, pageWidth) {
+    if (!words.length) return [[]];
+    const g = findGutter(words);
+    if (!g) return [linesFromWords(words)];
+    const { L, R } = g;
+    // BOOK-LEVEL STABILISATION. In a single-column book the stat blocks never sit
+    // two-to-a-row, so a real split needs BOTH halves to carry their own AC anchor
+    // (two stat blocks side by side). A lone strong gutter on a one-block page is a
+    // FALSE gutter from short left-aligned stat lines (the 2024 / D&D Beyond layout),
+    // and splitting there severs the full-width ability grid — losing every score.
+    // Keep one column unless both halves are genuinely independent stat blocks.
+    if (_bookColMode === "one" && !(wordsHaveAc(L) && wordsHaveAc(R))) return [linesFromWords(words)];
+    // Guard A: a false gutter that SEVERS an ability TABLE's labels from its values.
+    // The 2024 / D&D Beyond layout prints abilities as a grid: a label column
+    // (Str/Dex/Con/Int/Wis/Cha) far to the left of the Score|Mod|Save value columns.
+    // A page of short, left-aligned stat lines then shows a strong empty band between
+    // them, so the gutter detector splits there — scattering the labels (left) from
+    // their numbers (right) and losing every ability score (Monster Manual, ~50 blocks).
+    // Signature: the LEFT side carries >=4 bare ability labels but almost no COMPLETE
+    // "Str 16 …" rows (its numbers went right). A genuine two-column page keeps each
+    // block's labels and numbers TOGETHER, so its left side has complete rows and this
+    // never fires. When detected, keep ONE column so the rows reassemble.
+    const ABBR = /^(?:str|dex|con|int|wis|cha)$/i;
+    const labelWords = L.filter(w => ABBR.test(w.text));
+    // Require the labels to be stacked VERTICALLY (>=4 distinct rows) — that is the
+    // 2024 transposed grid. The 2014 ability header prints all six on ONE row
+    // ("STR DEX CON INT WIS CHA"); firing on that would wrongly merge the two real
+    // columns of a 2014 book and mash its side-by-side stat blocks together.
+    const labelRows = new Set(labelWords.map(w => Math.round(w.top / 5)));
+    if (labelRows.size >= 4) {
+      // ...and the left side must LACK complete "Str 16 …" rows (its numbers were
+      // severed to the right). A 2024 single-column page keeps label+numbers on one
+      // row, so leftComplete>=2 and this never fires there.
+      const leftComplete = linesFromWords(L).filter(([t]) => /\b(?:str|dex|con|int|wis|cha)\b\s+\d/i.test(t)).length;
+      if (leftComplete < 2) return [linesFromWords(words)];
+    }
+    // Guard B: a false gutter through the Score|Mod|Save columns of a SINGLE ability
+    // table — the right side is then almost entirely numbers (+3, −2) plus the
+    // "Mod"/"Save" headers. If so, keep ONE column so the rows stay intact.
     const numish = R.filter(w => /^[+\-−]?\d+$/.test(w.text) || /^(Mod|Save)$/.test(w.text)).length;
     if (numish / R.length > 0.5) return [linesFromWords(words)];
     return [linesFromWords(L), linesFromWords(R)];
+  }
+
+  // Decide the book's column mode. The telling signal is whether gutter pages are
+  // BALANCED: a real two-column text layout (Crooked Moon) fills both columns to a
+  // similar word count, whereas a single-column book's gutters split a full-width
+  // stat block from ART beside it (Monster Manual) — dense left, sparse right. So a
+  // book is "two" only when most of its gutter pages are balanced; one that gutters
+  // rarely, or whose gutters are lopsided (stat-block-vs-art), is "one". This keeps
+  // a column-spanning book like Crooked Moon "two" while catching MM as "one".
+  function voteColMode(pageWords) {
+    let gutterPages = 0, balanced = 0, content = 0;
+    for (const words of pageWords) {
+      if (words.length < 20) continue;                       // skip near-empty pages
+      content++;
+      const g = findGutter(words);
+      if (!g) continue;
+      gutterPages++;
+      // Balance by ROW count (distinct text rows per side), not word count. A real
+      // two-column text layout fills both columns with a similar number of lines;
+      // a stat-block-vs-ART gutter leaves the art side with very few text rows.
+      // Row balance separates the two cleanly where raw word counts overlap (a
+      // text column with short lines can still have few words but many rows).
+      const lr = new Set(g.L.map(w => Math.round(w.top / 5))).size;
+      const rr = new Set(g.R.map(w => Math.round(w.top / 5))).size;
+      if (Math.min(lr, rr) / Math.max(lr, rr) >= 0.5) balanced++;
+    }
+    if (content < 6) return "mixed";
+    if (gutterPages < Math.max(4, 0.15 * content)) return "one";   // gutters too rare -> single column
+    const frac = balanced / gutterPages;
+    return frac >= 0.45 ? "two" : frac <= 0.35 ? "one" : "mixed";
   }
 
   async function extractColumnLinePages(arrayBuffer, progress) {
     const pdfjsLib = window.pdfjsLib;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const pages = [];
+    // PASS 1: extract every page's words (no split yet) so we can vote the book's
+    // column mode before committing to per-page splits. The mode then stabilises
+    // splitting (see pageColumns), e.g. it stops a single-column book's false
+    // gutters from severing the full-width 2024 ability grid.
+    const pageWords = [];
     for (let p = 1; p <= pdf.numPages; p++) {
       if (_abort) { try { pdf.destroy && pdf.destroy(); } catch (e) {} throw new Error("__abort__"); }
       const page = await pdf.getPage(p);
@@ -153,11 +226,18 @@
         seen.set(key, w);
         words.push(w);
       }
-      for (const col of pageColumns(words, vp.width)) { col._page = p; pages.push(col); }   // _page: true PDF page (for review screenshots)
+      words._w = vp.width; words._page = p;
+      pageWords.push(words);
       page.cleanup && page.cleanup();
       if (progress) progress(p, pdf.numPages);
     }
     pdf.destroy && pdf.destroy();
+    // PASS 2: split each page into columns using the book's voted mode.
+    _bookColMode = voteColMode(pageWords);
+    const pages = [];
+    for (const words of pageWords) {
+      for (const col of pageColumns(words, words._w)) { col._page = words._page; pages.push(col); }
+    }
     return pages;
   }
 
@@ -1241,6 +1321,7 @@
   // Render each page, OCR it to words+boxes, then reuse the SAME column/line/block
   // pipeline as the text path (so all the existing parsing logic applies).
   async function extractOcrLinePages(arrayBuffer, progress) {
+    _bookColMode = "mixed";   // OCR boxes are noisier; don't force a column mode
     const Tesseract = await loadTesseract();
     const pdfjsLib = window.pdfjsLib;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
