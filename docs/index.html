@@ -24,7 +24,9 @@
   :root {
     --glasspct: 0%;           /* side-panel glass fill — 0 = blur only (readability from inner cards) */
     --gap: 12px;              /* uniform gap: window margin + between all panels */
-    --fade: 0.9s;            /* one duration for the whole light/dark crossfade */
+    --fade: 0.3s;            /* one duration for the whole light/dark crossfade
+                                (short: the wallpaper-crossfade + glass re-blur is
+                                the toggle's main cost, so keep that window brief) */
     --bg: #e7e6e4;            /* app background, neutral warm gray */
     --panel: #ffffff;         /* cards (library / tracker) */
     --panel2: #f2f1ef;        /* secondary fill */
@@ -1347,7 +1349,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v121</div>
+    <div class="appver" id="appver">v122</div>
   </div>
 </div>
 </div><!-- /#app -->
@@ -2976,7 +2978,7 @@ function toggleMode() {
   const dark = document.body.classList.toggle('dark');
   localStorage.setItem('sf-dark', dark ? '1' : '0');
   clearTimeout(_modeFadeTimer);
-  _modeFadeTimer = setTimeout(() => document.body.classList.remove('mode-fading'), 1000);  // ~ --fade
+  _modeFadeTimer = setTimeout(() => document.body.classList.remove('mode-fading'), 350);  // ~ --fade
   // icon + knob position handled entirely by CSS (::after on #modetoggle)
 }
 // restore saved preference
