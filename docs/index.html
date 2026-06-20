@@ -1231,21 +1231,29 @@
   if (!/bgedit/.test(location.search + location.hash)) return;
   function init(){
     var mark = document.getElementById('bgmark'); if (!mark) return;
-    mark.style.display = 'block';
     var items = [
       { el: mark.querySelector('.bgmark-logo'), name: 'LOGO', kind: 'logo' },
       { el: mark.querySelector('.bgmark-word'), name: 'TEXT', kind: 'text' }
     ];
+    // Measure the CURRENT (centred) positions BEFORE we touch anything, so the
+    // elements don't jump when we switch them to absolute positioning.
+    items.forEach(function(it){ it.rect = it.el.getBoundingClientRect(); });
+    // #bgmark is position:fixed; z-index:0 — that's its OWN stacking context, so a
+    // child z-index can never rise above the app panels (.layout, z-index:1). Raise
+    // the whole #bgmark above the UI so the elements are clickable in edit mode.
+    // (#bgmark stays pointer-events:none and transparent except for the two items,
+    // so the rest of the UI underneath still works.)
+    mark.style.display = 'block';
+    mark.style.zIndex = '9990';
     var panel = document.createElement('div');
     panel.style.cssText = 'position:fixed;top:8px;left:8px;z-index:100000;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 monospace;padding:8px 11px;border:1px solid #3f6;border-radius:6px;white-space:pre;pointer-events:none;';
     document.body.appendChild(panel);
     items.forEach(function(it){
-      var r = it.el.getBoundingClientRect();
+      var r = it.rect;
       it.el.style.position = 'fixed';
       it.el.style.left = r.left + 'px';
       it.el.style.top  = r.top + 'px';
       it.el.style.margin = '0';
-      it.el.style.zIndex = '9990';          /* above panels, below the boot cover */
       it.el.style.pointerEvents = 'auto';
       it.el.style.cursor = 'move';
       it.tag = document.createElement('div');
@@ -1438,7 +1446,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v128</div>
+    <div class="appver" id="appver">v129</div>
   </div>
 </div>
 </div><!-- /#app -->
