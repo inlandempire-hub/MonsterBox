@@ -213,6 +213,8 @@
   .rev-tier { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
         padding: 2px 7px; border-radius: 4px; color: #fff; }
   .rev-tier.amber { background: #c98a00; } .rev-tier.red { background: var(--bad); }
+  .rev-src { margin-left: auto; flex-shrink: 0; font-size: 11px; color: var(--dim);
+    letter-spacing: .02em; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rev-meta { font-size: 12px; color: var(--dim); margin-top: 3px; }
   .rev-reasons { margin-top: 8px; }
   .rev-rh { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--red); }
@@ -1327,7 +1329,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v125</div>
+    <div class="appver" id="appver">v126</div>
   </div>
 </div>
 </div><!-- /#app -->
@@ -1775,7 +1777,7 @@ function openReview() {
     const lv = confLevel(m.parse_confidence);
     const reasons = (m.parse_warnings && m.parse_warnings.length) ? m.parse_warnings : ["Some fields may be incomplete."];
     return `<div class="rev-card">
-      <div class="rev-top"><b>${esc(m.name)}</b><span class="rev-tier ${lv}">${lv === "red" ? "Likely broken" : "Needs a check"}</span></div>
+      <div class="rev-top"><b>${esc(m.name)}</b><span class="rev-tier ${lv}">${lv === "red" ? "Likely broken" : "Needs a check"}</span>${m.source ? `<span class="rev-src" title="Imported from ${escAttr(m.source)}">${esc(sourceName(m.source))}</span>` : ""}</div>
       <div class="rev-meta">${esc(m.size||"")} ${esc(m.creature_type||"")}${m.challenge_rating ? " · CR " + esc(m.challenge_rating) : ""} · AC ${m.armor_class} · ${m.hit_points} HP</div>
       <div class="rev-reasons"><div class="rev-rh">Why it needs review</div><ul>${reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul></div>
       <div class="rev-btns">
