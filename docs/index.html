@@ -51,31 +51,17 @@
     --bg-img: url('bg-light.jpg');
   }
   * { box-sizing: border-box; }
-  /* Light/dark toggle: for the duration of the switch, every element crossfades
-     its colours at one shared speed (var(--fade)) — same as the wallpaper — so
-     the whole UI fades together. The class is added on toggle and removed when
-     the fade is done (see toggleMode). */
-  body.mode-fading *,
-  body.mode-fading *::before,
-  body.mode-fading *::after {
-    transition: color var(--fade) ease, background-color var(--fade) ease,
-      border-color var(--fade) ease, fill var(--fade) ease,
-      text-shadow var(--fade) ease !important;   /* title accents: teal <-> green */
-  }
-  /* PERF: the compendium can hold hundreds of rows. Crossfading every one of
-     them (and their children) over the glass panels forces a full re-blur each
-     frame for the whole fade — the one thing that made the toggle lag. Their
-     colour shift is invisible behind the search field, so snap them instantly
-     and let only the chrome + wallpaper crossfade. */
-  body.mode-fading #monlist,
-  body.mode-fading #monlist * { transition: none !important; }
-  /* the universal rule above omits `opacity` (interpolating it on the glass
-     panels caused repaint flicker) — but the wallpaper crossfade IS an opacity
-     fade, so restore it specifically for the two wallpaper layers. */
-  body.mode-fading #wallpaper::before,
-  body.mode-fading #wallpaper::after {
-    transition: opacity var(--fade) ease !important;
-  }
+  /* Light/dark toggle: snap the WHOLE UI in one frame. Individual controls
+     (inputs, selects, buttons) carry their own short transitions for hover/focus
+     feedback — on a theme flip those would tween their colours and lag behind the
+     instant wallpaper/panel switch. For the single frame of the toggle we kill
+     EVERY transition, flip the mode, then restore them next frame (see toggleMode).
+     This is what guarantees the text boxes change at the same instant as the
+     panels, while keeping their hover/focus animations the rest of the time. */
+  body.mode-snap,
+  body.mode-snap *,
+  body.mode-snap *::before,
+  body.mode-snap *::after { transition: none !important; }
   /* lock the page itself: all scrolling happens inside panels, so the fixed
      wallpaper never drifts (notably on tablets/iOS) */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -879,15 +865,6 @@
     transform: translateX(26px);
     background: #14100c url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23e8e2d4' d='M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z'/%3E%3C/svg%3E") center/13px no-repeat;
   }
-  /* during a mode toggle, the knob slides across at the shared fade speed (the
-     universal mode-fading rule otherwise drops `transform` and makes it flick) */
-  body.mode-fading #modetoggle::after {
-    /* the knob SNAPS (.25s) so the control feels responsive; only its colour
-       crossfades with the rest of the UI. Sliding it over the full --fade made
-       the toggle feel laggy. */
-    transition: transform .25s cubic-bezier(.4,0,.2,1), background-color var(--fade) ease !important;
-  }
-
   /* ---- app reveal (UI stays hidden until the splash finishes) ----
      We must NOT fade #app's opacity: while an ancestor has opacity < 1 the glass
      panels' backdrop-filter is disabled, so they flash un-blurred for ~0.5s as
@@ -1350,7 +1327,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v123</div>
+    <div class="appver" id="appver">v124</div>
   </div>
 </div>
 </div><!-- /#app -->
@@ -2977,8 +2954,16 @@ function toggleMode() {
   // wallpaper forces every frosted-glass panel to re-blur each frame, which made
   // the toggle stutter (worse online, where the panels composite over a
   // network-loaded background). An instant swap costs nothing per frame.
+  //
+  // Controls (inputs/selects/buttons) carry their own hover/focus transitions;
+  // mode-snap kills EVERY transition for the flip so those boxes change colour
+  // in the same frame as the panels, then we restore them next frame.
+  document.body.classList.add('mode-snap');
   const dark = document.body.classList.toggle('dark');
   localStorage.setItem('sf-dark', dark ? '1' : '0');
+  void document.body.offsetWidth;   // force the no-transition state to apply now
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.body.classList.remove('mode-snap')));
   // icon + knob position handled entirely by CSS (::after on #modetoggle)
 }
 // restore saved preference
