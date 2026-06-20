@@ -157,8 +157,10 @@
   /* ---- detached, rounded "glass" panels ---- */
   .glass {
     background: color-mix(in srgb, var(--panel) var(--glasspct), transparent);
-    backdrop-filter: blur(16px) saturate(125%);
-    -webkit-backdrop-filter: blur(16px) saturate(125%);
+    /* blur is the dominant GPU cost when scrolling over the background image;
+       8px keeps the frosted look at roughly half the per-frame sampling cost */
+    backdrop-filter: blur(8px) saturate(125%);
+    -webkit-backdrop-filter: blur(8px) saturate(125%);
     border: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
     border-radius: 14px;
     box-shadow: 0 6px 22px rgba(0,0,0,.25);
@@ -306,7 +308,10 @@
   /* library */
   .mon { position: relative; padding: 9px 11px; border: 1px solid var(--line);
          border-radius: 7px; margin-bottom: 8px; cursor: pointer; background: var(--panel);
-         box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .12s, box-shadow .12s; }
+         box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .12s, box-shadow .12s;
+         /* skip rendering rows scrolled off-screen — a large library (e.g. the full
+            Monster Manual, ~450 rows) otherwise paints every row each frame */
+         content-visibility: auto; contain-intrinsic-size: auto 40px; }
   .mon:hover { border-color: var(--red); }
   .mon.sel { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
   .mon .nm { font-weight: 600; padding-right: 18px; text-transform: uppercase; }
@@ -385,8 +390,7 @@
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         text-align: center; font: 600 14px/1.5 var(--mono); color: #fff;
         background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
-        border-radius: 10px; padding: 14px 22px; box-shadow: 0 8px 30px rgba(0,0,0,.5);
-        backdrop-filter: blur(4px); }
+        border-radius: 10px; padding: 14px 22px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   #importprogress.show { display: block; }
   #importprogress .pbar { margin-top: 10px; }
   .pbar { height: 8px; background: var(--panel2); border: 1px solid var(--line);
@@ -472,7 +476,6 @@
     position: fixed; inset: 0; z-index: 10000;
     background: rgba(0,0,0,.45);
     display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(2px);
   }
   .modal-box {
     background: var(--panel); color: var(--ink);
@@ -1031,8 +1034,8 @@
       position: fixed; top: 0; left: 0; right: 0; height: 50px; z-index: 300;
       padding: 0 8px; gap: 8px;
       background: color-mix(in srgb, var(--bg) 80%, transparent);
-      backdrop-filter: blur(18px) saturate(125%);
-      -webkit-backdrop-filter: blur(18px) saturate(125%);
+      backdrop-filter: blur(8px) saturate(125%);
+      -webkit-backdrop-filter: blur(8px) saturate(125%);
       border-bottom: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
       box-shadow: 0 2px 12px rgba(0,0,0,.25);
     }
@@ -1077,8 +1080,8 @@
       width: 86vw; max-width: 440px; height: var(--apph, 100dvh);
       padding: 58px 12px 14px; gap: 12px; overflow: hidden;
       background: color-mix(in srgb, var(--bg) 95%, transparent);
-      backdrop-filter: blur(24px) saturate(125%);
-      -webkit-backdrop-filter: blur(24px) saturate(125%);
+      backdrop-filter: blur(10px) saturate(125%);
+      -webkit-backdrop-filter: blur(10px) saturate(125%);
       box-shadow: 0 0 44px rgba(0,0,0,.55);
       transition: transform .28s cubic-bezier(.4,0,.2,1);
     }
@@ -1102,7 +1105,7 @@
       width: 86vw; max-width: 460px; height: var(--apph, 100dvh);
       padding: 58px 0 0; overflow: hidden;
       background: color-mix(in srgb, var(--bg) 95%, transparent);
-      backdrop-filter: blur(24px) saturate(125%); -webkit-backdrop-filter: blur(24px) saturate(125%);
+      backdrop-filter: blur(10px) saturate(125%); -webkit-backdrop-filter: blur(10px) saturate(125%);
       box-shadow: 0 0 44px rgba(0,0,0,.55); border-radius: 0 16px 16px 0;
       transform: translateX(-106%); transition: transform .28s cubic-bezier(.4,0,.2,1);
     }
@@ -1337,7 +1340,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v119</div>
+    <div class="appver" id="appver">v120</div>
   </div>
 </div>
 </div><!-- /#app -->
