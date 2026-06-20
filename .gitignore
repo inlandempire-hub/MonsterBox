@@ -6,6 +6,7 @@ data/
 # …except the PWA icons and the splash logo, which the web app needs.
 !docs/icons/*.png
 !docs/monsterbox-logo.png
+!docs/logo-line.png
 _probe*.py
 # Personal export from tools/export_compendium.py.
 compendium.json
@@ -37,3 +38,11 @@ docs/_corpus
 docs/_corpus/
 # corpus regression baseline (dev only)
 docs/_baseline.json
+docs/_fonttest.html
+docs/_fontpreview/
+docs/_font-splendid.html
+docs/_font-mississauga.html
+docs/_font-xtype.html
+docs/_font-another.html
+docs/_seedlight.html
+docs/_seeddark.html

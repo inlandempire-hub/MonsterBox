@@ -82,6 +82,8 @@
      import panel in the left column */
   .titlebar { display: flex; align-items: center; gap: 4px; pointer-events: none;
         padding: 2px 4px; flex-shrink: 0; }
+  /* decorative display face for the background wordmark (CC0 / public domain) */
+  @font-face { font-family: "Mississauga"; src: url("Mississauga.otf"); font-weight: 400 700; font-display: swap; }
   .title-icon { width: 46px; height: 46px; flex-shrink: 0;
         filter: drop-shadow(0 2px 5px rgba(0,0,0,.5)); }
   /* typewriter wordmark (mono): "Monster" heavy, "Box" light, so the weight
@@ -149,6 +151,39 @@
   #wallpaper::before { background-image: url('bg-light.jpg'); opacity: 1; }
   #wallpaper::after  { background-image: url('bg-dark.jpg');  opacity: 0; }
   body.dark #wallpaper::after { opacity: 1; }
+
+  /* ---- persistent background watermark: the line-art logo + Mississauga wordmark
+     pressed/engraved into the wallpaper. Sits above the wallpaper but BELOW the
+     glass UI (.layout z-index 1), centred in the viewport. Deliberately uses ONE
+     fixed palette so it looks identical in light and dark mode (does not crossfade
+     with the wallpaper). ---- */
+  #bgmark {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px;
+  }
+  /* white line-art: the PNG's opaque strokes become a flat white fill via mask, so
+     the "lines" are white in both modes. The emboss is a paired shadow stack:
+     a dark top edge + light bottom edge make it read as carved into the surface,
+     plus a soft cast shadow for depth. */
+  #bgmark .bgmark-logo {
+    width: min(34vw, 340px); aspect-ratio: 1 / 1;
+    background: rgba(255,255,255,.82);
+    -webkit-mask: url('logo-line.png') center / contain no-repeat;
+            mask: url('logo-line.png') center / contain no-repeat;
+    filter:
+      drop-shadow(0 -1.5px 0.5px rgba(0,0,0,.55))
+      drop-shadow(0 1.5px 0.5px rgba(255,255,255,.35))
+      drop-shadow(0 4px 10px rgba(0,0,0,.5));
+  }
+  #bgmark .bgmark-word {
+    font-family: "Mississauga", cursive; font-weight: 400;
+    font-size: min(15vw, 150px); line-height: .9; color: rgba(255,255,255,.82);
+    text-shadow:
+      0 -1.5px 0.5px rgba(0,0,0,.55),
+      0 1.5px 0.5px rgba(255,255,255,.3),
+      0 5px 14px rgba(0,0,0,.5);
+  }
 
   /* ---- detached, rounded "glass" panels ---- */
   .glass {
@@ -943,8 +978,8 @@
   /* central transparent empty-state label (no scroll shown when nothing picked) */
   #emptylabel {
     position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    text-align: center; padding: 0 40px;
+    display: flex; align-items: flex-start; justify-content: center;
+    text-align: center; padding: 7vh 40px 0;
     font: 700 20px/1.4 var(--mono); letter-spacing: .3px;
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 2px 14px rgba(0,0,0,.65);
@@ -1183,6 +1218,10 @@
 </head>
 <body class="booting">
 <div id="wallpaper"></div>
+<div id="bgmark" aria-hidden="true">
+  <div class="bgmark-logo"></div>
+  <div class="bgmark-word">MonsterBox</div>
+</div>
 <div id="bootcover"></div>
 <div id="splash">
   <div class="splash-logo-wrap"><img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt=""></div>
@@ -1329,7 +1368,7 @@
       <div id="log" class="log-scroll"></div>
     </div>
     <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-    <div class="appver" id="appver">v126</div>
+    <div class="appver" id="appver">v127</div>
   </div>
 </div>
 </div><!-- /#app -->
