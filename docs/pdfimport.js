@@ -293,7 +293,11 @@
   const RE_AC = /(?:Armor Class|AC):?\s+(\d+)\s*(\([^)]*\))?/i;
   const RE_HP = /(?:Hit Points|HP):?\s+(\d+)\s*(?:\(([^)]*)\))?/i;
   const RE_SPEED = /Speed:?\s+(.+)/i;
-  const RE_ABILITY_PAIR = /(\d+)\s*\(\s*[^)\d]*?(\d+)\s*\)/g;
+  // The score is 1-2 digits, but pdf.js sometimes splits a two-digit score with a
+  // space ("13" -> "1 3", NPCs Outclassed), so allow one internal space. Without it
+  // only the digit adjacent to "(" was captured and two-digit scores lost a digit
+  // (DEX 13 -> 3). Strip the space when reading the score (see parseAbilities).
+  const RE_ABILITY_PAIR = /(\d(?:\s*\d)?)\s*\(\s*[^)\d]*?(\d+)\s*\)/g;
   // matches 2014 "Challenge 5 (1,800 XP)", Free5e "Challenge 21", and 2024 "CR 2 (XP 450; PB +2)"
   const RE_CHALLENGE = /(?:Challenge(?:\s+Rating)?s?|\bCR):?\s+([0-9/]+)\s*(?:\(\s*(?:([\d,]+)\s*XP|XP\s*([\d,]+))[^)]*\))?/i;
   const RE_PROF = /Proficiency Bonus:?\s+\+?(\d+)/i;
@@ -403,7 +407,7 @@
   function parseAbilities(text) {
     // 2014 / Free5e: "18 (+4)" pairs, six in a row (score then modifier in parens)
     const pairs = []; let m; RE_ABILITY_PAIR.lastIndex = 0;
-    while ((m = RE_ABILITY_PAIR.exec(text))) pairs.push(+m[1]);
+    while ((m = RE_ABILITY_PAIR.exec(text))) pairs.push(+m[1].replace(/\s+/g, ""));
     if (pairs.length >= 6) return { strength: pairs[0], dexterity: pairs[1], constitution: pairs[2], intelligence: pairs[3], wisdom: pairs[4], charisma: pairs[5] };
     return parseAbilities2024(text);
   }
@@ -750,9 +754,31 @@
     return out.join("\n");
   }
 
+  // Conflux books (2024 Adventurers, Assassins) print the NAME heading in a broken
+  // font where EVERY letter is its own text item, so pdf.js extracts it as single
+  // spaced capitals with the challenge rating glued on:
+  //   "A S S A S S I N C U T -T H R O A T C R 5"
+  // Word boundaries are destroyed (uniform single spaces), so the best we can do is
+  // collapse the letters into one token and peel off a trailing "C R <n>" as the CR.
+  // Gated hard: every core token must be a lone letter (optionally hyphen-joined),
+  // so ability rows ("S T R 14 +2") and spaced prose (which carries punctuation or
+  // lowercase words) are left untouched.
+  function collapseSpacedCaps(line) {
+    const toks = line.trim().split(/\s+/);
+    if (toks.length < 5) return line;
+    let core = toks, crTail = "";
+    const n = toks.length;
+    if (/^[Cc]$/.test(toks[n - 3]) && /^[Rr]$/.test(toks[n - 2]) && /^\d+(?:\/\d+)?$/.test(toks[n - 1])) {
+      crTail = " CR " + toks[n - 1]; core = toks.slice(0, n - 3);
+    }
+    if (core.length < 4 || !core.every(t => /^-?[A-Za-z]-?$/.test(t))) return line;
+    const word = core.join("");
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() + crTail;
+  }
+
   // ============================================================ split into blocks
   function splitIntoBlocks(pageText, fonts, titleFonts) {
-    const lines = pageText.split("\n");
+    const lines = pageText.split("\n").map(collapseSpacedCaps);
     if (fonts && fonts.length !== lines.length) fonts = null;
     if (titleFonts && titleFonts.length !== lines.length) titleFonts = null;
     const acIdxs = []; lines.forEach((ln, i) => { if (RE_AC_LINE.test(ln)) acIdxs.push(i); });
@@ -887,6 +913,10 @@
     // drop a leading family word that repeats later ("Agate Adult Agate Dragon" -> "Adult Agate Dragon")
     { const w = sb.name.split(/\s+/);
       if (w.length > 2 && w.slice(1).some(x => x.toLowerCase() === w[0].toLowerCase())) sb.name = w.slice(1).join(" "); }
+    // a collapsed Conflux heading keeps the CR glued on ("Assassincut-throat CR 5");
+    // RE_CHALLENGE below reads it from the body (the name leads the block), then we
+    // trim it off the displayed name.
+    sb.name = sb.name.replace(/\s+CR\s+\d+(?:\/\d+)?$/i, "").trim();
     let m;
     let acF = false, hpF = false, spdF = false, abF = false, crF = false;
     if ((m = RE_AC.exec(text))) { sb.armor_class = +m[1]; sb.armor_desc = (m[2] || "").replace(/^[()\s]+|[()\s]+$/g, "") || null; found++; acF = true; }
