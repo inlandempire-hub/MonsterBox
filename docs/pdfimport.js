@@ -417,8 +417,12 @@
       .replace(/\bS[ \t]*t[ \t]*r\b/gi, "Str").replace(/\bD[ \t]*e[ \t]*x\b/gi, "Dex")
       .replace(/\bC[ \t]*o[ \t]*n\b/gi, "Con").replace(/\bI[ \t]*n[ \t]*t\b/gi, "Int")
       .replace(/\bW[ \t]*i[ \t]*s\b/gi, "Wis").replace(/\bC[ \t]*h[ \t]*a\b/gi, "Cha");
-    // mod + save follow the score; pdf.js sometimes drops a +/− sign, so keep them optional
-    const re = /\b(Str|Dex|Con|Int|Wis|Cha)\b\s+(\d{1,2})\s+[+\-−]?\d+\s+[+\-−]?\d+/gi;
+    // mod + save follow the score; pdf.js sometimes drops a +/− sign, so keep them
+    // optional. Some books (Conflux "2024 Adventurers" / "Assassins") render a
+    // negative as an EN DASH (U+2013) with a SPACE before the digit ("Cha 8 – 1 – 1");
+    // include –/— in the sign class and allow the gap, or every block with a negative
+    // ability lost ALL six scores and got flagged.
+    const re = /\b(Str|Dex|Con|Int|Wis|Cha)\b\s+(\d{1,2})\s+[+\-−–—]?\s*\d+\s+[+\-−–—]?\s*\d+/gi;
     const out = {}; let m;
     while ((m = re.exec(norm))) { const k = ABIL_KEY[m[1].toLowerCase()]; if (k && !(k in out)) out[k] = +m[2]; }
     if (Object.keys(out).length >= 6) return out;
