@@ -24,6 +24,8 @@
   :root {
     --glasspct: 0%;           /* side-panel glass fill — 0 = blur only (readability from inner cards) */
     --gap: 12px;              /* uniform gap: window margin + between all panels */
+    --col-left: 250px;        /* left column width  (adjustable live via the ?bgedit harness) */
+    --col-right: 250px;       /* right column width (adjustable live via the ?bgedit harness) */
     --fade: 0s;              /* light/dark switches INSTANTLY. Any crossfade forces
                                 every frosted-glass panel to re-blur each frame while
                                 the wallpaper animates underneath it, which made the
@@ -99,7 +101,7 @@
      left panels and the two right panels, and the gaps between columns. */
   .layout {
     display: grid;
-    grid-template-columns: 250px 1fr 250px;   /* left + right equal so the centre panel is truly centred */
+    grid-template-columns: var(--col-left) 1fr var(--col-right);
     grid-template-rows: 1fr;             /* panels fill the full height (title overlays) */
     gap: var(--gap);
     padding: var(--gap);
@@ -137,7 +139,7 @@
      looks identical in light and dark mode (does not crossfade). ---- */
   /* the centre panel's right edge is one right-column width + two gaps in from the
      window's right edge; reused as the anchor for both the logo and the wordmark. */
-  #bgmark { --mark-right: calc(250px + var(--gap) * 2); }   /* = 274px at --gap:12 */
+  #bgmark { --mark-right: calc(var(--col-right) + var(--gap) * 2); }   /* centre panel's right edge */
   #bgmark {
     position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
   }
@@ -147,12 +149,13 @@
      plus a soft cast shadow for depth. */
   #bgmark .bgmark-logo {
     position: absolute;
-    height: 148px; aspect-ratio: 312 / 349;   /* trimmed art's native ratio; ~132 wide */
+    width: 92px; height: 148px;          /* fixed footprint (not window-scaled) */
     right: var(--mark-right);            /* the art's bottom-right corner sits at the   */
     bottom: var(--gap);                  /* centre panel's bottom-right corner (12px in) */
     background: rgba(255,255,255,.82);
-    -webkit-mask: url('logo-line.png') center / contain no-repeat;
-            mask: url('logo-line.png') center / contain no-repeat;
+    /* art aligned to the box's bottom-right so its corner is the 12px anchor */
+    -webkit-mask: url('logo-line.png') right bottom / contain no-repeat;
+            mask: url('logo-line.png') right bottom / contain no-repeat;
     filter:
       drop-shadow(0 -1.5px 0.5px rgba(0,0,0,.55))
       drop-shadow(0 1.5px 0.5px rgba(255,255,255,.35))
@@ -162,8 +165,8 @@
      the mimic's bottom lip. Anchored by right/bottom so it tracks the logo. */
   #bgmark .bgmark-word {
     position: absolute;
-    right: calc(var(--mark-right) + 124px);
-    bottom: 51px;
+    right: calc(var(--mark-right) + 90px);
+    bottom: 39px;
     font-family: "Mississauga", cursive; font-weight: 400;
     font-size: 44px; line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
@@ -1288,6 +1291,40 @@
       panel.textContent = out;
     }
     render(); window.addEventListener('resize', render);
+
+    // ---- column-width handles: drag the inner edge of the left / right column
+    // to set --col-left / --col-right. Width only (not movable). ----
+    var root = document.documentElement;
+    var cur = (v, d) => parseInt(getComputedStyle(root).getPropertyValue(v)) || d;
+    function makeColHandle(side) {
+      var h = document.createElement('div');
+      h.style.cssText = 'position:fixed;top:0;bottom:0;width:8px;z-index:99999;cursor:ew-resize;'
+        + 'background:rgba(51,255,102,.35);border-' + (side==='left'?'right':'left') + ':2px solid #3f6;';
+      var lbl = document.createElement('div');
+      lbl.style.cssText = 'position:fixed;top:50%;z-index:100000;background:#3f6;color:#000;'
+        + 'font:700 11px/1.3 monospace;padding:2px 6px;border-radius:4px;pointer-events:none;white-space:nowrap;';
+      document.body.appendChild(h); document.body.appendChild(lbl);
+      function place() {
+        var gap = cur('--gap', 12);
+        if (side === 'left') { var w = cur('--col-left', 250); h.style.left = (gap + w) + 'px'; lbl.style.left = (gap + w + 10) + 'px'; lbl.textContent = 'LEFT ' + w + 'px'; }
+        else { var w2 = cur('--col-right', 250); h.style.right = (gap + w2) + 'px'; lbl.style.right = (gap + w2 + 10) + 'px'; lbl.textContent = 'RIGHT ' + w2 + 'px'; }
+        lbl.style.transform = 'translateY(-50%)';
+      }
+      h.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        var sx = e.clientX, base = (side === 'left' ? cur('--col-left', 250) : cur('--col-right', 250));
+        function mv(ev) {
+          var d = (side === 'left' ? (ev.clientX - sx) : (sx - ev.clientX));
+          var w = Math.max(150, Math.min(560, base + d));
+          root.style.setProperty(side === 'left' ? '--col-left' : '--col-right', w + 'px');
+          place();
+        }
+        function up() { document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
+        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
+      });
+      place(); window.addEventListener('resize', place);
+    }
+    makeColHandle('left'); makeColHandle('right');
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
@@ -1436,7 +1473,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v132</span>
+      <span class="appver" id="appver">v133</span>
     </div>
   </div>
 </div>
