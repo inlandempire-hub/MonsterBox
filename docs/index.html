@@ -1009,7 +1009,7 @@
     position: absolute; inset: 0;
     display: flex; align-items: flex-start; justify-content: center;
     text-align: center; padding: 7vh 40px 0;
-    font: 700 calc(20px * var(--f-splash-s))/1.4 var(--f-splash); letter-spacing: .3px;
+    font: 700 calc(20px * var(--f-label-s))/1.4 var(--f-label); letter-spacing: .3px;   /* its own UI label font, NOT the splash wordmark */
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 2px 14px rgba(0,0,0,.65);
     pointer-events: none;
@@ -1266,130 +1266,169 @@
   <div class="bgmark-word">MonsterBox</div>
 </div>
 <!-- ===== FONT TEST PANEL (dev tool) — add ?fonts to the URL to enable =====
-     Drop in OTF/TTF/WOFF files, then assign one to each font category and watch
-     every instance swap live. Choices + the dropped fonts persist (localStorage)
-     while ?fonts is in the URL, so you can browse the app in context. Tell me the
-     final picks and I'll bundle them properly. -->
+     PER-ELEMENT: drop in OTF/TTF/WOFF files, then set a font + size for each
+     individual UI element (organised by screen region). Choices inject a live
+     <style> with !important rules, so any element can be set on its own without
+     touching the base stylesheet. Dropped fonts + choices persist in localStorage
+     (sf-fonttest-fonts / sf-fontslot-map / sf-fontslot-size) while ?fonts is set.
+     Tell me the final picks and I'll bundle them properly. -->
 <script>
 (function(){
   if (!/(?:^|[?&#])fonts(?:=|&|$)/.test(location.search + location.hash)) return;
-  // Each group = one swappable family var (key) + its size-multiplier var (s) +
-  // a description + the fallback stack to mirror the :root default in the preview.
-  var CATS = [
-    { key:'--f-body',   s:'--f-body-s',   name:'Body text',           desc:'Paragraphs, lines, notes, hints, modal/about body',                 fb:'system-ui, sans-serif' },
-    { key:'--f-label',  s:'--f-label-s',  name:'Labels',              desc:'UPPERCASE labels: panel section labels, stat-block keys, tags',       fb:'system-ui, sans-serif' },
-    { key:'--f-head',   s:'--f-head-s',   name:'Headings',            desc:'Creature-name title, section headers, About/review headings, run titles', fb:'Georgia, serif' },
-    { key:'--f-cr',     s:'--f-cr-s',     name:'CR tags',             desc:'Every CR badge (list rows, CR group dividers)',                       fb:'Georgia, serif' },
-    { key:'--f-stat',   s:'--f-stat-s',   name:'Stat numerals',       desc:'Ability mods/scores, defenses, saves, roll totals, initiative',       fb:'Georgia, serif' },
-    { key:'--f-btn',    s:'--f-btn-s',    name:'Buttons',             desc:'Top-bar buttons, import buttons, sign-in button',                     fb:'system-ui, sans-serif' },
-    { key:'--f-badge',  s:'--f-badge-s',  name:'Counts & badges',     desc:'Count chips, condition pills, status / sign-in tags, version tag',    fb:'system-ui, sans-serif' },
-    { key:'--f-code',   s:'--f-code-s',   name:'Account & code',      desc:'Account ID label + the MB-xxxx code',                                 fb:'"Courier New", monospace' },
-    { key:'--f-splash', s:'--f-splash-s', name:'Splash wordmark',     desc:'Boot/intro "MonsterBox" + top-bar app title',                        fb:'"Courier New", monospace' },
-    { key:'--f-mark',   s:'--f-mark-s',   name:'Background watermark',desc:'Faint "MonsterBox" behind the app',                                  fb:'"Mississauga", cursive' },
-    { key:'--f-input',  s:'--f-input-s',  name:'Inputs',              desc:'Text fields, selects, textareas',                                     fb:'system-ui, sans-serif' },
+  // PER-ELEMENT font tester. Each "slot" = [id, name, CSS selector(s), base px,
+  // fallback stack]. Choosing a font/size injects a !important rule into a live
+  // <style>, so any one element can be set on its own. Only true repeats (CR tags,
+  // monster rows, top tabs) share a slot — there's no sane way to set those one-off.
+  var UI='system-ui, sans-serif', SER='Georgia, serif', MON='"Courier New", monospace', CUR='"Mississauga", cursive';
+  var REGIONS = [
+    ['Top bar', [
+      ['title','App title wordmark','.mtitle span',18,MON],
+      ['toptabs','Top tab buttons (mobile)','.mbtn',13,UI],
+      ['ver','Version tag','.appver',9,UI],
+    ]],
+    ['Compendium (left)', [
+      ['comphead','Compendium heading','#library .libhead h2',12,UI],
+      ['clearall','"Clear All" link','#library .clearbtn',11,UI],
+      ['search','Search box','#search',13,UI],
+      ['filterbtn','Filters button','.filterbtn',12,UI],
+      ['newentry','New-entry button','.newentry',13,UI],
+      ['total','Total-count line','.totalcount',12,UI],
+      ['crgroup','CR group divider','.crgroup',13,SER],
+      ['crcount','CR group count','.crgroup .count',11,UI],
+      ['monname','Monster name (rows)','.mon .nm',14,UI],
+      ['monsub','Monster type line','.mon .sub',12,UI],
+      ['montag','Monster CR tag','.mon .cr',11,SER],
+    ]],
+    ['Import', [
+      ['impbtn','Import buttons','.impbtns .btn',12,UI],
+      ['drop','Drop-zone text','.drop',12,UI],
+      ['empty','Drag-drop hint','#emptylabel',20,UI],
+    ]],
+    ['Statblock (centre)', [
+      ['cname','Creature name','#scrollcontent .title',26,SER],
+      ['csrc','Source-book line','.sheet .srcbook',11,UI],
+      ['sechead','Section headers','.section > h2',15,SER],
+      ['ablk','Ability labels (STR/DEX)','.ab-check .k',10,UI],
+      ['amod','Ability modifiers','.ab-check .mod',19,SER],
+      ['asc','Ability scores','.ab-check .sc',11,UI],
+      ['svk','Save labels','.ab-save .svk',9,UI],
+      ['svv','Save values','.ab-save .svv',13,SER],
+      ['dk','Defense labels (AC/HP)','.defenses .d .k',10,UI],
+      ['dv','Defense values','.defenses .d .v',20,SER],
+      ['line','Statblock body text','.line',13,UI],
+    ]],
+    ['Centre view chrome', [
+      ['vtitle','View titles (Encounter/Review/Filters)','#encounterrun .run-frozen .title, #reviewpanel .run-frozen .title, #filterpanel .run-frozen .title',22,SER],
+      ['vbtn','View buttons','#encounterrun .btn, #reviewpanel .btn, #filterpanel .btn',13,UI],
+    ]],
+    ['Encounter & log (right)', [
+      ['enchead','Encounter heading','#plannerpanel .libhead h2',15,UI],
+      ['encbtn','Encounter buttons','#plannerpanel .btn',13,UI],
+      ['encsel','Load-encounter dropdown','#encsel',13,UI],
+      ['pname','Planner row names','.planner-row .pname',13,UI],
+      ['loghead','Roll Log heading','#logpanel .libhead h2',12,UI],
+      ['rolltot','Roll totals','.roll .tot',30,SER],
+      ['rolltxt','Roll log text','.roll .rtitle, .roll .det',12,UI],
+      ['signin','Sign-in button','.signin-btn',12,UI],
+    ]],
+    ['Account', [
+      ['acctname','Account name','.acct-name',16,UI],
+      ['acctcode','Account ID + code','.acct-id, .acct-id-val',11,MON],
+      ['acctstat','Account status','.acct-status',12,UI],
+      ['acctmail','Account email','.acct-email',13,UI],
+    ]],
+    ['Brand', [
+      ['splash','Boot splash wordmark','.splash-text',72,MON],
+      ['mark','Background watermark','.bgmark-word',44,CUR],
+    ]],
   ];
-  // SEPARATE keys: fonts (imported files) + map (family choices) are preserved
-  // across this change; the new size multipliers live in their own key so nothing
-  // already imported is touched.
-  var FONTS_KEY='sf-fonttest-fonts', MAP_KEY='sf-fonttest-map', SCALE_KEY='sf-fonttest-scale';
-  var fonts = [];   // { name, url(dataURL) }
-  var map = {};     // family var -> font name ('' = default)
-  var scales = {};  // size var -> multiplier (1 = design size)
-  try { fonts  = JSON.parse(localStorage.getItem(FONTS_KEY) || '[]'); } catch(e){}
-  try { map    = JSON.parse(localStorage.getItem(MAP_KEY)   || '{}'); } catch(e){}
-  try { scales = JSON.parse(localStorage.getItem(SCALE_KEY) || '{}'); } catch(e){}
+  var SLOTS=[]; REGIONS.forEach(function(r){ r[1].forEach(function(it){ SLOTS.push({id:it[0],name:it[1],sel:it[2],base:it[3],fb:it[4]}); }); });
 
-  function register(f){
-    try { var ff = new FontFace(f.name, 'url(' + f.url + ')'); ff.load().then(function(face){ document.fonts.add(face); apply(); }); } catch(e){}
-  }
+  // sf-fonttest-fonts (imported files) is REUSED so nothing imported is lost; the
+  // per-element font + size choices live in their own keys.
+  var FONTS_KEY='sf-fonttest-fonts', FMAP_KEY='sf-fontslot-map', SMAP_KEY='sf-fontslot-size';
+  var fonts=[], fmap={}, smap={};
+  try{ fonts=JSON.parse(localStorage.getItem(FONTS_KEY)||'[]'); }catch(e){}
+  try{ fmap =JSON.parse(localStorage.getItem(FMAP_KEY)||'{}'); }catch(e){}
+  try{ smap =JSON.parse(localStorage.getItem(SMAP_KEY)||'{}'); }catch(e){}
+
+  var styleEl=document.createElement('style'); styleEl.id='ft-dyn'; document.documentElement.appendChild(styleEl);
+
+  function register(f){ try{ var ff=new FontFace(f.name,'url('+f.url+')'); ff.load().then(function(face){ document.fonts.add(face); apply(); }); }catch(e){} }
   function apply(){
-    CATS.forEach(function(c){
-      var fn = map[c.key];
-      if (fn) document.documentElement.style.setProperty(c.key, '"'+fn+'", '+c.fb);
-      else document.documentElement.style.removeProperty(c.key);   // back to the stylesheet default
-      var sc = +scales[c.s];
-      if (sc && sc !== 1) document.documentElement.style.setProperty(c.s, String(sc));
-      else document.documentElement.style.removeProperty(c.s);
+    var css='';
+    SLOTS.forEach(function(s){
+      var fn=fmap[s.id], mult=+smap[s.id]||1, d='';
+      if(fn) d+='font-family:"'+fn+'",'+s.fb+' !important;';
+      if(mult!==1) d+='font-size:calc('+s.base+'px * '+mult+') !important;';
+      if(d) css+=s.sel+'{'+d+'}\n';
     });
+    styleEl.textContent=css;
   }
-  function persist(){ try {
+  function persist(){ try{
       localStorage.setItem(FONTS_KEY, JSON.stringify(fonts));
-      localStorage.setItem(MAP_KEY,   JSON.stringify(map));
-      localStorage.setItem(SCALE_KEY, JSON.stringify(scales));
-    } catch(e){ alert('Could not save (storage full — too many/large fonts).'); } }
+      localStorage.setItem(FMAP_KEY,  JSON.stringify(fmap));
+      localStorage.setItem(SMAP_KEY,  JSON.stringify(smap));
+    }catch(e){ alert('Could not save (storage full — too many/large fonts).'); } }
 
   fonts.forEach(register); apply();
 
   function build(){
-    var p = document.createElement('div');
-    p.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;width:360px;max-height:92vh;overflow:auto;'
-      + 'background:rgba(20,18,16,.96);color:#eee;font:13px/1.45 system-ui,sans-serif;border:1px solid #6a5;'
-      + 'border-radius:10px;padding:12px 13px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
-    var btn = 'background:#222;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer;';
-    var rows = CATS.map(function(c){
-      return '<div style="margin:9px 0;padding:8px;background:rgba(255,255,255,.05);border-radius:7px">'
-        + '<div style="font-weight:700;color:#9d6">'+c.name+'</div>'
-        + '<div style="font-size:11px;color:#aaa;margin:2px 0 6px">'+c.desc+'</div>'
-        + '<select data-key="'+c.key+'" style="width:100%;padding:5px;background:#111;color:#eee;border:1px solid #555;border-radius:5px"></select>'
-        + '<div style="display:flex;align-items:center;gap:6px;margin-top:6px">'
-        +   '<span style="font-size:11px;color:#aaa">Size</span>'
-        +   '<button data-step="-1" data-skey="'+c.s+'" style="'+btn+'width:26px;height:24px;font-size:15px">&minus;</button>'
-        +   '<span data-pct="'+c.s+'" style="min-width:42px;text-align:center;font-size:12px;color:#9d6">100%</span>'
-        +   '<button data-step="1" data-skey="'+c.s+'" style="'+btn+'width:26px;height:24px;font-size:15px">+</button>'
-        +   '<button data-step="0" data-skey="'+c.s+'" style="'+btn+'margin-left:auto;font-size:10px;padding:2px 6px;color:#aaa">reset size</button>'
-        + '</div>'
-        + '<div data-prev="'+c.key+'" style="margin-top:6px;font-size:20px;color:#fff">MonsterBox 18 (+4)</div>'
-        + '</div>';
-    }).join('');
-    p.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center">'
-      + '<b style="color:#9d6">Font test panel</b>'
-      + '<button id="ftHide" style="'+btn+'padding:2px 8px">hide</button></div>'
-      + '<label style="display:block;margin:8px 0;padding:7px;border:1px dashed #6a5;border-radius:6px;text-align:center;cursor:pointer;color:#9d6">'
-      + '+ Load OTF / TTF / WOFF files<input id="ftFile" type="file" accept=".otf,.ttf,.woff,.woff2" multiple style="display:none"></label>'
-      + '<div id="ftList" style="font-size:11px;color:#aaa"></div>' + rows
-      + '<button id="ftReset" style="margin-top:8px;width:100%;background:#522;color:#fdd;border:1px solid #855;border-radius:6px;cursor:pointer;padding:6px">Reset assignments &amp; sizes (keeps imported fonts)</button>';
+    var p=document.createElement('div');
+    p.style.cssText='position:fixed;top:10px;right:10px;z-index:100000;width:372px;max-height:94vh;overflow:auto;'
+      +'background:rgba(20,18,16,.97);color:#eee;font:13px/1.4 system-ui,sans-serif;border:1px solid #6a5;'
+      +'border-radius:10px;padding:12px 13px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
+    var btn='background:#222;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer;';
+    var bodyHtml='';
+    REGIONS.forEach(function(r){
+      bodyHtml+='<div style="margin:13px 0 3px;font-weight:700;color:#9d6;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #443;padding-bottom:2px">'+r[0]+'</div>';
+      r[1].forEach(function(it){
+        var id=it[0];
+        bodyHtml+='<div style="margin:6px 0;padding:6px 7px;background:rgba(255,255,255,.05);border-radius:6px">'
+          +'<div style="font-size:12px;margin-bottom:4px">'+it[1]+'</div>'
+          +'<div style="display:flex;gap:5px;align-items:center">'
+          +'<select data-id="'+id+'" style="flex:1;min-width:0;padding:4px;background:#111;color:#eee;border:1px solid #555;border-radius:5px;font-size:12px"></select>'
+          +'<button data-step="-1" data-id="'+id+'" style="'+btn+'width:24px;height:24px;font-size:14px">&minus;</button>'
+          +'<span data-pct="'+id+'" style="min-width:38px;text-align:center;font-size:11px;color:#9d6">100%</span>'
+          +'<button data-step="1" data-id="'+id+'" style="'+btn+'width:24px;height:24px;font-size:14px">+</button>'
+          +'</div></div>';
+      });
+    });
+    p.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<b style="color:#9d6">Per-element fonts</b>'
+      +'<button id="ftHide" style="'+btn+'padding:2px 8px">hide</button></div>'
+      +'<label style="display:block;margin:8px 0;padding:7px;border:1px dashed #6a5;border-radius:6px;text-align:center;cursor:pointer;color:#9d6">'
+      +'+ Load OTF / TTF / WOFF files<input id="ftFile" type="file" accept=".otf,.ttf,.woff,.woff2" multiple style="display:none"></label>'
+      +'<div id="ftList" style="font-size:11px;color:#aaa"></div>'+bodyHtml
+      +'<button id="ftReset" style="margin-top:10px;width:100%;background:#522;color:#fdd;border:1px solid #855;border-radius:6px;cursor:pointer;padding:6px">Reset all assignments &amp; sizes (keeps fonts)</button>';
     document.body.appendChild(p);
 
     function sanitize(n){ return n.replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9 _-]/g,'').trim() || ('Font'+Date.now()); }
+    function opts(id){ return '<option value="">— default —</option>'+fonts.map(function(f){ return '<option value="'+f.name+'"'+(fmap[id]===f.name?' selected':'')+'>'+f.name+'</option>'; }).join(''); }
     function refresh(){
-      p.querySelector('#ftList').textContent = fonts.length ? ('Loaded: ' + fonts.map(function(f){return f.name;}).join(', ')) : 'No custom fonts loaded yet.';
-      CATS.forEach(function(c){
-        var sel = p.querySelector('select[data-key="'+c.key+'"]');
-        sel.innerHTML = '<option value="">— default —</option>' + fonts.map(function(f){ return '<option value="'+f.name+'"'+(map[c.key]===f.name?' selected':'')+'>'+f.name+'</option>'; }).join('');
-        var sc = +scales[c.s] || 1;
-        p.querySelector('[data-pct="'+c.s+'"]').textContent = Math.round(sc*100)+'%';
-        var prev = p.querySelector('[data-prev="'+c.key+'"]');
-        prev.style.fontFamily = map[c.key] ? ('"'+map[c.key]+'", '+c.fb) : c.fb;
-        prev.style.fontSize = (20*sc).toFixed(1)+'px';
+      p.querySelector('#ftList').textContent = fonts.length ? ('Loaded: '+fonts.map(function(f){return f.name;}).join(', ')) : 'No fonts loaded yet — drop some above.';
+      SLOTS.forEach(function(s){
+        p.querySelector('select[data-id="'+s.id+'"]').innerHTML = opts(s.id);
+        p.querySelector('[data-pct="'+s.id+'"]').textContent = Math.round((+smap[s.id]||1)*100)+'%';
       });
     }
     p.querySelector('#ftFile').addEventListener('change', function(e){
-      var files = [].slice.call(e.target.files); var pending = files.length;
-      files.forEach(function(file){
-        var r = new FileReader();
-        r.onload = function(){ var nm = sanitize(file.name); if (!fonts.some(function(f){return f.name===nm;})) { var f={name:nm,url:r.result}; fonts.push(f); register(f); } if(--pending===0){ persist(); refresh(); } };
-        r.readAsDataURL(file);
-      });
+      var files=[].slice.call(e.target.files), pending=files.length;
+      files.forEach(function(file){ var r=new FileReader();
+        r.onload=function(){ var nm=sanitize(file.name); if(!fonts.some(function(f){return f.name===nm;})){ var f={name:nm,url:r.result}; fonts.push(f); register(f); } if(--pending===0){ persist(); refresh(); } };
+        r.readAsDataURL(file); });
     });
-    // font assignment (selects)
-    p.addEventListener('change', function(e){
-      var sel = e.target.closest && e.target.closest('select[data-key]'); if (!sel) return;
-      map[sel.getAttribute('data-key')] = sel.value; persist(); apply(); refresh();
-    });
-    // size steppers (+ / - / reset)
-    p.addEventListener('click', function(e){
-      var b = e.target.closest && e.target.closest('button[data-step]'); if (!b) return;
-      var skey = b.getAttribute('data-skey'), step = +b.getAttribute('data-step');
-      var v = +scales[skey] || 1;
-      if (step === 0) v = 1; else v = Math.min(3, Math.max(0.5, +(v + step*0.05).toFixed(2)));
-      scales[skey] = v; persist(); apply(); refresh();
-    });
+    p.addEventListener('change', function(e){ var sel=e.target.closest&&e.target.closest('select[data-id]'); if(!sel)return;
+      fmap[sel.getAttribute('data-id')]=sel.value; persist(); apply(); });
+    p.addEventListener('click', function(e){ var b=e.target.closest&&e.target.closest('button[data-step]'); if(!b)return;
+      var id=b.getAttribute('data-id'), step=+b.getAttribute('data-step'), v=+smap[id]||1;
+      v=Math.min(3,Math.max(0.5,+(v+step*0.05).toFixed(2))); smap[id]=v; persist(); apply();
+      p.querySelector('[data-pct="'+id+'"]').textContent=Math.round(v*100)+'%'; });
     p.querySelector('#ftHide').addEventListener('click', function(){ p.style.display='none'; });
-    // Reset clears the per-group font + size choices but KEEPS the imported font files.
-    p.querySelector('#ftReset').addEventListener('click', function(){ map={}; scales={}; persist(); apply(); refresh(); });
+    p.querySelector('#ftReset').addEventListener('click', function(){ fmap={}; smap={}; persist(); apply(); refresh(); });
     refresh();
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
 </script>
 <!-- ===== END FONT TEST PANEL ===== -->
@@ -1536,7 +1575,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v145</span>
+      <span class="appver" id="appver">v146</span>
     </div>
   </div>
 </div>
