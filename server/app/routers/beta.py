@@ -10,6 +10,7 @@ To retire after beta: set BETA_COLLECT_PDFS=false (or delete this router + the
 frontend hook + drop the pdf_uploads table + the storage bucket)."""
 import hashlib
 import io
+import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import delete, func, or_, select
@@ -24,6 +25,18 @@ from ..models import PdfUpload, User
 router = APIRouter(prefix="/api/beta", tags=["beta"])
 
 MAX_ROWS = 5000   # hard cap on stored rows (abuse guard for the open endpoint)
+
+# In-memory record of the most recent collection outcome, so the admin can read the
+# EXACT reason a real upload failed (it's otherwise returned only to the tester's
+# browser). Single-instance beta service, so a module global is fine; lost on restart.
+_LAST_COLLECT = {"when": None, "file": None, "size_mb": None, "where": None, "error": None}
+
+
+def _record_collect(filename, size, where, error):
+    _LAST_COLLECT.update(
+        when=time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
+        file=(filename or "")[:200], size_mb=round((size or 0) / 1048576, 1),
+        where=where, error=error)
 
 
 @router.post("/pdf")
@@ -115,6 +128,7 @@ async def collect_pdf(
                      data=(val if kind == "db" else None),
                      storage_path=(val if kind == "storage" else None)))
     db.commit()
+    _record_collect(file.filename, size, kind or "none", store_err["msg"])
     return {"collected": True, "stored": kind is not None, "where": kind or "none",
             "error": store_err["msg"]}
 
@@ -138,6 +152,10 @@ def storage_diag(_admin: User = Depends(require_admin), db: Session = Depends(ge
     info["storage_used_mb"] = round(used / 1048576, 1)
     info["storage_budget_mb"] = settings.beta_storage_total_mb
     info["per_file_cap_mb"] = settings.beta_storage_max_mb
+    # The exact outcome of the most recent REAL collection — the real upload path
+    # (streamed UploadFile) can fail where the tiny test upload below succeeds, so
+    # this is what actually explains "too large to store" when everything else is ok.
+    info["last_real_upload"] = _LAST_COLLECT
     if used >= budget * 0.98:
         info["budget_warning"] = (
             f"total storage budget is essentially full ({round(used/1048576,1)} of "

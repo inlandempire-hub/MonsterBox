@@ -349,7 +349,14 @@
       else if (out.bucket_file_size_limit) lines.push("Bucket file-size limit: " + (out.bucket_limit_mb ? out.bucket_limit_mb + " MB" : out.bucket_file_size_limit));
       if (out.storage_used_mb != null) lines.push("Storage used: " + out.storage_used_mb + " of " + out.storage_budget_mb + " MB budget (per-file cap " + out.per_file_cap_mb + " MB)");
       if (out.budget_warning) lines.push("PROBLEM: " + out.budget_warning);
-      lines.push("Test upload: " + (out.upload || "?"));
+      var lru = out.last_real_upload;
+      if (lru && lru.when) {
+        lines.push("Last real book upload: " + (lru.file || "?") + " (" + lru.size_mb + " MB) at " + lru.when +
+          "\n  -> stored to: " + (lru.where || "?") + (lru.error ? "\n  -> ERROR: " + lru.error : "  (no error)"));
+      } else if (lru) {
+        lines.push("Last real book upload: none recorded since the server last restarted — import a book, then re-run this.");
+      }
+      lines.push("Test upload (tiny file): " + (out.upload || "?"));
       if (out.signed_url) lines.push("Signed URL: " + out.signed_url);
       if (out.result) lines.push("Result: " + out.result);
     }
