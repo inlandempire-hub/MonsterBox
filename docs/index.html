@@ -1249,6 +1249,13 @@
       it.el.style.position = 'fixed';
       it.el.style.left = r.left + 'px';
       it.el.style.top  = r.top + 'px';
+      // CRUCIAL: the element's own CSS sets right/bottom. If we leave those set
+      // AND add left/top, the box has all four sides pinned, so it STRETCHES
+      // between them instead of moving — dragging just resizes it while the
+      // bottom-right corner stays nailed in place (which is why drags never
+      // actually repositioned the wordmark). Clear them so left/top truly move it.
+      it.el.style.right = 'auto';
+      it.el.style.bottom = 'auto';
       it.el.style.margin = '0';
       it.el.style.pointerEvents = 'auto';
       it.el.style.cursor = 'move';
@@ -1451,7 +1458,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v138</span>
+      <span class="appver" id="appver">v139</span>
     </div>
   </div>
 </div>
