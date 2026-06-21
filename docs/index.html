@@ -1361,7 +1361,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v141</span>
+      <span class="appver" id="appver">v142</span>
     </div>
   </div>
 </div>
@@ -3001,9 +3001,11 @@ function toggleMode() {
     requestAnimationFrame(() => document.body.classList.remove('mode-snap')));
   // icon + knob position handled entirely by CSS (::after on #modetoggle)
 }
-// restore saved preference
+// restore saved preference. Dark is the DEFAULT now, so the only thing that keeps
+// a user in light mode is an explicit '0' they set by toggling. New users (no key)
+// and everyone who chose dark ('1') get dark; light-mode users keep their choice.
 (function() {
-  if (localStorage.getItem('sf-dark') === '1') {
+  if (localStorage.getItem('sf-dark') !== '0') {
     document.body.classList.add('dark');
   }
 })();

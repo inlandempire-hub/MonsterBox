@@ -275,10 +275,11 @@
       if (!r.ok) throw new Error("HTTP " + r.status);
       books = await r.json();
     } catch (e) { list.innerHTML = '<div class="rep-empty">Couldn\'t load.</div>'; return; }
-    if (!books.length) { list.innerHTML = '<div class="rep-empty">No imported books collected yet.</div>'; return; }
+    const diagBar = '<button class="btn rep-shotbtn" style="margin-bottom:8px" onclick="cloudStorageDiag(this)">Run storage diagnostics</button>';
+    if (!books.length) { list.innerHTML = diagBar + '<div class="rep-empty">No imported books collected yet.</div>'; return; }
     const anyUnstored = books.some(b => !b.has_file);
     const clearBar = anyUnstored ? '<button class="btn rep-shotbtn" style="margin-bottom:8px" onclick="cloudClearUnstored()">Clear the "too large to store" entries</button>' : "";
-    list.innerHTML = clearBar + books.map(b => {
+    list.innerHTML = diagBar + clearBar + books.map(b => {
       const when = b.created_at ? new Date(b.created_at).toLocaleString() : "";
       return '<div class="rep"><div class="rep-head"><span class="rep-from">' + esc(b.filename || "(unnamed)") +
         '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' +
@@ -324,6 +325,33 @@
       if (!r.ok) throw new Error();
     } catch (e) {}
     openBooks(); checkAdminAlerts();
+  }
+  // Admin: run the server-side storage self-test and show the result, so a
+  // "too large to store" problem can be diagnosed without reading server logs.
+  // Reports whether Supabase Storage is configured, the bucket's own file-size
+  // limit (the usual culprit), and a live upload/sign/delete round-trip.
+  async function storageDiag(btn) {
+    if (btn) { btn.disabled = true; btn.textContent = "Checking…"; }
+    let out;
+    try {
+      const r = await directFetch(API_BASE + "/api/beta/storage-diag", { headers: { Authorization: "Bearer " + session.access_token } });
+      out = await r.json();
+    } catch (e) { out = { error: "couldn't reach the server" }; }
+    if (btn) { btn.disabled = false; btn.textContent = "Run storage diagnostics"; }
+    const lines = [];
+    if (!out.storage_ready) {
+      lines.push("Supabase Storage is NOT configured on the server.");
+      lines.push("Books fall back to the database path, capped at 40 MB each — anything bigger shows \"too large to store\".");
+      lines.push("Fix: set SUPABASE_SERVICE_KEY and SUPABASE_URL in the Render environment, then redeploy.");
+    } else {
+      lines.push("Storage configured: yes  (bucket: " + (out.bucket || "?") + ")");
+      if (out.bucket_limit_warning) lines.push("PROBLEM: " + out.bucket_limit_warning);
+      else if (out.bucket_file_size_limit) lines.push("Bucket file-size limit: " + (out.bucket_limit_mb ? out.bucket_limit_mb + " MB" : out.bucket_file_size_limit));
+      lines.push("Test upload: " + (out.upload || "?"));
+      if (out.signed_url) lines.push("Signed URL: " + out.signed_url);
+      if (out.result) lines.push("Result: " + out.result);
+    }
+    alert("Storage diagnostics\n\n" + lines.join("\n\n") + "\n\nRaw:\n" + JSON.stringify(out, null, 1));
   }
   function closeBooks() { const m = $("booksModal"); if (m) m.style.display = "none"; }
 
@@ -441,6 +469,7 @@
   window.cloudDownloadBook = downloadBook;
   window.cloudDeleteBook = deleteBook;
   window.cloudClearUnstored = clearUnstored;
+  window.cloudStorageDiag = storageDiag;
   window.cloudCloseBooks = closeBooks;
   window.cloudGetSession = () => session;
   window.cloudGetAccount = () => account;

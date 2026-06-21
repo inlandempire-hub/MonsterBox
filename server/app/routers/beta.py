@@ -132,6 +132,26 @@ def storage_diag(_admin: User = Depends(require_admin)):
     if not settings.storage_ready:
         info["result"] = "storage not configured (need SUPABASE_SERVICE_KEY + SUPABASE_URL)"
         return info
+    # The bucket's OWN file_size_limit overrides our app cap and is the usual cause
+    # of 'too large to store' on files under 300MB (Supabase defaults new buckets to
+    # 50MB). Report it explicitly with a verdict against our per-file cap.
+    try:
+        bi = storage.bucket_info()
+        limit = bi.get("file_size_limit")
+        info["bucket_file_size_limit"] = limit
+        if limit:
+            mb = limit / 1048576 if isinstance(limit, int) else limit
+            info["bucket_limit_mb"] = round(mb, 1) if isinstance(mb, (int, float)) else mb
+            if isinstance(limit, int) and limit < settings.beta_storage_max_mb * 1024 * 1024:
+                info["bucket_limit_warning"] = (
+                    f"bucket caps uploads at ~{round(limit/1048576,1)}MB, BELOW the app's "
+                    f"{settings.beta_storage_max_mb}MB cap — raise it in Supabase: Storage -> "
+                    f"{settings.beta_storage_bucket} -> Edit bucket -> file size limit")
+        else:
+            info["bucket_file_size_limit"] = "unlimited (no bucket cap set)"
+    except Exception as e:
+        info["bucket_info"] = f"{type(e).__name__}: {e}"
+
     data = b"%PDF-1.4 storage diag\n"
     path = "_diag/storage_test.pdf"
     try:

@@ -68,6 +68,17 @@ def signed_url(path: str, expires: int = 3600) -> str:
     return settings.supabase_base + signed
 
 
+def bucket_info() -> dict:
+    """Read the bucket's own config (file_size_limit, allowed_mime_types). A low
+    per-bucket file_size_limit — Supabase often defaults a new bucket to 50MB — is
+    a common cause of 'too large to store' on files well under our app cap, since
+    the bucket rejects the upload before our 300MB cap ever applies."""
+    url = f"{settings.supabase_base}/storage/v1/bucket/{settings.beta_storage_bucket}"
+    req = urllib.request.Request(url, method="GET", headers=_headers())
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode())
+
+
 def delete(path: str) -> None:
     """Best-effort delete of a stored object."""
     req = urllib.request.Request(_obj_url(path), method="DELETE", headers=_headers())
