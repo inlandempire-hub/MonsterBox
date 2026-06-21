@@ -166,7 +166,7 @@
   #bgmark .bgmark-word {
     position: absolute;
     right: calc(var(--mark-right) + 92px);
-    bottom: 26px;
+    bottom: 24px;
     font-family: "Mississauga", cursive; font-weight: 400;
     font-size: 44px; line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
@@ -1274,8 +1274,15 @@
         render();
       }, { passive: false });
     });
+    var cs = function(v, d){ return parseInt(getComputedStyle(document.documentElement).getPropertyValue(v)) || d; };
     function render(){
       var vw = window.innerWidth, vh = window.innerHeight, cx = vw / 2, cy = vh / 2;
+      // --mark-right = --col-right + 2*--gap (centre panel's right edge), the anchor
+      // the wordmark's `right` is measured from. Computing it here lets the harness
+      // print the EXACT CSS values to ship — the box EDGES, which is what the CSS
+      // `right`/`bottom` actually set — so what you drag is what ships (no centre-to-
+      // edge translation, which is what kept landing the text a few px high).
+      var markRight = cs('--col-right', 300) + 2 * cs('--gap', 12);
       var out = 'viewport ' + vw + ' x ' + vh + '  (centre ' + Math.round(cx) + ',' + Math.round(cy) + ')\n';
       items.forEach(function(it){
         var r = it.el.getBoundingClientRect();
@@ -1284,6 +1291,11 @@
         if (it.kind === 'text') sz += '  font ' + Math.round(parseFloat(getComputedStyle(it.el).fontSize)) + 'px';
         out += '\n' + it.name + '\n  size ' + sz + '\n  top-left ' + Math.round(r.left) + ',' + Math.round(r.top)
              + '\n  from-centre ' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + '\n';
+        if (it.kind === 'text') {
+          var rightOff = Math.round((vw - r.right) - markRight);   // CSS: var(--mark-right) + Npx
+          var bottomPx = Math.round(vh - r.bottom);                // CSS: bottom Mpx
+          out += '  >> SHIP CSS  right: calc(var(--mark-right) + ' + rightOff + 'px)   bottom: ' + bottomPx + 'px\n';
+        }
         it.tag.textContent = it.name + ' ' + sz + '  c(' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + ')';
         it.tag.style.left = Math.round(r.left) + 'px';
         it.tag.style.top  = Math.round(Math.max(0, r.top - 18)) + 'px';
@@ -1439,7 +1451,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v137</span>
+      <span class="appver" id="appver">v138</span>
     </div>
   </div>
 </div>
