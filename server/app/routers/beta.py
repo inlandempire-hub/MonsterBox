@@ -120,7 +120,7 @@ async def collect_pdf(
 
 
 @router.get("/storage-diag")
-def storage_diag(_admin: User = Depends(require_admin)):
+def storage_diag(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Admin-only: report Supabase Storage config and run a tiny upload/sign/delete,
     surfacing the exact error so storage can be diagnosed (mirrors /api/report/diag)."""
     info = {
@@ -129,6 +129,20 @@ def storage_diag(_admin: User = Depends(require_admin)):
         "base": settings.supabase_base or "(unset)",
         "service_key_set": bool(settings.supabase_service_key),
     }
+    # Total stored-bytes budget: once used + new file exceeds it, EVERY further book
+    # is rejected as "over storage cap" even though each one is well under the per-file
+    # limit — a common cause when storage + bucket both look fine.
+    used = db.scalar(select(func.coalesce(func.sum(PdfUpload.size), 0)).where(
+        or_(PdfUpload.data.isnot(None), PdfUpload.storage_path.isnot(None)))) or 0
+    budget = settings.beta_storage_total_mb * 1024 * 1024
+    info["storage_used_mb"] = round(used / 1048576, 1)
+    info["storage_budget_mb"] = settings.beta_storage_total_mb
+    info["per_file_cap_mb"] = settings.beta_storage_max_mb
+    if used >= budget * 0.98:
+        info["budget_warning"] = (
+            f"total storage budget is essentially full ({round(used/1048576,1)} of "
+            f"{settings.beta_storage_total_mb}MB) — new books are rejected as 'over cap'. "
+            f"Raise beta_storage_total_mb (check Supabase plan storage quota) or delete old books.")
     if not settings.storage_ready:
         info["result"] = "storage not configured (need SUPABASE_SERVICE_KEY + SUPABASE_URL)"
         return info

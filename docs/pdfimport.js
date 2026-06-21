@@ -763,6 +763,23 @@
   // Gated hard: every core token must be a lone letter (optionally hyphen-joined),
   // so ability rows ("S T R 14 +2") and spaced prose (which carries punctuation or
   // lowercase words) are left untouched.
+  // Collapsing a spaced heading loses the spaces BETWEEN words too, so the name
+  // comes out as one run ("BARBARIANOUTLANDER", "ASSASSINCUTTHROAT"). These books
+  // name creatures "<class/role> <subtype>", so peel a recognised leading word off
+  // the front and treat the rest as the subtype — recovering the space. Falls back
+  // to the single token when nothing matches, so it never mangles a real name.
+  const NAME_LEAD_WORDS = ["barbarian", "bard", "cleric", "druid", "fighter", "monk",
+    "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard", "artificer", "assassin"];
+  const capWord = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  function splitCollapsedName(word) {
+    const low = word.toLowerCase();
+    for (const w of NAME_LEAD_WORDS) {
+      if (low.startsWith(w) && word.length > w.length + 1) {
+        return capWord(word.slice(0, w.length)) + " " + capWord(word.slice(w.length));
+      }
+    }
+    return capWord(word);
+  }
   function collapseSpacedCaps(line) {
     const toks = line.trim().split(/\s+/);
     if (toks.length < 5) return line;
@@ -772,8 +789,7 @@
       crTail = " CR " + toks[n - 1]; core = toks.slice(0, n - 3);
     }
     if (core.length < 4 || !core.every(t => /^-?[A-Za-z]-?$/.test(t))) return line;
-    const word = core.join("");
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() + crTail;
+    return splitCollapsedName(core.join("")) + crTail;
   }
 
   // ============================================================ split into blocks

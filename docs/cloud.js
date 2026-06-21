@@ -347,6 +347,8 @@
       lines.push("Storage configured: yes  (bucket: " + (out.bucket || "?") + ")");
       if (out.bucket_limit_warning) lines.push("PROBLEM: " + out.bucket_limit_warning);
       else if (out.bucket_file_size_limit) lines.push("Bucket file-size limit: " + (out.bucket_limit_mb ? out.bucket_limit_mb + " MB" : out.bucket_file_size_limit));
+      if (out.storage_used_mb != null) lines.push("Storage used: " + out.storage_used_mb + " of " + out.storage_budget_mb + " MB budget (per-file cap " + out.per_file_cap_mb + " MB)");
+      if (out.budget_warning) lines.push("PROBLEM: " + out.budget_warning);
       lines.push("Test upload: " + (out.upload || "?"));
       if (out.signed_url) lines.push("Signed URL: " + out.signed_url);
       if (out.result) lines.push("Result: " + out.result);
