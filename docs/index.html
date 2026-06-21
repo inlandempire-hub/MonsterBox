@@ -43,13 +43,39 @@
     --red-soft: #f3e4e2;      /* light red fill for chips/hover */
     --good: #3f8f4f; --good-bg: #e3efe1;
     --bad: #b3261e;
-    /* Font categories (swappable live via the ?fonts test panel):
-       --ui = UI chrome, --serif = statblock display, --mono = splash wordmark +
-       account id + numerals, --wordmark = in-app background watermark. */
+    /* ---- Raw font stacks (the fallbacks the semantic groups build on) ---- */
     --ui: system-ui, "Segoe UI", sans-serif;
     --serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
     --mono: "Courier New", Courier, "Cascadia Mono", Consolas, monospace;
     --wordmark: "Mississauga", cursive;
+    /* ---- Semantic font GROUPS (one swappable variable per group of near-identical
+       text elements). Each defaults to a raw stack above, so the app looks identical
+       until a group is overridden. The ?fonts test panel swaps the family AND nudges
+       the matching *-s size multiplier so a font can be auditioned bigger/smaller. ----
+         body      paragraphs, lines, notes, hints, modal/about body
+         label     small UPPERCASE labels: panel section labels, stat-block keys, tags
+         head      creature-name title, section headers, About/review headings, run titles
+         cr        every CR badge (list rows, CR group dividers, combat box)
+         stat      ability mods, defense values, save values, roll totals
+         btn       button / control text
+         badge     count chips, pills, status / sign-in tags
+         code      account ID label + the MB-xxxx code
+         splash    boot/intro "MonsterBox" wordmark
+         mark      faint background "MonsterBox" watermark
+         input     text fields / selects */
+    --f-body: var(--ui);     --f-body-s: 1;
+    --f-label: var(--ui);    --f-label-s: 1;
+    --f-head: var(--serif);  --f-head-s: 1;
+    --f-cr: var(--serif);    --f-cr-s: 1;
+    --f-stat: var(--serif);  --f-stat-s: 1;
+    --f-btn: var(--ui);      --f-btn-s: 1;
+    --f-badge: var(--ui);    --f-badge-s: 1;
+    --f-code: var(--mono);   --f-code-s: 1;
+    --f-splash: var(--mono); --f-splash-s: 1;
+    --f-mark: var(--wordmark); --f-mark-s: 1;
+    --f-input: var(--ui);    --f-input-s: 1;
+    /* legacy aliases kept so any rule not yet migrated still resolves */
+    --ui-scale: 1; --serif-scale: 1; --mono-scale: 1; --wordmark-scale: 1;
     /* centre-panel scroll */
     --scroll-bg: #f5efdc;       /* parchment surface */
     --scroll-rod: #9b7c3c;      /* golden wood rollers */
@@ -73,7 +99,7 @@
      wallpaper never drifts (notably on tablets/iOS) */
   html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   body {
-    margin: 0; font: 14px/1.55 var(--ui);
+    margin: 0; font: calc(14px * var(--f-body-s))/1.55 var(--f-body);
     color: var(--ink);
     /* paint the wallpaper directly on the body as a fixed, full-cover backstop:
        the #wallpaper div handles the smooth crossfade, but if its fixed box ever
@@ -172,8 +198,8 @@
     position: absolute;
     right: calc(var(--mark-right) + 92px);
     bottom: 20px;
-    font-family: var(--wordmark); font-weight: 400;
-    font-size: 44px; line-height: .9; color: rgba(255,255,255,.82);
+    font-family: var(--f-mark); font-weight: 400;
+    font-size: calc(44px * var(--f-mark-s)); line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
       0 -1.5px 0.5px rgba(0,0,0,.55),
       0 1.5px 0.5px rgba(255,255,255,.3),
@@ -231,7 +257,7 @@
     display: flex; flex-direction: column; overflow: hidden; padding: 0;
   }
   #encounterrun .run-frozen, #reviewpanel .run-frozen, #filterpanel .run-frozen { flex-shrink: 0; padding: 16px 18px 10px; border-bottom: 1px solid var(--line); }
-  #encounterrun .run-frozen .title, #reviewpanel .run-frozen .title, #filterpanel .run-frozen .title { font: 700 22px/1.1 var(--serif); color: var(--red); }
+  #encounterrun .run-frozen .title, #reviewpanel .run-frozen .title, #filterpanel .run-frozen .title { font: 700 calc(22px * var(--f-head-s))/1.1 var(--f-head); color: var(--red); }
   #runtracker, #reviewlist, #filterbody { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 18px; }
   /* review panel cards */
   .review-note { font-size: 12px; line-height: 1.45; color: var(--ink); margin-top: 8px;
@@ -239,7 +265,7 @@
   .rev-card { background: color-mix(in srgb, var(--panel) 70%, transparent); border: 1px solid var(--line);
         border-radius: 9px; padding: 11px 13px; margin-bottom: 10px; }
   .rev-top { display: flex; align-items: center; gap: 9px; }
-  .rev-top b { font: 700 16px/1.1 var(--serif); color: var(--ink); }
+  .rev-top b { font: 700 calc(16px * var(--f-head-s))/1.1 var(--f-head); color: var(--ink); }
   .rev-tier { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
         padding: 2px 7px; border-radius: 4px; color: #fff; }
   .rev-tier.amber { background: #c98a00; } .rev-tier.red { background: var(--bad); }
@@ -268,11 +294,11 @@
   .impbtns { display: flex; flex-direction: column; gap: 6px; margin: 2px 0 4px; }
   .impbtns .btn { display: flex; align-items: center; justify-content: center; width: 100%;
         height: 32px; margin: 0; padding: 0 10px; box-sizing: border-box;
-        text-align: center; font: 600 12px/1 var(--ui); white-space: nowrap; }
+        text-align: center; font: 600 calc(12px * var(--f-btn-s))/1 var(--f-btn); white-space: nowrap; }
   .impbtns .btn.primary { border-color: var(--red); background: var(--red); color: #fff; }
   .impbtns .btn.primary:hover { background: var(--red-dark); }
   .totalcount { font-size: 12px; color: var(--ink); margin-top: 6px; }
-  .totalcount b { color: var(--red); font: 700 13px/1 var(--serif); }
+  .totalcount b { color: var(--red); font: 700 calc(13px * var(--f-badge-s))/1 var(--f-badge); }
   .totalcount .mword { font-weight: 700; color: var(--ink); }
   #search { width: 100%; background: var(--panel); border: 1px solid var(--line);
         color: var(--ink); border-radius: 6px; padding: 6px 9px; font: inherit;
@@ -330,7 +356,7 @@
     flex-direction: column;
     align-items: center;
   }
-  h2 { font: 700 12px/1 var(--ui); text-transform: uppercase;
+  h2 { font: 700 calc(12px * var(--f-label-s))/1 var(--f-label); text-transform: uppercase;
        letter-spacing: 1px; color: var(--ink); margin: 0 0 10px; }
 
   /* library */
@@ -344,7 +370,7 @@
   .mon.sel { border-color: var(--red); box-shadow: 0 0 0 1px var(--red); }
   .mon .nm { font-weight: 600; padding-right: 18px; text-transform: uppercase; }
   .mon .sub { color: var(--dim); font-size: 12px; }
-  .mon .cr { display: inline-block; font: 700 11px/1.4 var(--serif); color: var(--red);
+  .mon .cr { display: inline-block; font: 700 calc(11px * var(--f-cr-s))/1.4 var(--f-cr); color: var(--red);
         background: var(--red-soft); border-radius: 4px; padding: 0 6px; margin-right: 6px; }
   .warn { color: #b07400; }
   /* parse-quality: per-block confidence dot + "needs review" controls */
@@ -405,7 +431,7 @@
   #sheet.drag-over::after { content: "Drop a PDF to import"; position: absolute; inset: 12px; z-index: 6;
         display: flex; align-items: center; justify-content: center; pointer-events: none;
         border: 3px dashed #fff; border-radius: 16px; background: rgba(0,0,0,.5);
-        color: #fff; font: 600 22px var(--serif); letter-spacing: .3px; }
+        color: #fff; font: 600 calc(22px * var(--f-head-s)) var(--f-head); letter-spacing: .3px; }
   body.dark #sheet.drag-over::after { border-color: var(--red); }
   #sheet.drag-over #emptylabel { display: none !important; }   /* beat the inline display; no double text */
   #importmsg { font-size: 12px; color: var(--dim); margin-bottom: 10px; min-height: 1em; }
@@ -416,7 +442,7 @@
   #importprogress { display: none; position: absolute; left: 50%; top: 50%;
         transform: translate(-50%, -50%); z-index: 3; max-width: 92vw;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        text-align: center; font: 600 14px/1.5 var(--mono); color: #fff;
+        text-align: center; font: 600 calc(14px * var(--mono-scale))/1.5 var(--mono); color: #fff;
         background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.25);
         border-radius: 10px; padding: 14px 22px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
   #importprogress.show { display: block; }
@@ -429,17 +455,17 @@
   .crgroup { display: flex; align-items: center; justify-content: space-between;
         cursor: pointer; padding: 5px 9px; margin: 8px 0 4px; background: var(--panel2);
         border: 1px solid var(--line); border-radius: 6px; user-select: none;
-        font: 700 13px/1 var(--serif); color: var(--red); }
+        font: 700 calc(13px * var(--f-cr-s))/1 var(--f-cr); color: var(--red); }
   .crgroup:hover { background: var(--red-soft); }
   .crgroup .caret { display: inline-block; transition: transform .15s; color: var(--dim);
         margin-right: 4px; }
   .crgroup.open .caret { transform: rotate(90deg); }
-  .crgroup .count { color: var(--dim); font: 400 11px/1 var(--ui); }
+  .crgroup .count { color: var(--dim); font: 400 calc(11px * var(--f-badge-s))/1 var(--f-badge); }
   .crbody { display: none; }
   .crbody.open { display: block; }
 
   /* sheet — styled like a stat block / character sheet */
-  .sheet h2.title { font: 700 26px/1.1 var(--serif); color: var(--red);
+  .sheet h2.title { font: 700 calc(26px * var(--f-head-s))/1.1 var(--f-head); color: var(--red);
         text-transform: uppercase; letter-spacing: 0; margin: 0; }
   .sheet .meta { color: var(--dim); font-style: italic; margin: 2px 0 4px; }
   /* the red divider normally sits under .meta; when a source caption follows,
@@ -452,7 +478,7 @@
   .defenses .d { background: var(--panel); border: 1px solid var(--line2);
         border-radius: 7px; padding: 6px 14px; text-align: center; min-width: 84px; }
   .defenses .d .k { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--red); }
-  .defenses .d .v { font: 700 20px/1.2 var(--serif); }
+  .defenses .d .v { font: 700 calc(20px * var(--f-stat-s))/1.2 var(--f-stat); }
   .defenses .d.roll-init { cursor: pointer; transition: background .12s, color .12s; }
   .defenses .d.roll-init:hover { background: var(--red); }
   .defenses .d.roll-init:hover .k, .defenses .d.roll-init:hover .v { color: #fff; }
@@ -466,12 +492,12 @@
   .ab-btn:hover { background: var(--red); color: #fff; }
   .ab-check { padding: 7px 0 5px; }
   .ab-check .k { font-size: 10px; font-weight: 700; letter-spacing: .5px; color: var(--red); }
-  .ab-check .mod { font: 700 19px/1.1 var(--serif); }
+  .ab-check .mod { font: 700 calc(19px * var(--f-stat-s))/1.1 var(--f-stat); }
   .ab-check .sc { font-size: 11px; color: var(--dim); }
   .ab-check:hover .k, .ab-check:hover .sc { color: #fff; }
   .ab-save { padding: 3px 0; display: flex; align-items: baseline; justify-content: center; gap: 5px; }
   .ab-save .svk { font-size: 9px; font-weight: 700; letter-spacing: .5px; color: var(--red); line-height: 1; }
-  .ab-save .svv { font: 700 13px/1 var(--serif); }
+  .ab-save .svv { font: 700 calc(13px * var(--f-stat-s))/1 var(--f-stat); }
   .ab-save:hover .svk { color: #fff; }
   .line { font-size: 13px; margin: 3px 0; }
   .line.cap { text-transform: none; }   /* capitalisation handled in JS, not CSS */
@@ -516,7 +542,7 @@
   .modal-btns .btn { margin: 0; }
   /* about / legal notice */
   .about-box { max-width: 460px; max-height: 82vh; overflow-y: auto; }
-  .about-h { font: 700 22px/1 var(--serif); color: var(--red); margin: 0 0 4px; }
+  .about-h { font: 700 calc(22px * var(--f-head-s))/1 var(--f-head); color: var(--red); margin: 0 0 4px; }
   .about-sub { font-size: 11px; color: var(--dim); margin: 0 0 12px; text-transform: uppercase; letter-spacing: .5px; }
   .about-body { font-size: 13px; line-height: 1.5; }
   .about-body p { margin: 0 0 10px; }
@@ -543,7 +569,7 @@
   /* active-conditions banner on an opened stat block */
   .condbanner { border: 1px solid var(--red); background: color-mix(in srgb, var(--red-soft) 85%, transparent);
         border-radius: 8px; padding: 8px 11px; margin-bottom: 12px; }
-  .condbanner .cbh { font: 700 11px/1 var(--ui); text-transform: uppercase;
+  .condbanner .cbh { font: 700 calc(11px * var(--f-label-s))/1 var(--f-label); text-transform: uppercase;
         letter-spacing: .6px; color: var(--red); margin-bottom: 5px; }
   .condbanner .condline { font-size: 13px; color: var(--ink); margin: 6px 0 0; }
   .condbanner .condline:first-of-type { margin-top: 0; }
@@ -554,12 +580,12 @@
   /* a stat-block section disabled by a condition */
   .section.disabled { opacity: .42; }
   .section.disabled .btn, .section.disabled .rollchip { pointer-events: none; }
-  .disabled-tag { font: 700 10px/1 var(--ui); text-transform: uppercase;
+  .disabled-tag { font: 700 calc(10px * var(--f-label-s))/1 var(--f-label); text-transform: uppercase;
         letter-spacing: .5px; color: #fff; background: var(--dim); border-radius: 4px;
         padding: 2px 6px; vertical-align: middle; }
 
   .section { margin-top: 18px; }
-  .section > h2 { color: var(--red); font: 700 15px/1 var(--serif); text-transform: none;
+  .section > h2 { color: var(--red); font: 700 calc(15px * var(--f-head-s))/1 var(--f-head); text-transform: none;
         letter-spacing: 0; border-bottom: 1.5px solid var(--red); padding-bottom: 4px; margin-bottom: 4px; }
   .entry { border-bottom: 1px solid var(--line); padding: 8px 0; }
   .entry .en { font-weight: 700; }
@@ -602,7 +628,7 @@
   .cb.active { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
   .cb .top { display: flex; justify-content: space-between; align-items: center; }
   .cb .init { background: var(--red); color: #fff; border-radius: 6px;
-        padding: 1px 8px; font: 700 12px/1.5 var(--serif); }
+        padding: 1px 8px; font: 700 calc(12px * var(--f-stat-s))/1.5 var(--f-stat); }
   .hpbar { height: 8px; background: #ecdcd9; border-radius: 4px; overflow: hidden; margin: 7px 0; }
   .hpbar > div { height: 100%; background: var(--good); }
   /* distinguish combatants: PCs green, monsters red */
@@ -624,10 +650,10 @@
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
   }
   .roll .rollinfo { flex: 1; min-width: 0; }
-  .roll .src { color: var(--red); font: 700 14px/1.2 var(--serif); }
+  .roll .src { color: var(--red); font: 700 calc(14px * var(--f-stat-s))/1.2 var(--f-stat); }
   .roll .rtitle { color: var(--ink); font-size: 12px; margin-top: 1px; }
   .roll .det { color: var(--dim); font-size: 12px; margin-top: 1px; }
-  .roll .tot { font: 700 30px/1 var(--serif); color: var(--ink); flex-shrink: 0; }
+  .roll .tot { font: 700 calc(30px * var(--f-stat-s))/1 var(--f-stat); color: var(--ink); flex-shrink: 0; }
   .roll .advtag { color: var(--red); font-weight: 700; font-size: 11px; }
   /* natural-20 / natural-1 on a d20 roll (before modifiers): invert the whole tab
      so a crit success/failure is unmistakable */
@@ -752,7 +778,7 @@
   .signin-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 100%;
         height: 32px; margin: 0; padding: 0 10px; box-sizing: border-box; flex-shrink: 0;
         border-radius: 6px; border: 1px solid var(--line);
-        font: 600 12px/1 var(--ui); white-space: nowrap;
+        font: 600 calc(12px * var(--f-btn-s))/1 var(--f-btn); white-space: nowrap;
         overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
   /* admin alert: red dot in the top-right when there are reports/books to review */
   #mAccountBtn { position: relative; }
@@ -769,7 +795,7 @@
   .signin-wrap { position: relative; flex-shrink: 0; }
   .signin-wrap > .signin-btn { padding: 0 46px; }   /* clear the version on the right; symmetric so the label stays centred */
   .appver { position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
-        font: 600 9px/1 var(--ui); letter-spacing: .3px;
+        font: 600 calc(9px * var(--f-badge-s))/1 var(--f-badge); letter-spacing: .3px;
         pointer-events: none; user-select: text; color: #45433f; }   /* darker grey (signed-in panel bg) */
   body.dark .appver { color: #8a857c; }                              /* lighter grey to read on the dark panel */
   .signin-wrap:has(.signin-btn.primary) > .appver { color: rgba(255,255,255,.72); }  /* readable on the red Sign In state */
@@ -821,8 +847,9 @@
   /* shareable account id — pinned top-left of the card, small + dim like the
      "Compendium synced" line */
   .acct-id { position: absolute; top: 0; left: 0; text-align: left;
-        display: flex; align-items: baseline; gap: 6px; font-size: 11px; color: var(--dim); }
-  .acct-id-val { font-family: var(--mono, ui-monospace, monospace); font-weight: 700; color: var(--dim); }
+        display: flex; align-items: baseline; gap: 6px;
+        font-family: var(--f-code); font-size: calc(11px * var(--f-code-s)); color: var(--dim); }
+  .acct-id-val { font-family: var(--f-code, ui-monospace, monospace); font-weight: 700; color: var(--dim); }
   .acct-id-copy { background: none; border: none; padding: 0; cursor: pointer;
         font: inherit; color: var(--red); text-decoration: underline; }
 
@@ -960,7 +987,7 @@
     100% { transform: translateY(0) scale(1); }
   }
   .splash-text {
-    font-family: var(--mono); font-size: 72px; line-height: 1;
+    font-family: var(--f-splash); font-size: calc(72px * var(--f-splash-s)); line-height: 1;
     width: 10ch; text-align: left; white-space: nowrap;     /* fixed width: text doesn't re-centre as it types */
     display: inline-block; transform-origin: top left;
   }
@@ -982,7 +1009,7 @@
     position: absolute; inset: 0;
     display: flex; align-items: flex-start; justify-content: center;
     text-align: center; padding: 7vh 40px 0;
-    font: 700 20px/1.4 var(--mono); letter-spacing: .3px;
+    font: 700 calc(20px * var(--f-splash-s))/1.4 var(--f-splash); letter-spacing: .3px;
     color: #fff;
     text-shadow: 0 1px 2px rgba(0,0,0,.55), 0 2px 14px rgba(0,0,0,.65);
     pointer-events: none;
@@ -1069,7 +1096,7 @@
     .mbtn {
       height: 38px; flex-shrink: 0; padding: 0 14px;
       display: flex; align-items: center; justify-content: center;
-      font: 600 13px/1 var(--ui); cursor: pointer;
+      font: 600 calc(13px * var(--f-btn-s))/1 var(--f-btn); cursor: pointer;
       color: var(--ink); border-radius: 9px; white-space: nowrap;
       background: color-mix(in srgb, var(--panel) 55%, transparent);
       border: 1px solid color-mix(in srgb, var(--panel) 45%, transparent);
@@ -1082,7 +1109,7 @@
     .mtitle { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .mtitle img { width: 26px; height: 26px; flex-shrink: 0;
           filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
-    .mtitle span { font: 700 18px/1.4 var(--mono); letter-spacing: 0; color: #fff;
+    .mtitle span { font: 700 calc(18px * var(--f-splash-s))/1.4 var(--f-splash); letter-spacing: 0; color: #fff;
           text-shadow: 0 1px 0 rgba(8,72,92,.9), 0 2px 0 rgba(8,62,82,.5), 0 4px 7px rgba(0,24,38,.55);
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-bottom: 2px; }
     body.dark .mtitle span { color: #ffb454;
@@ -1152,7 +1179,7 @@
     #modetoggle { top: auto; bottom: 16px; right: 16px; z-index: 120; }
 
     /* splash scaled down for phones */
-    .splash-text { font-size: 40px; }
+    .splash-text { font-size: calc(40px * var(--f-splash-s)); }
     .splash-logo { height: 188px; }
   }
 
@@ -1206,7 +1233,7 @@
     .sheet-scroll { flex: 0 0 auto; overflow: visible; padding: 10px 14px 18px; }
 
     /* smaller splash */
-    .splash-text { font-size: 30px; }
+    .splash-text { font-size: calc(30px * var(--f-splash-s)); }
     .splash-logo { height: 132px; }
   }
 
@@ -1215,6 +1242,21 @@
   @media (max-width: 600px) and (pointer: coarse) {
     .mtitle span { display: none; }
   }
+
+  /* ---- Font GROUP family assignments for elements that only set a font-SIZE
+     (so they inherited the body font). Listing them here makes each one follow
+     its semantic group when that group's font is swapped in the ?fonts panel.
+     Elements that already set a full `font:` shorthand are not repeated here. ---- */
+  /* Labels: small UPPERCASE keys / tags */
+  .rev-tier, .rev-rh, .dtag, .about-sub, .sheet .srcbook,
+  .defenses .d .k, .ab-check .k, .ab-save .svk { font-family: var(--f-label); }
+  /* Counts & badges: chips, pills, status / sign-in tags */
+  .pcbadge, .signin-tag, .acct-status, .entry .en .pill,
+  .cond, .condsel { font-family: var(--f-badge); }
+  /* Stat numerals: raw ability score under each mod */
+  .ab-check .sc { font-family: var(--f-stat); }
+  /* Inputs: text fields, selects, textareas (buttons keep their own group) */
+  input, select, textarea { font-family: var(--f-input); }
 </style>
 </head>
 <body class="booting">
@@ -1231,18 +1273,31 @@
 <script>
 (function(){
   if (!/(?:^|[?&#])fonts(?:=|&|$)/.test(location.search + location.hash)) return;
-  // category -> the CSS variable it drives + a human description + its fallback stack
+  // Each group = one swappable family var (key) + its size-multiplier var (s) +
+  // a description + the fallback stack to mirror the :root default in the preview.
   var CATS = [
-    { key:'--ui',       name:'UI',              desc:'Body text, buttons, labels, counts, filters', fb:'system-ui, sans-serif' },
-    { key:'--serif',    name:'Display / Serif', desc:'Creature names, ability mods, defenses, CR, section headers, roll totals', fb:'Georgia, serif' },
-    { key:'--mono',     name:'Mono',            desc:'Boot/intro splash wordmark, account ID, large numerals', fb:'monospace' },
-    { key:'--wordmark', name:'Wordmark',        desc:'In-app background watermark ("MonsterBox")', fb:'cursive' },
+    { key:'--f-body',   s:'--f-body-s',   name:'Body text',           desc:'Paragraphs, lines, notes, hints, modal/about body',                 fb:'system-ui, sans-serif' },
+    { key:'--f-label',  s:'--f-label-s',  name:'Labels',              desc:'UPPERCASE labels: panel section labels, stat-block keys, tags',       fb:'system-ui, sans-serif' },
+    { key:'--f-head',   s:'--f-head-s',   name:'Headings',            desc:'Creature-name title, section headers, About/review headings, run titles', fb:'Georgia, serif' },
+    { key:'--f-cr',     s:'--f-cr-s',     name:'CR tags',             desc:'Every CR badge (list rows, CR group dividers)',                       fb:'Georgia, serif' },
+    { key:'--f-stat',   s:'--f-stat-s',   name:'Stat numerals',       desc:'Ability mods/scores, defenses, saves, roll totals, initiative',       fb:'Georgia, serif' },
+    { key:'--f-btn',    s:'--f-btn-s',    name:'Buttons',             desc:'Top-bar buttons, import buttons, sign-in button',                     fb:'system-ui, sans-serif' },
+    { key:'--f-badge',  s:'--f-badge-s',  name:'Counts & badges',     desc:'Count chips, condition pills, status / sign-in tags, version tag',    fb:'system-ui, sans-serif' },
+    { key:'--f-code',   s:'--f-code-s',   name:'Account & code',      desc:'Account ID label + the MB-xxxx code',                                 fb:'"Courier New", monospace' },
+    { key:'--f-splash', s:'--f-splash-s', name:'Splash wordmark',     desc:'Boot/intro "MonsterBox" + top-bar app title',                        fb:'"Courier New", monospace' },
+    { key:'--f-mark',   s:'--f-mark-s',   name:'Background watermark',desc:'Faint "MonsterBox" behind the app',                                  fb:'"Mississauga", cursive' },
+    { key:'--f-input',  s:'--f-input-s',  name:'Inputs',              desc:'Text fields, selects, textareas',                                     fb:'system-ui, sans-serif' },
   ];
-  var FONTS_KEY='sf-fonttest-fonts', MAP_KEY='sf-fonttest-map';
+  // SEPARATE keys: fonts (imported files) + map (family choices) are preserved
+  // across this change; the new size multipliers live in their own key so nothing
+  // already imported is touched.
+  var FONTS_KEY='sf-fonttest-fonts', MAP_KEY='sf-fonttest-map', SCALE_KEY='sf-fonttest-scale';
   var fonts = [];   // { name, url(dataURL) }
-  var map = {};     // catKey -> font name ('' = default)
-  try { fonts = JSON.parse(localStorage.getItem(FONTS_KEY) || '[]'); } catch(e){}
-  try { map   = JSON.parse(localStorage.getItem(MAP_KEY)   || '{}'); } catch(e){}
+  var map = {};     // family var -> font name ('' = default)
+  var scales = {};  // size var -> multiplier (1 = design size)
+  try { fonts  = JSON.parse(localStorage.getItem(FONTS_KEY) || '[]'); } catch(e){}
+  try { map    = JSON.parse(localStorage.getItem(MAP_KEY)   || '{}'); } catch(e){}
+  try { scales = JSON.parse(localStorage.getItem(SCALE_KEY) || '{}'); } catch(e){}
 
   function register(f){
     try { var ff = new FontFace(f.name, 'url(' + f.url + ')'); ff.load().then(function(face){ document.fonts.add(face); apply(); }); } catch(e){}
@@ -1250,35 +1305,49 @@
   function apply(){
     CATS.forEach(function(c){
       var fn = map[c.key];
-      document.documentElement.style.setProperty(c.key, fn ? ('"'+fn+'", '+c.fb) : '');
-      // empty string removes the inline override -> the stylesheet default returns.
-      if (!fn) document.documentElement.style.removeProperty(c.key);
+      if (fn) document.documentElement.style.setProperty(c.key, '"'+fn+'", '+c.fb);
+      else document.documentElement.style.removeProperty(c.key);   // back to the stylesheet default
+      var sc = +scales[c.s];
+      if (sc && sc !== 1) document.documentElement.style.setProperty(c.s, String(sc));
+      else document.documentElement.style.removeProperty(c.s);
     });
   }
-  function persist(){ try { localStorage.setItem(FONTS_KEY, JSON.stringify(fonts)); localStorage.setItem(MAP_KEY, JSON.stringify(map)); } catch(e){ alert('Could not save (storage full — too many/large fonts).'); } }
+  function persist(){ try {
+      localStorage.setItem(FONTS_KEY, JSON.stringify(fonts));
+      localStorage.setItem(MAP_KEY,   JSON.stringify(map));
+      localStorage.setItem(SCALE_KEY, JSON.stringify(scales));
+    } catch(e){ alert('Could not save (storage full — too many/large fonts).'); } }
 
   fonts.forEach(register); apply();
 
   function build(){
     var p = document.createElement('div');
-    p.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;width:340px;max-height:90vh;overflow:auto;'
+    p.style.cssText = 'position:fixed;top:10px;right:10px;z-index:100000;width:360px;max-height:92vh;overflow:auto;'
       + 'background:rgba(20,18,16,.96);color:#eee;font:13px/1.45 system-ui,sans-serif;border:1px solid #6a5;'
       + 'border-radius:10px;padding:12px 13px;box-shadow:0 8px 30px rgba(0,0,0,.5);';
+    var btn = 'background:#222;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer;';
     var rows = CATS.map(function(c){
-      return '<div style="margin:10px 0;padding:8px;background:rgba(255,255,255,.05);border-radius:7px">'
+      return '<div style="margin:9px 0;padding:8px;background:rgba(255,255,255,.05);border-radius:7px">'
         + '<div style="font-weight:700;color:#9d6">'+c.name+'</div>'
         + '<div style="font-size:11px;color:#aaa;margin:2px 0 6px">'+c.desc+'</div>'
         + '<select data-key="'+c.key+'" style="width:100%;padding:5px;background:#111;color:#eee;border:1px solid #555;border-radius:5px"></select>'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-top:6px">'
+        +   '<span style="font-size:11px;color:#aaa">Size</span>'
+        +   '<button data-step="-1" data-skey="'+c.s+'" style="'+btn+'width:26px;height:24px;font-size:15px">&minus;</button>'
+        +   '<span data-pct="'+c.s+'" style="min-width:42px;text-align:center;font-size:12px;color:#9d6">100%</span>'
+        +   '<button data-step="1" data-skey="'+c.s+'" style="'+btn+'width:26px;height:24px;font-size:15px">+</button>'
+        +   '<button data-step="0" data-skey="'+c.s+'" style="'+btn+'margin-left:auto;font-size:10px;padding:2px 6px;color:#aaa">reset size</button>'
+        + '</div>'
         + '<div data-prev="'+c.key+'" style="margin-top:6px;font-size:20px;color:#fff">MonsterBox 18 (+4)</div>'
         + '</div>';
     }).join('');
     p.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center">'
       + '<b style="color:#9d6">Font test panel</b>'
-      + '<button id="ftHide" style="background:#333;color:#eee;border:1px solid #555;border-radius:5px;cursor:pointer;padding:2px 8px">hide</button></div>'
+      + '<button id="ftHide" style="'+btn+'padding:2px 8px">hide</button></div>'
       + '<label style="display:block;margin:8px 0;padding:7px;border:1px dashed #6a5;border-radius:6px;text-align:center;cursor:pointer;color:#9d6">'
       + '+ Load OTF / TTF / WOFF files<input id="ftFile" type="file" accept=".otf,.ttf,.woff,.woff2" multiple style="display:none"></label>'
       + '<div id="ftList" style="font-size:11px;color:#aaa"></div>' + rows
-      + '<button id="ftReset" style="margin-top:8px;width:100%;background:#522;color:#fdd;border:1px solid #855;border-radius:6px;cursor:pointer;padding:6px">Reset all to defaults</button>';
+      + '<button id="ftReset" style="margin-top:8px;width:100%;background:#522;color:#fdd;border:1px solid #855;border-radius:6px;cursor:pointer;padding:6px">Reset assignments &amp; sizes (keeps imported fonts)</button>';
     document.body.appendChild(p);
 
     function sanitize(n){ return n.replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9 _-]/g,'').trim() || ('Font'+Date.now()); }
@@ -1287,8 +1356,11 @@
       CATS.forEach(function(c){
         var sel = p.querySelector('select[data-key="'+c.key+'"]');
         sel.innerHTML = '<option value="">— default —</option>' + fonts.map(function(f){ return '<option value="'+f.name+'"'+(map[c.key]===f.name?' selected':'')+'>'+f.name+'</option>'; }).join('');
+        var sc = +scales[c.s] || 1;
+        p.querySelector('[data-pct="'+c.s+'"]').textContent = Math.round(sc*100)+'%';
         var prev = p.querySelector('[data-prev="'+c.key+'"]');
         prev.style.fontFamily = map[c.key] ? ('"'+map[c.key]+'", '+c.fb) : c.fb;
+        prev.style.fontSize = (20*sc).toFixed(1)+'px';
       });
     }
     p.querySelector('#ftFile').addEventListener('change', function(e){
@@ -1299,12 +1371,22 @@
         r.readAsDataURL(file);
       });
     });
+    // font assignment (selects)
     p.addEventListener('change', function(e){
       var sel = e.target.closest && e.target.closest('select[data-key]'); if (!sel) return;
       map[sel.getAttribute('data-key')] = sel.value; persist(); apply(); refresh();
     });
+    // size steppers (+ / - / reset)
+    p.addEventListener('click', function(e){
+      var b = e.target.closest && e.target.closest('button[data-step]'); if (!b) return;
+      var skey = b.getAttribute('data-skey'), step = +b.getAttribute('data-step');
+      var v = +scales[skey] || 1;
+      if (step === 0) v = 1; else v = Math.min(3, Math.max(0.5, +(v + step*0.05).toFixed(2)));
+      scales[skey] = v; persist(); apply(); refresh();
+    });
     p.querySelector('#ftHide').addEventListener('click', function(){ p.style.display='none'; });
-    p.querySelector('#ftReset').addEventListener('click', function(){ map={}; fonts=[]; persist(); apply(); refresh(); });
+    // Reset clears the per-group font + size choices but KEEPS the imported font files.
+    p.querySelector('#ftReset').addEventListener('click', function(){ map={}; scales={}; persist(); apply(); refresh(); });
     refresh();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
@@ -1454,7 +1536,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v144</span>
+      <span class="appver" id="appver">v145</span>
     </div>
   </div>
 </div>
@@ -3125,7 +3207,15 @@ function toggleMode() {
     const delay = 90 + (Math.random() * 110 - 30) + (Math.random() < 0.14 ? 230 : 0);
     setTimeout(type, delay);
   }
-  function done() { setTimeout(fadeOut, 2000); }   // hold the finished card 2s
+  // Font-test mode (?fonts): once typed, reveal the UI but KEEP the splash on
+  // screen permanently so its wordmark font can be auditioned live in the panel
+  // without reloading. #splash is pointer-events:none and sits below the panel,
+  // so both the app and the panel stay usable behind/over it.
+  const FONTTEST = /(?:^|[?&#])fonts(?:=|&|$)/.test(location.search + location.hash);
+  function done() {
+    if (FONTTEST) { reveal(); return; }   // leave the splash up for font auditioning
+    setTimeout(fadeOut, 2000);            // normal boot: hold the finished card 2s
+  }
   function fadeOut() {
     sp.style.transition = "opacity .8s ease";
     sp.style.opacity = "0";                        // logo + wordmark fade out
@@ -3186,8 +3276,12 @@ function snoozeBackup() {
 }
 window.refreshBackupNag = refreshBackupNag;
 // show the about/legal panel after the splash on every startup, unless dismissed
-// (type 1.45s + typing ~1.5s + hold 2s + fade/UI-crossfade ~1s)
-if (!localStorage.getItem("sf-hide-about")) {
+// (type 1.45s + typing ~1.5s + hold 2s + fade/UI-crossfade ~1s).
+// Skipped in ?fonts mode so the splash audition isn't interrupted by the modal.
+const _FONTTEST_BOOT = /(?:^|[?&#])fonts(?:=|&|$)/.test(location.search + location.hash);
+if (_FONTTEST_BOOT) {
+  /* font-test mode: no startup modals */
+} else if (!localStorage.getItem("sf-hide-about")) {
   setTimeout(() => showAbout(), 6400);
 } else if (!localStorage.getItem("sf-hide-parseinfo")) {
   // About already dismissed, but the PDF-parsing note hasn't been seen yet
