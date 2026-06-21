@@ -24,8 +24,8 @@
   :root {
     --glasspct: 0%;           /* side-panel glass fill — 0 = blur only (readability from inner cards) */
     --gap: 12px;              /* uniform gap: window margin + between all panels */
-    --col-left: 300px;        /* left column width  (adjustable live via the ?bgedit harness) */
-    --col-right: 300px;       /* right column width (adjustable live via the ?bgedit harness) */
+    --col-left: 300px;        /* left column width  (watermark + grid track this) */
+    --col-right: 300px;       /* right column width (watermark + grid track this) */
     --fade: 0s;              /* light/dark switches INSTANTLY. Any crossfade forces
                                 every frosted-glass panel to re-blur each frame while
                                 the wallpaper animates underneath it, which made the
@@ -166,7 +166,7 @@
   #bgmark .bgmark-word {
     position: absolute;
     right: calc(var(--mark-right) + 92px);
-    bottom: 24px;
+    bottom: 20px;
     font-family: "Mississauga", cursive; font-weight: 400;
     font-size: 44px; line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
@@ -1218,103 +1218,6 @@
   <div class="bgmark-logo"></div>
   <div class="bgmark-word">MonsterBox</div>
 </div>
-<!-- ===== TEMP TEXT PLACEMENT HARNESS (remove this whole block when locked in) =====
-     Add ?bgedit to the URL to enable. Drag the "MonsterBox" wordmark to move it;
-     mouse wheel over it to resize the font. A green readout shows its size, top-left
-     pixel position, and offset from the viewport centre. (Logo + column-width
-     harnesses removed — those placements are locked.) -->
-<script>
-(function(){
-  if (!/bgedit/.test(location.search + location.hash)) return;
-  function init(){
-    var mark = document.getElementById('bgmark'); if (!mark) return;
-    var items = [
-      { el: mark.querySelector('.bgmark-word'), name: 'TEXT', kind: 'text' }
-    ];
-    // Measure the CURRENT (centred) positions BEFORE we touch anything, so the
-    // elements don't jump when we switch them to absolute positioning.
-    items.forEach(function(it){ it.rect = it.el.getBoundingClientRect(); });
-    // #bgmark is position:fixed; z-index:0 — that's its OWN stacking context, so a
-    // child z-index can never rise above the app panels (.layout, z-index:1). Raise
-    // the whole #bgmark above the UI so the elements are clickable in edit mode.
-    // (#bgmark stays pointer-events:none and transparent except for the two items,
-    // so the rest of the UI underneath still works.)
-    mark.style.display = 'block';
-    mark.style.zIndex = '9990';
-    var panel = document.createElement('div');
-    panel.style.cssText = 'position:fixed;top:8px;left:8px;z-index:100000;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 monospace;padding:8px 11px;border:1px solid #3f6;border-radius:6px;white-space:pre;pointer-events:none;';
-    document.body.appendChild(panel);
-    items.forEach(function(it){
-      var r = it.rect;
-      it.el.style.position = 'fixed';
-      it.el.style.left = r.left + 'px';
-      it.el.style.top  = r.top + 'px';
-      // CRUCIAL: the element's own CSS sets right/bottom. If we leave those set
-      // AND add left/top, the box has all four sides pinned, so it STRETCHES
-      // between them instead of moving — dragging just resizes it while the
-      // bottom-right corner stays nailed in place (which is why drags never
-      // actually repositioned the wordmark). Clear them so left/top truly move it.
-      it.el.style.right = 'auto';
-      it.el.style.bottom = 'auto';
-      it.el.style.margin = '0';
-      it.el.style.pointerEvents = 'auto';
-      it.el.style.cursor = 'move';
-      it.tag = document.createElement('div');
-      it.tag.style.cssText = 'position:fixed;z-index:100000;background:#3f6;color:#000;font:700 11px/1.3 monospace;padding:2px 5px;border-radius:4px;pointer-events:none;white-space:nowrap;';
-      document.body.appendChild(it.tag);
-      it.el.addEventListener('mousedown', function(e){
-        e.preventDefault();
-        var sx = e.clientX, sy = e.clientY;
-        var bl = parseFloat(it.el.style.left), bt = parseFloat(it.el.style.top);
-        function mv(ev){ it.el.style.left = (bl + ev.clientX - sx) + 'px'; it.el.style.top = (bt + ev.clientY - sy) + 'px'; render(); }
-        function up(){ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); }
-        document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up);
-      });
-      it.el.addEventListener('wheel', function(e){
-        e.preventDefault();
-        var d = (e.deltaY < 0 ? 1 : -1);
-        if (it.kind === 'logo') {
-          var w = it.el.getBoundingClientRect().width + d * 8; if (w < 40) w = 40; it.el.style.width = w + 'px';
-        } else {
-          var fs = parseFloat(getComputedStyle(it.el).fontSize) + d * 4; if (fs < 12) fs = 12; it.el.style.fontSize = fs + 'px';
-        }
-        render();
-      }, { passive: false });
-    });
-    var cs = function(v, d){ return parseInt(getComputedStyle(document.documentElement).getPropertyValue(v)) || d; };
-    function render(){
-      var vw = window.innerWidth, vh = window.innerHeight, cx = vw / 2, cy = vh / 2;
-      // --mark-right = --col-right + 2*--gap (centre panel's right edge), the anchor
-      // the wordmark's `right` is measured from. Computing it here lets the harness
-      // print the EXACT CSS values to ship — the box EDGES, which is what the CSS
-      // `right`/`bottom` actually set — so what you drag is what ships (no centre-to-
-      // edge translation, which is what kept landing the text a few px high).
-      var markRight = cs('--col-right', 300) + 2 * cs('--gap', 12);
-      var out = 'viewport ' + vw + ' x ' + vh + '  (centre ' + Math.round(cx) + ',' + Math.round(cy) + ')\n';
-      items.forEach(function(it){
-        var r = it.el.getBoundingClientRect();
-        var dx = Math.round(r.left + r.width / 2 - cx), dy = Math.round(r.top + r.height / 2 - cy);
-        var sz = Math.round(r.width) + ' x ' + Math.round(r.height) + 'px';
-        if (it.kind === 'text') sz += '  font ' + Math.round(parseFloat(getComputedStyle(it.el).fontSize)) + 'px';
-        out += '\n' + it.name + '\n  size ' + sz + '\n  top-left ' + Math.round(r.left) + ',' + Math.round(r.top)
-             + '\n  from-centre ' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + '\n';
-        if (it.kind === 'text') {
-          var rightOff = Math.round((vw - r.right) - markRight);   // CSS: var(--mark-right) + Npx
-          var bottomPx = Math.round(vh - r.bottom);                // CSS: bottom Mpx
-          out += '  >> SHIP CSS  right: calc(var(--mark-right) + ' + rightOff + 'px)   bottom: ' + bottomPx + 'px\n';
-        }
-        it.tag.textContent = it.name + ' ' + sz + '  c(' + (dx>=0?'+':'') + dx + ',' + (dy>=0?'+':'') + dy + ')';
-        it.tag.style.left = Math.round(r.left) + 'px';
-        it.tag.style.top  = Math.round(Math.max(0, r.top - 18)) + 'px';
-      });
-      panel.textContent = out;
-    }
-    render(); window.addEventListener('resize', render);
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
-})();
-</script>
-<!-- ===== END TEMP PLACEMENT TEST HARNESS ===== -->
 <div id="bootcover"></div>
 <div id="splash">
   <div class="splash-logo-wrap"><img id="splashLogo" class="splash-logo" src="monsterbox-logo.png" alt=""></div>
@@ -1458,7 +1361,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v139</span>
+      <span class="appver" id="appver">v140</span>
     </div>
   </div>
 </div>
