@@ -147,9 +147,9 @@
      plus a soft cast shadow for depth. */
   #bgmark .bgmark-logo {
     position: absolute;
-    width: 148px; height: 148px;
-    right: var(--mark-right);            /* bottom-right corner sits at the centre */
-    bottom: var(--gap);                  /* panel's bottom-right corner (12px in)   */
+    height: 148px; aspect-ratio: 312 / 349;   /* trimmed art's native ratio; ~132 wide */
+    right: var(--mark-right);            /* the art's bottom-right corner sits at the   */
+    bottom: var(--gap);                  /* centre panel's bottom-right corner (12px in) */
     background: rgba(255,255,255,.82);
     -webkit-mask: url('logo-line.png') center / contain no-repeat;
             mask: url('logo-line.png') center / contain no-repeat;
@@ -162,10 +162,10 @@
      the mimic's bottom lip. Anchored by right/bottom so it tracks the logo. */
   #bgmark .bgmark-word {
     position: absolute;
-    right: calc(var(--mark-right) + 94px);
-    bottom: 30px;
+    right: calc(var(--mark-right) + 124px);
+    bottom: 51px;
     font-family: "Mississauga", cursive; font-weight: 400;
-    font-size: 92px; line-height: .9; color: rgba(255,255,255,.82);
+    font-size: 44px; line-height: .9; color: rgba(255,255,255,.82);
     text-shadow:
       0 -1.5px 0.5px rgba(0,0,0,.55),
       0 1.5px 0.5px rgba(255,255,255,.3),
@@ -1436,7 +1436,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v131</span>
+      <span class="appver" id="appver">v132</span>
     </div>
   </div>
 </div>
