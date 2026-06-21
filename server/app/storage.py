@@ -54,9 +54,18 @@ def signed_url(path: str, expires: int = 3600) -> str:
     with urllib.request.urlopen(req, timeout=30) as resp:
         body = json.loads(resp.read().decode())
     signed = body.get("signedURL") or body.get("signedUrl") or ""
-    if signed.startswith("/"):
-        return settings.supabase_base + signed
-    return signed
+    if not signed:
+        raise RuntimeError(f"no signedURL in response: {str(body)[:200]}")
+    if signed.startswith("http"):
+        return signed
+    # Supabase returns a path RELATIVE to /storage/v1 (e.g. /object/sign/<bucket>/
+    # <path>?token=...). The full download URL therefore needs the /storage/v1
+    # segment that the bare base is missing — without it the link 404s.
+    if not signed.startswith("/"):
+        signed = "/" + signed
+    if not signed.startswith("/storage/v1"):
+        signed = "/storage/v1" + signed
+    return settings.supabase_base + signed
 
 
 def delete(path: str) -> None:

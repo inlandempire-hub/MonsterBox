@@ -70,9 +70,12 @@ async def collect_pdf(
         return db.scalar(select(func.coalesce(func.sum(PdfUpload.size), 0)).where(
             or_(PdfUpload.data.isnot(None), PdfUpload.storage_path.isnot(None)))) or 0
 
+    store_err = {"msg": None}   # captured upload failure, surfaced in the response
+
     def _store():
         """Persist this upload's bytes. Returns ('storage', path) | ('db', bytes) |
-        (None, None). Storage preferred; never raises (failure -> metadata only)."""
+        (None, None). Storage preferred; never raises (failure -> metadata only, but
+        the reason is recorded in store_err so 'too large to store' isn't silent)."""
         if storage_on:
             if size <= settings.beta_storage_max_mb * 1024 * 1024 \
                     and _used() + size <= settings.beta_storage_total_mb * 1024 * 1024:
@@ -81,8 +84,10 @@ async def collect_pdf(
                     file.file.seek(0)
                     storage.upload(path, file.file, size)
                     return ("storage", path)
-                except Exception:
+                except Exception as e:
+                    store_err["msg"] = f"{type(e).__name__}: {e}"[:300]
                     return (None, None)
+            store_err["msg"] = f"over storage cap (size {size}, per-file {settings.beta_storage_max_mb}MB)"
             return (None, None)
         if keeping_db and size <= db_cap and _used() + size <= settings.beta_pdf_total_mb * 1024 * 1024:
             return ("db", bytes(buf))
@@ -110,7 +115,8 @@ async def collect_pdf(
                      data=(val if kind == "db" else None),
                      storage_path=(val if kind == "storage" else None)))
     db.commit()
-    return {"collected": True, "stored": kind is not None, "where": kind or "none"}
+    return {"collected": True, "stored": kind is not None, "where": kind or "none",
+            "error": store_err["msg"]}
 
 
 @router.get("/storage-diag")
