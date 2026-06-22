@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     beta_storage_bucket: str = "beta_pdfs"   # matches the bucket created in Supabase
     beta_storage_max_mb: int = 300       # per-file cap on the storage path
     beta_storage_total_mb: int = 900     # total budget (Supabase free Storage ~1GB)
+    # A book larger than this is uploaded as several sub-chunk objects and reassembled
+    # on download — this is how we get past Supabase's PER-FILE upload limit (50MB on
+    # the free plan). Keep it safely below that limit.
+    beta_storage_chunk_mb: int = 45
 
     @property
     def cors_list(self) -> list[str]:

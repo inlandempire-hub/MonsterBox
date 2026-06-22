@@ -28,6 +28,41 @@ def _obj_url(path: str) -> str:
     return f"{settings.supabase_base}/storage/v1/object/{settings.beta_storage_bucket}/{path}"
 
 
+class Bounded:
+    """Reads at most `limit` bytes from an underlying file object, then reports EOF.
+    Lets `upload()` stream ONE chunk of a larger file (the file's cursor is left at
+    the chunk boundary, so the next Bounded continues where this one stopped) without
+    ever copying the chunk into memory."""
+
+    def __init__(self, fp, limit: int):
+        self._fp = fp
+        self._left = limit
+
+    def read(self, n: int = -1) -> bytes:
+        if self._left <= 0:
+            return b""
+        if n is None or n < 0:
+            n = self._left
+        data = self._fp.read(min(n, self._left))
+        self._left -= len(data)
+        return data
+
+
+def download_iter(path: str, block: int = 1024 * 1024):
+    """Yield an object's bytes in blocks — used to reassemble a chunk-uploaded book
+    on the fly so the server never holds the whole file in memory."""
+    req = urllib.request.Request(_obj_url(path), method="GET", headers=_headers())
+    resp = urllib.request.urlopen(req, timeout=180)
+    try:
+        while True:
+            chunk = resp.read(block)
+            if not chunk:
+                break
+            yield chunk
+    finally:
+        resp.close()
+
+
 def upload(path: str, fileobj, size: int, content_type: str = "application/pdf") -> None:
     """Stream a file-like object to the bucket. Content-Length is set so http.client
     streams `fileobj` in blocks rather than buffering it. Raises on failure."""

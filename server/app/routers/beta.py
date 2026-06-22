@@ -13,6 +13,7 @@ import io
 import time
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -92,11 +93,33 @@ async def collect_pdf(
         if storage_on:
             if size <= settings.beta_storage_max_mb * 1024 * 1024 \
                     and _used() + size <= settings.beta_storage_total_mb * 1024 * 1024:
-                path = f"{sha}.pdf"
+                chunk = settings.beta_storage_chunk_mb * 1024 * 1024
                 try:
                     file.file.seek(0)
-                    storage.upload(path, file.file, size)
-                    return ("storage", path)
+                    if size <= chunk:
+                        path = f"{sha}.pdf"          # small enough for one object
+                        storage.upload(path, file.file, size)
+                        return ("storage", path)
+                    # Larger than the per-file limit: upload the raw bytes as N sub-chunk
+                    # objects ("<sha>.part0", ".part1", ...) read sequentially from the same
+                    # file, then record "<sha>#N". download_pdf streams them back in order,
+                    # giving a byte-for-byte copy of the original.
+                    nparts = (size + chunk - 1) // chunk
+                    done = []
+                    try:
+                        for i in range(nparts):
+                            part_size = min(chunk, size - i * chunk)
+                            ppath = f"{sha}.part{i}"
+                            storage.upload(ppath, storage.Bounded(file.file, part_size), part_size)
+                            done.append(ppath)
+                    except Exception:
+                        for p in done:               # roll back a partial multi-part upload
+                            try:
+                                storage.delete(p)
+                            except Exception:
+                                pass
+                        raise
+                    return ("storage", f"{sha}#{nparts}")
                 except Exception as e:
                     store_err["msg"] = f"{type(e).__name__}: {e}"[:300]
                     return (None, None)
@@ -237,13 +260,25 @@ def delete_unstored(_admin: User = Depends(require_admin), db: Session = Depends
 
 @router.get("/pdfs/{pdf_id}/download")
 def download_pdf(pdf_id: int, _admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    # Read storage_path WITHOUT the BLOB first, so storage-backed books never load bytes.
-    row = db.execute(select(PdfUpload.storage_path).where(PdfUpload.id == pdf_id)).first()
+    # Read storage_path + filename WITHOUT the BLOB first, so storage-backed books never load bytes.
+    row = db.execute(select(PdfUpload.storage_path, PdfUpload.filename).where(PdfUpload.id == pdf_id)).first()
     if row is None:
         raise HTTPException(404, "not found")
     if row.storage_path:
+        sp = row.storage_path
+        if "#" in sp:
+            # Chunk-uploaded book: stream the parts back-to-back into one PDF. Streaming
+            # (not buffering) keeps memory flat even for a multi-hundred-MB reassembly.
+            sha, n = sp.split("#", 1)
+            fname = row.filename or "book.pdf"
+
+            def _stream():
+                for i in range(int(n)):
+                    yield from storage.download_iter(f"{sha}.part{i}")
+            return StreamingResponse(_stream(), media_type="application/pdf",
+                                     headers={"Content-Disposition": f'attachment; filename="{fname}"'})
         try:
-            return {"url": storage.signed_url(row.storage_path)}   # JSON: browser downloads direct from Supabase
+            return {"url": storage.signed_url(sp)}   # JSON: browser downloads direct from Supabase
         except Exception:
             raise HTTPException(502, "couldn't create a download link")
     # Legacy DB-stored bytes: load only now.
@@ -262,7 +297,13 @@ def delete_pdf(pdf_id: int, _admin: User = Depends(require_admin), db: Session =
     if row is None:
         raise HTTPException(404, "not found")
     if row.storage_path:
-        storage.delete(row.storage_path)
+        sp = row.storage_path
+        if "#" in sp:                       # chunk-uploaded: delete every part
+            sha, n = sp.split("#", 1)
+            for i in range(int(n)):
+                storage.delete(f"{sha}.part{i}")
+        else:
+            storage.delete(sp)
     db.execute(delete(PdfUpload).where(PdfUpload.id == pdf_id))
     db.commit()
     return {"ok": True}
