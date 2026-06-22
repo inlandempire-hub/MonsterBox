@@ -933,6 +933,18 @@
     // RE_CHALLENGE below reads it from the body (the name leads the block), then we
     // trim it off the displayed name.
     sb.name = sb.name.replace(/\s+CR\s+\d+(?:\/\d+)?$/i, "").trim();
+    // Repair stray spaces that strand a CAPITAL letter from the rest of its word —
+    // a decorative/broken display font (Exploring Eberron) drops the first glyph onto
+    // its own text item: "P lasmid" -> "Plasmid", "M eld" -> "Meld", "V alaara" ->
+    // "Valaara". Run twice to chain ("D u ' ulora Q uori" -> "Du'ulora Quori"). The
+    // capital-then-lowercase shape leaves correctly-spaced multi-word names and
+    // ALL-CAPS names (no lowercase to glue to) untouched.
+    for (let k = 0; k < 2; k++) {
+      sb.name = sb.name
+        .replace(/\b([A-Z])\s+([a-z])/g, "$1$2")
+        .replace(/([A-Za-z])\s+([''])\s*([a-z])/g, "$1$2$3");
+    }
+    sb.name = sb.name.replace(/\s{2,}/g, " ").trim();
     let m;
     let acF = false, hpF = false, spdF = false, abF = false, crF = false;
     if ((m = RE_AC.exec(text))) { sb.armor_class = +m[1]; sb.armor_desc = (m[2] || "").replace(/^[()\s]+|[()\s]+$/g, "") || null; found++; acF = true; }
@@ -1337,7 +1349,7 @@
     catch (e) { if (String(e && e.message).includes("__abort__")) return { ok: false, name: file.name, aborted: true }; return { ok: false, name: file.name, error: "Couldn't parse the PDF." }; }
     const totalChars = pages.reduce((a, pg) => a + pg.reduce((b, [t]) => b + t.length, 0), 0);
     if (!pages.length || totalChars < 40 * pages.length)
-      return { ok: false, name: file.name, error: "No readable text layer — the stat blocks look image-based.", needsOcr: true };
+      return { ok: false, name: file.name, error: "No readable text layer; the stat blocks look image-based.", needsOcr: true };
     let blocks;
     try { blocks = blocksFromPages(pages, file.name); } catch (e) { return { ok: false, name: file.name, error: "Parse error." }; }
     // delta-style variants (base + "Increases by"/added abilities) -> "Standard X (Variant)"
@@ -1433,7 +1445,7 @@
     if (!blocks.length) return { ok: false, name: file.name, error: "OCR found no stat blocks." };
     // OCR is imperfect: force every OCR'd block into the review queue (so it gets a
     // screenshot and a human check) and tag its provenance.
-    blocks.forEach(b => { b.ocr = true; b.parse_confidence = Math.min(b.parse_confidence || 0, 0.8); (b.parse_warnings = b.parse_warnings || []).push("Imported via OCR — please verify every field against the screenshot."); });
+    blocks.forEach(b => { b.ocr = true; b.parse_confidence = Math.min(b.parse_confidence || 0, 0.8); (b.parse_warnings = b.parse_warnings || []).push("Imported via OCR. Please verify every field against the screenshot."); });
     const r = await persistBlocks(file, blocks);
     if (r.aborted) return { ok: false, name: file.name, aborted: true, added: r.added, dup: r.dup, flagged: r.flagged };
     return { ok: true, name: file.name, parsed: blocks.length, added: r.added, dup: r.dup, flagged: r.flagged, ocr: true };
@@ -1534,7 +1546,7 @@
     let result;
     if (aborted) result = "<b>OCR cancelled.</b>" + (totAdded ? "<br><i>" + totAdded + " kept.</i>" : "");
     else if (totAdded > 0) result = "<b>OCR imported " + totAdded + " " + (totAdded === 1 ? "monster" : "monsters") + ":</b><br><i>" +
-        (totFlagged ? totFlagged + " in the review queue — check each against its screenshot." : "Review recommended.") + "</i>";
+        (totFlagged ? totFlagged + " in the review queue; check each against its screenshot." : "Review recommended.") + "</i>";
     else result = "<b>OCR couldn't find stat blocks.</b>" + (errors.length ? "<br><i>" + errors.join("<br>") + "</i>" : "");
     showProg(result);
     setTimeout(() => { showProg(""); }, 6000);

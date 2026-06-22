@@ -61,7 +61,7 @@
       status("Thanks! Your report was sent.", "ok");
       setTimeout(close, 1400);
     } catch (e) {
-      status("Couldn't send right now — please try again in a moment.", "err");
+      status("Couldn't send right now. Please try again in a moment.", "err");
       $("reportSend").disabled = false;
     }
   }

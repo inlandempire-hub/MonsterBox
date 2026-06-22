@@ -95,7 +95,7 @@
       // Only show a plan tag for full-access accounts (Pro/Full access/Admin). The
       // "Free" tag is unnecessary exposition for now, so free accounts show none.
       const tag = full ? ' <span class="signin-tag">' + esc(accessTag()) + "</span>" : "";
-      const ttl = ((session.user && session.user.email) || "") + " — " + accessTag();
+      const ttl = ((session.user && session.user.email) || "") + " - " + accessTag();
       if (btn) {
         btn.innerHTML = "Signed in: " + esc(displayName()) + tag;
         btn.classList.remove("primary"); btn.classList.add("signed");
@@ -285,7 +285,7 @@
         '</span><span class="rep-when">' + esc(when) + '</span></div><div class="rep-msg">' +
         esc(b.email || "(unknown)") + " · " + b.size_mb + " MB</div>" +
         (b.has_file ? '<button class="btn rep-shotbtn" onclick="cloudDownloadBook(' + b.id + ', this)">Download</button> '
-                    : '<span class="rep-when">too large to store — ask the tester</span> ') +
+                    : '<span class="rep-when">too large to store; ask the tester</span> ') +
         '<button class="btn rep-shotbtn" onclick="cloudDeleteBook(' + b.id + ', this)">Delete</button>' + "</div>";
     }).join("");
   }
@@ -319,7 +319,7 @@
   }
   // Tidy up: remove the metadata-only ("too large to store") rows from the list.
   async function clearUnstored() {
-    if (!confirm("Remove all “too large to store” entries? They were never stored — this just tidies the list. Note the filenames first if you still need them from the tester.")) return;
+    if (!confirm("Remove all “too large to store” entries? They were never stored; this just tidies the list. Note the filenames first if you still need them from the tester.")) return;
     try {
       const r = await directFetch(API_BASE + "/api/beta/pdfs/unstored", { method: "DELETE", headers: { Authorization: "Bearer " + session.access_token } });
       if (!r.ok) throw new Error();
@@ -341,7 +341,7 @@
     const lines = [];
     if (!out.storage_ready) {
       lines.push("Supabase Storage is NOT configured on the server.");
-      lines.push("Books fall back to the database path, capped at 40 MB each — anything bigger shows \"too large to store\".");
+      lines.push("Books fall back to the database path, capped at 40 MB each; anything bigger shows \"too large to store\".");
       lines.push("Fix: set SUPABASE_SERVICE_KEY and SUPABASE_URL in the Render environment, then redeploy.");
     } else {
       lines.push("Storage configured: yes  (bucket: " + (out.bucket || "?") + ")");
@@ -354,7 +354,7 @@
         lines.push("Last real book upload: " + (lru.file || "?") + " (" + lru.size_mb + " MB) at " + lru.when +
           "\n  -> stored to: " + (lru.where || "?") + (lru.error ? "\n  -> ERROR: " + lru.error : "  (no error)"));
       } else if (lru) {
-        lines.push("Last real book upload: none recorded since the server last restarted — import a book, then re-run this.");
+        lines.push("Last real book upload: none recorded since the server last restarted; import a book, then re-run this.");
       }
       lines.push("Test upload (tiny file): " + (out.upload || "?"));
       if (out.signed_url) lines.push("Signed URL: " + out.signed_url);

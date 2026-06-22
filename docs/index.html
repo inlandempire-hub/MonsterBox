@@ -1369,7 +1369,7 @@
       localStorage.setItem(FONTS_KEY, JSON.stringify(fonts));
       localStorage.setItem(FMAP_KEY,  JSON.stringify(fmap));
       localStorage.setItem(SMAP_KEY,  JSON.stringify(smap));
-    }catch(e){ alert('Could not save (storage full — too many/large fonts).'); } }
+    }catch(e){ alert('Could not save (storage full, too many/large fonts).'); } }
 
   fonts.forEach(register); apply();
 
@@ -1404,9 +1404,9 @@
     document.body.appendChild(p);
 
     function sanitize(n){ return n.replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9 _-]/g,'').trim() || ('Font'+Date.now()); }
-    function opts(id){ return '<option value="">— default —</option>'+fonts.map(function(f){ return '<option value="'+f.name+'"'+(fmap[id]===f.name?' selected':'')+'>'+f.name+'</option>'; }).join(''); }
+    function opts(id){ return '<option value="">(default)</option>'+fonts.map(function(f){ return '<option value="'+f.name+'"'+(fmap[id]===f.name?' selected':'')+'>'+f.name+'</option>'; }).join(''); }
     function refresh(){
-      p.querySelector('#ftList').textContent = fonts.length ? ('Loaded: '+fonts.map(function(f){return f.name;}).join(', ')) : 'No fonts loaded yet — drop some above.';
+      p.querySelector('#ftList').textContent = fonts.length ? ('Loaded: '+fonts.map(function(f){return f.name;}).join(', ')) : 'No fonts loaded yet. Drop some above.';
       SLOTS.forEach(function(s){
         p.querySelector('select[data-id="'+s.id+'"]').innerHTML = opts(s.id);
         p.querySelector('[data-pct="'+s.id+'"]').textContent = Math.round((+smap[s.id]||1)*100)+'%';
@@ -1575,7 +1575,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v146</span>
+      <span class="appver" id="appver">v147</span>
     </div>
   </div>
 </div>
@@ -1637,12 +1637,12 @@
     <div class="about-sub">A note on PDF importing</div>
     <div class="about-body">
       <p><b>Text-based import</b> is the main system, and it's working well across a
-         wide range of books — but it's still being actively tested. Most stat blocks
+         wide range of books, but it's still being actively tested. Most stat blocks
          come through cleanly; a few are flagged for a quick review so you can confirm
          them before use.</p>
       <p><b>OCR import is experimental.</b> When a PDF's stat blocks are images, or use
          a font the text layer can't read, MonsterBox offers an OCR pass as a last
-         resort. It reads the page like a scanner — good enough to turn an otherwise
+         resort. It reads the page like a scanner, good enough to turn an otherwise
          unreadable PDF into something you can review and fix, but <b>not</b> as accurate
          as text import. Expect typos and to-be-checked fields; every OCR'd creature is
          sent to the review queue with a screenshot of its page beside the editor.</p>
@@ -2572,7 +2572,7 @@ async function injectReviewShot(id) {
   if (!host) return;
   let img = null; try { if (id && window.sfGetShot) img = await window.sfGetShot(id); } catch (e) {}
   if (!img) { host.innerHTML = ""; if (wrap) wrap.classList.remove("has-shot"); return; }
-  host.innerHTML = `<div class="shothead">Source page — click to enlarge</div>
+  host.innerHTML = `<div class="shothead">Source page (click to enlarge)</div>
     <img src="${img}" title="Click to enlarge" onclick="openShotOverlay(this.src)">`;
   if (wrap) wrap.classList.add("has-shot");
 }
