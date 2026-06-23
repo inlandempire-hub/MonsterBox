@@ -189,6 +189,7 @@
     }
     // admin-only: the in-app issue Reports + collected Books buttons
     const isAdmin = !!(account && account.role === "admin");
+    const ab = $("authAccountsBtn"); if (ab) ab.style.display = isAdmin ? "inline-block" : "none";
     const rb = $("authReportsBtn"); if (rb) rb.style.display = isAdmin ? "inline-block" : "none";
     const bb = $("booksBtn"); if (bb) bb.style.display = (isAdmin && BETA_COLLECT_PDFS) ? "inline-block" : "none";
     checkAdminAlerts();
@@ -250,6 +251,55 @@
     } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
   }
   function closeReports() { const m = $("reportsModal"); if (m) m.style.display = "none"; }
+
+  // ---- admin: all accounts + grant/revoke comp ----
+  async function openAccounts() {
+    if (!session || !account || account.role !== "admin") return;
+    const modal = $("accountsModal"), list = $("accountsList");
+    if (!modal || !list) return;
+    list.innerHTML = '<div class="rep-empty">Loading…</div>';
+    modal.style.display = "flex";
+    let users;
+    try {
+      const r = await directFetch(API_BASE + "/api/admin/users", { headers: { Authorization: "Bearer " + session.access_token } });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      users = await r.json();
+    } catch (e) { list.innerHTML = '<div class="rep-empty">Couldn\'t load accounts.</div>'; return; }
+    if (!users.length) { list.innerHTML = '<div class="rep-empty">No accounts yet.</div>'; return; }
+    const summary = '<div class="rep-empty">' + users.length + ' account' + (users.length === 1 ? '' : 's') +
+      ' &middot; ' + users.filter(u => u.has_full_access).length + ' with full access</div>';
+    list.innerHTML = summary + users.map(renderAcctRow).join("");
+  }
+  function renderAcctRow(u) {
+    const aid = u.account_id || "";
+    const when = u.created_at ? new Date(u.created_at).toLocaleDateString() : "";
+    const plan = u.role === "admin" ? "admin" : u.plan;
+    const access = u.has_full_access ? "full access" : "free";
+    const pending = u.signed_in === false ? " &middot; not signed in yet" : "";
+    // toggle: comp <-> free. Admins are left alone (don't let the dev demote themselves here).
+    const toggle = u.role === "admin" ? "" : (u.has_full_access
+      ? '<button class="btn rep-shotbtn" onclick="cloudSetPlan(\'' + aid + '\',\'free\',this)">Set to free</button>'
+      : '<button class="btn rep-shotbtn" onclick="cloudSetPlan(\'' + aid + '\',\'comp\',this)">Grant comp</button>');
+    return '<div class="rep" data-aid="' + esc(aid) + '"><div class="rep-head"><span class="rep-from">' +
+      esc(u.email || "(no email)") + '</span><span class="rep-when">' + esc(when) + '</span></div>' +
+      '<div class="rep-msg">' + esc(aid || "(no id)") + ' &middot; <b>' + esc(plan) + '</b> (' + access + ')' + pending + '</div>' +
+      (aid ? toggle : '<span class="rep-when">no id — can\'t change until first sign-in</span>') + '</div>';
+  }
+  async function setPlan(accountId, plan, btn) {
+    if (!accountId) return;
+    btn.disabled = true; btn.textContent = "Saving…";
+    try {
+      const r = await directFetch(API_BASE + "/api/admin/grant", {
+        method: "POST", headers: { Authorization: "Bearer " + session.access_token, "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: accountId, plan: plan }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const u = await r.json();
+      const row = btn.closest(".rep");
+      if (row) row.outerHTML = renderAcctRow(u);   // re-render this row with its new state + flipped button
+    } catch (e) { btn.disabled = false; btn.textContent = "Failed"; }
+  }
+  function closeAccounts() { const m = $("accountsModal"); if (m) m.style.display = "none"; }
 
   // ---- BETA-ONLY: auto-collect imported PDFs (consented testers) ----
   async function betaUploadPdf(file) {
@@ -473,6 +523,9 @@
   window.cloudLoadShot = loadShot;
   window.cloudResolveReport = resolveReport;
   window.cloudCloseReports = closeReports;
+  window.cloudOpenAccounts = openAccounts;
+  window.cloudCloseAccounts = closeAccounts;
+  window.cloudSetPlan = setPlan;
   window.sfBetaUploadPdf = betaUploadPdf;
   window.cloudOpenBooks = openBooks;
   window.cloudDownloadBook = downloadBook;

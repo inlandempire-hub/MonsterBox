@@ -52,6 +52,23 @@ def grant(body: GrantIn, _admin: User = Depends(require_admin), db: Session = De
     }
 
 
+@router.get("/users")
+def list_users(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Every account, newest first — drives the in-app Accounts admin view so the dev
+    can see who exists and grant/revoke comp. `signed_in` is False for accounts that
+    were pre-created by an email grant but haven't logged in yet."""
+    rows = db.scalars(select(User).order_by(User.created_at.desc())).all()
+    return [{
+        "email": u.email,
+        "account_id": u.public_id,
+        "plan": u.plan,
+        "role": u.role,
+        "has_full_access": u.has_full_access,
+        "signed_in": u.supabase_id is not None,
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    } for u in rows]
+
+
 @router.get("/reports")
 def list_reports(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     """Submitted issue reports, newest first (drives the in-app Reports view)."""
