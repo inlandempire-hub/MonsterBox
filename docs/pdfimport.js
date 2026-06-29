@@ -538,6 +538,30 @@
   function stripFooter(body) { return body.replace(/[ \t\r\n]+\d{1,4}\s*$/, "").replace(/\s+$/, ""); }
   const hasActionsSection = (text) => reSectionG().test(text);
 
+  // A block whose ACTIONS section opens with a Multiattack but carries NO actual
+  // attack entry after it has had its named attacks severed to the next column /
+  // page (dense two-column 2024 books: a CR-high creature shows ONLY "Multiattack.
+  // makes three Earthen Maul attacks" then the page ends — Earthen Maul itself is
+  // in the next column). Multiattack ALWAYS references other attacks, so an Actions
+  // list that is JUST a Multiattack is incomplete: signal it so the column/page
+  // continuation merge runs (same path that joins an action-less block).
+  function actionsTruncated(text) {
+    const re = reSectionG();
+    let aStart = -1, mm;
+    while ((mm = re.exec(text))) if (HEADER_TO_CAT[mm[1].toUpperCase()] === "action") aStart = mm.index + mm[0].length;
+    if (aStart < 0) return false;
+    let aEnd = text.length; const re2 = reSectionG(); re2.lastIndex = aStart; let m2;
+    if ((m2 = re2.exec(text))) aEnd = m2.index;            // stop at the next section header
+    const seg = text.slice(aStart, aEnd);
+    if (!/\bmultiattack\b/i.test(seg)) return false;       // only Multiattack-led blocks
+    // count entry-name starts in the Actions segment: Multiattack alone => truncated,
+    // Multiattack + >=1 named attack => complete.
+    let entries = 0;
+    for (const ln of seg.split("\n"))
+      if (RE_ENTRY_LINE.test(ln) || RE_ATTACK.test(ln) || RE_ATTACK_2024.test(ln)) entries++;
+    return entries <= 1;
+  }
+
   function isFeatureName(name) {
     const words = name.replace(/\([^)]*\)/g, "").split(/\s+/);
     for (let i = 1; i < words.length; i++) {
@@ -589,6 +613,24 @@
   // new entry (it stole the save off "Engulfing Bite" as a phantom "Strength Saving
   // Throw" action). No real action name contains "Saving Throw"/"Attack Roll".
   const RE_CLAUSE_HEAD = /\b(?:Saving Throw|Attack Roll)\b/i;
+  // A recovered (column/page-continuation) entry name can span a newline because
+  // the next column opens with page chrome — a running header ("Genies of the
+  // Earth"), a quote attribution ("- Grand Sultan Marrake") or a subtitle — glued
+  // to the first severed attack ("...\nLava Burst"). Real entry names never wrap a
+  // running header, so when a captured name spans a line, drop the stranded prefix
+  // IF it is clearly chrome: a quote attribution, or a >=3-word phrase (a header).
+  // A genuinely wrapped short name ("Frightful\nPresence", 1-word prefix) is kept
+  // and merely un-wrapped.
+  function cleanEntryName(name) {
+    if (!name.includes("\n")) return name;
+    const parts = name.split(/\n/);
+    const tail = parts[parts.length - 1].trim();
+    const head = parts.slice(0, -1).join(" ").replace(/^[\-–—]\s*/, "").trim();
+    const headWords = head ? head.split(/\s+/).length : 0;
+    const isQuote = /^[\-–—]/.test(parts[0].trim());
+    if (tail && (isQuote || headWords >= 3)) return tail;     // drop the chrome prefix
+    return name.replace(/\s+/g, " ").trim();                  // wrapped name: un-wrap
+  }
   function parseEntries(sectionText, category, ocr) {
     if (!sectionText.trim()) return [];
     const accepted = []; const seenStart = new Set();
@@ -648,9 +690,21 @@
     const entries = [];
     for (let i = 0; i < accepted.length; i++) {
       const end = i + 1 < accepted.length ? accepted[i + 1].start : sectionText.length;
-      entries.push(buildAction(accepted[i].name, sectionText.slice(accepted[i].end, end), category));
+      entries.push(buildAction(cleanEntryName(accepted[i].name), sectionText.slice(accepted[i].end, end), category));
     }
-    return entries;
+    // Collapse accidental duplicate entries that share a name — a running header or
+    // column seam can make the name regex match one action twice (e.g. once across
+    // the header line with an empty body, once cleanly with the real body). Real
+    // stat blocks never repeat an action/trait name, so keep the richest body and
+    // preserve first-seen order. Also fixes the "duplicate trait" reports.
+    const byName = new Map();
+    for (const e of entries) {
+      const key = (e.name || "").trim().toLowerCase();
+      if (!key) { byName.set(" " + byName.size, e); continue; }   // keep unnamed as-is
+      const prev = byName.get(key);
+      if (!prev || (e.raw_text || "").length > (prev.raw_text || "").length) byName.set(key, e);
+    }
+    return Array.from(byName.values());
   }
 
   function trimStatHeader(region) {
@@ -1186,7 +1240,7 @@
       if (pending !== null) { const pre = preAcTextLines(lines); if (pre.trim()) pending.body += "\n" + pre; flush(); }
       for (let j = 0; j < blocks.length; j++) {
         const isLast = j === blocks.length - 1;
-        if (isLast && !hasActionsSection(blocks[j])) pending = { body: blocks[j], page: pageNo };
+        if (isLast && (!hasActionsSection(blocks[j]) || actionsTruncated(blocks[j]))) pending = { body: blocks[j], page: pageNo };
         else { try { push(parseText(blocks[j], pageNo, source, ocr)); } catch (e) {} }
       }
     }
