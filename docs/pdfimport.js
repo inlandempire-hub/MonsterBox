@@ -583,6 +583,12 @@
 
   // words that end an action name (so "Bite Melee Weapon Attack" -> name "Bite")
   const NAME_STOP = new Set(["melee", "ranged", "weapon", "spell", "attack", "hit", "recharge", "save", "dc", "saving", "ranged", "reach", "range"]);
+  // 2024 stat blocks break an action's mechanics onto their own lines
+  // ("Strength Saving Throw: DC 25", "Melee Attack Roll: +9", "Failure:"/"Success:").
+  // These are clauses WITHIN an action, never action names — they must not start a
+  // new entry (it stole the save off "Engulfing Bite" as a phantom "Strength Saving
+  // Throw" action). No real action name contains "Saving Throw"/"Attack Roll".
+  const RE_CLAUSE_HEAD = /\b(?:Saving Throw|Attack Roll)\b/i;
   function parseEntries(sectionText, category, ocr) {
     if (!sectionText.trim()) return [];
     const accepted = []; const seenStart = new Set();
@@ -592,6 +598,7 @@
     while ((m = re.exec(sectionText))) {
       const nm = m[1].replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
       if (NON_HEADER_NAMES.has(nm)) continue;
+      if (RE_CLAUSE_HEAD.test(m[1])) continue;
       if (!isFeatureName(m[1])) continue;
       const prev = sectionText.slice(0, m.index).replace(/\s+$/, "");
       // Accept when the previous text ends a sentence OR the name simply starts a
@@ -608,6 +615,7 @@
     while ((am = reA.exec(sectionText))) {
       const nm = am[1].replace(/\s*\([^)]*\)/g, "").trim().toLowerCase();
       if (NON_HEADER_NAMES.has(nm)) continue;
+      if (RE_CLAUSE_HEAD.test(am[1])) continue;
       if (!isFeatureName(am[1])) continue;
       add(am[1], am.index, reA.lastIndex);
     }
@@ -929,10 +937,11 @@
     // drop a leading family word that repeats later ("Agate Adult Agate Dragon" -> "Adult Agate Dragon")
     { const w = sb.name.split(/\s+/);
       if (w.length > 2 && w.slice(1).some(x => x.toLowerCase() === w[0].toLowerCase())) sb.name = w.slice(1).join(" "); }
-    // a collapsed Conflux heading keeps the CR glued on ("Assassincut-throat CR 5");
-    // RE_CHALLENGE below reads it from the body (the name leads the block), then we
-    // trim it off the displayed name.
-    sb.name = sb.name.replace(/\s+CR\s+\d+(?:\/\d+)?$/i, "").trim();
+    // Strip a CR (and anything after it) glued onto the name. Covers a collapsed
+    // Conflux heading ("Assassincut-throat CR 5") AND the Flee Mortals title line
+    // "Name. CR 1/2 Ambusher" (CR rating followed by a role word), which the old
+    // end-anchored strip missed. RE_CHALLENGE still reads the real CR from the body.
+    sb.name = sb.name.replace(/\s*\.?\s*\bCR\s+\d+(?:\/\d+)?\b.*$/i, "").trim();
     // Repair stray spaces that strand a CAPITAL letter from the rest of its word —
     // a decorative/broken display font (Exploring Eberron) drops the first glyph onto
     // its own text item: "P lasmid" -> "Plasmid", "M eld" -> "Meld", "V alaara" ->
