@@ -875,6 +875,27 @@
   .reports-box { max-width: 560px; text-align: left; }
   .reports-list { max-height: 60vh; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
   .rep-empty { color: var(--dim); font-size: 13px; padding: 8px 0; }
+  /* spell compendium */
+  .spell-search { width: 100%; box-sizing: border-box; margin: 8px 0 4px; padding: 8px 10px;
+        border-radius: 8px; border: 1px solid color-mix(in srgb, var(--panel) 55%, transparent);
+        background: color-mix(in srgb, var(--bg) 60%, #000 12%); color: var(--ink); font-size: 14px; }
+  .spell-list { max-height: 56vh; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .spell-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+        padding: 7px 10px; border-radius: 7px; cursor: pointer; }
+  .spell-row:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .spell-row .sp-nm { font-weight: 600; }
+  .spell-row .sp-meta { font-size: 11px; color: var(--dim); white-space: nowrap; }
+  .sp-empty { color: var(--dim); font-size: 13px; padding: 10px 2px; }
+  .spell-detail { max-height: 70vh; overflow-y: auto; }
+  .spell-detail .sp-title { margin: 10px 0 2px; }
+  .spell-detail .sp-sub { font-size: 12px; color: var(--dim); margin-bottom: 10px; }
+  .spell-detail .sp-fields { display: flex; flex-direction: column; gap: 2px; font-size: 13px;
+        padding: 10px 12px; border-radius: 8px; margin-bottom: 10px;
+        background: color-mix(in srgb, var(--bg) 55%, #000 14%); }
+  .spell-detail .sp-text { font-size: 14px; line-height: 1.5; }
+  .spell-link { color: var(--accent); cursor: pointer; text-decoration: underline dotted;
+        text-underline-offset: 2px; }
+  .spell-link:hover { text-decoration: underline; }
   .rep { border: 1px solid color-mix(in srgb, var(--panel) 50%, transparent); border-radius: 8px;
         padding: 10px 12px; background: color-mix(in srgb, var(--bg) 55%, #000 14%); }
   .rep-head { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; margin-bottom: 5px; }
@@ -1464,6 +1485,7 @@
                  onchange="sfImport(this.files[0]); this.value='';">
         </label>
         <button class="btn" onclick="sfExport()">Export Compendium</button>
+        <button class="btn" onclick="openSpells()">Spells</button>
         <button class="btn" onclick="showAbout()">About &amp; Legal</button>
         <button class="btn" onclick="showParseInfo()">PDF Importing</button>
         <button class="btn" onclick="reportOpen()">Report an Issue</button>
@@ -1575,7 +1597,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v151</span>
+      <span class="appver" id="appver">v152</span>
     </div>
   </div>
 </div>
@@ -1795,6 +1817,23 @@
     <div id="reportsList" class="reports-list"></div>
     <div class="auth-actions" style="justify-content:flex-end;margin-top:12px">
       <button class="btn" onclick="cloudCloseReports()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- 5e spell compendium (SRD 5.2.1, CC-BY-4.0) -->
+<div id="spellsModal" class="modal-overlay" style="display:none">
+  <div class="modal-box reports-box">
+    <div id="spellListWrap">
+      <div class="about-h">Spell Compendium</div>
+      <div class="about-sub">5e SRD 5.2.1 &middot; <span id="spellCount"></span></div>
+      <input id="spellSearch" type="search" autocomplete="off" placeholder="Search spells, school or class…"
+             oninput="onSpellSearch(this.value)" class="spell-search" />
+      <div id="spellListBody" class="spell-list"></div>
+    </div>
+    <div id="spellDetail" class="spell-detail" style="display:none"></div>
+    <div class="auth-actions" style="justify-content:flex-end;margin-top:12px">
+      <button class="btn" onclick="closeSpells()">Close</button>
     </div>
   </div>
 </div>
@@ -2254,6 +2293,92 @@ function sourceName(s){
   return String(s||"").replace(/\.pdf$/i, "").replace(/[_+]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// ===== 5e spell compendium (SRD 5.2.1, CC-BY-4.0) =====
+let SPELLS = null, SPELL_INDEX = null, _castRe = null, _spellSearch = "";
+async function loadSpells() {
+  if (SPELLS) return SPELLS;
+  try {
+    const d = await (await fetch("spells.json")).json();
+    SPELLS = d.spells || [];
+    SPELL_INDEX = {};
+    for (const s of SPELLS) SPELL_INDEX[s.name.toLowerCase()] = s;
+  } catch (e) { SPELLS = []; SPELL_INDEX = {}; }
+  return SPELLS;
+}
+loadSpells();   // preload so statblock spell links resolve without waiting
+const spellMeta = (s) => s.level === 0 ? `${s.school} Cantrip` : `Level ${s.level} ${s.school}`;
+const _spArg = (n) => String(n).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+
+// Build a regex of THIS creature's own spells (those present in the compendium),
+// so only its spells linkify in its text — never arbitrary words in prose.
+function castSpellRegex(sb) {
+  if (!sb || !sb.spellcasting || !SPELL_INDEX) return null;
+  const names = new Set();
+  for (const g of (sb.spellcasting.groups || []))
+    for (let sp of (g.spells || [])) {
+      sp = sp.replace(/\s*\(.*?\)\s*/g, "").trim();
+      if (SPELL_INDEX[sp.toLowerCase()]) names.add(sp);
+    }
+  if (!names.size) return null;
+  const alt = [...names].sort((a, b) => b.length - a.length)
+    .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return new RegExp("\\b(" + alt + ")\\b", "gi");
+}
+// wrap matched spell names (in already-escaped text) in a clickable link
+function linkifySpells(escaped) {
+  if (!_castRe) return escaped;
+  return escaped.replace(_castRe, m => `<span class="spell-link" onclick="openSpell('${_spArg(m)}')">${m}</span>`);
+}
+async function openSpells() {
+  await loadSpells();
+  $("spellDetail").style.display = "none";
+  $("spellListWrap").style.display = "block";
+  $("spellsModal").style.display = "flex";
+  $("spellSearch").value = _spellSearch;
+  renderSpellList();
+  setTimeout(() => { const el = $("spellSearch"); if (el) el.focus(); }, 50);
+}
+function closeSpells() { $("spellsModal").style.display = "none"; }
+function onSpellSearch(v) { _spellSearch = v; renderSpellList(); }
+function renderSpellList() {
+  const q = _spellSearch.trim().toLowerCase();
+  const list = (SPELLS || []).filter(s => !q || s.name.toLowerCase().includes(q)
+    || s.school.toLowerCase().includes(q) || (s.classes || []).some(c => c.toLowerCase().includes(q)))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  $("spellCount").textContent = list.length + " spell" + (list.length === 1 ? "" : "s");
+  $("spellListBody").innerHTML = list.length
+    ? list.map(s => `<div class="spell-row" onclick="openSpell('${_spArg(s.name)}')">
+        <span class="sp-nm">${esc(s.name)}</span><span class="sp-meta">${esc(spellMeta(s))}</span></div>`).join("")
+    : `<div class="sp-empty">No spells match.</div>`;
+}
+function openSpell(name) {
+  const go = () => {
+    const s = SPELL_INDEX && SPELL_INDEX[String(name).toLowerCase()];
+    if (!s) return;
+    $("spellsModal").style.display = "flex";
+    $("spellListWrap").style.display = "none";
+    const det = $("spellDetail"); det.style.display = "block";
+    const body = esc(s.text || "").replace(/Using a Higher-Level Spell Slot\.\s*/g,
+      "<br><br><b>Using a Higher-Level Spell Slot.</b> ").replace(/Cantrip Upgrade\.\s*/g, "<br><br><b>Cantrip Upgrade.</b> ");
+    det.innerHTML = `<button class="btn" onclick="backToSpellList()">&larr; All spells</button>
+      <h2 class="sp-title">${esc(s.name)}</h2>
+      <div class="sp-sub">${esc(spellMeta(s))}${s.classes && s.classes.length ? " &middot; " + esc(s.classes.join(", ")) : ""}</div>
+      <div class="sp-fields">
+        <div><b>Casting Time:</b> ${esc(s.casting_time || "—")}</div>
+        <div><b>Range:</b> ${esc(s.range || "—")}</div>
+        <div><b>Components:</b> ${esc(s.components || "—")}</div>
+        <div><b>Duration:</b> ${esc(s.duration || "—")}</div>
+      </div>
+      <div class="sp-text">${body}</div>`;
+  };
+  if (!SPELL_INDEX) loadSpells().then(go); else go();
+}
+function backToSpellList() {
+  $("spellDetail").style.display = "none";
+  $("spellListWrap").style.display = "block";
+  renderSpellList();
+}
+
 function entryHtml(a, sid) {
   let pill = "";
   if (a.usage) pill = `<span class="pill">${esc(a.usage)}</span>`;
@@ -2264,7 +2389,7 @@ function entryHtml(a, sid) {
   if (a.damage && a.damage.length) buttons += `<button class="btn" onclick="roll('${sid}','${esc(a.name)}','damage')">Roll Damage</button>`;
   let save = a.save ? ` <span class="line"><b>Save:</b> DC ${a.save.dc} ${a.save.ability.toUpperCase()}</span>` : "";
   return `<div class="entry"><div class="en">${esc(a.name)}${pill}</div>
-    <div class="txt">${esc(a.raw_text)}</div>${save}<div>${buttons}</div></div>`;
+    <div class="txt">${linkifySpells(esc(a.raw_text))}</div>${save}<div>${buttons}</div></div>`;
 }
 
 function sectionHtml(title, list, sid, catKey, disabled) {
@@ -2377,6 +2502,7 @@ async function showSheet(id, opts = {}) {
     ...Object.entries(sb.senses||{}).map(([k,v]) => `${capWords(k)} ${v} ft.`),
     sb.passive_perception != null ? `Passive Perception ${sb.passive_perception}` : null,
   ].filter(Boolean).join(", ");
+  _castRe = castSpellRegex(sb);   // this creature's own spells become clickable in its text
   $("scrollcontent").innerHTML = `
     <div class="sheet-frozen">
       <div class="sheethead">
