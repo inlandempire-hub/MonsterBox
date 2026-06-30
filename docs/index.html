@@ -879,7 +879,14 @@
   .spell-search { width: 100%; box-sizing: border-box; margin: 8px 0 4px; padding: 8px 10px;
         border-radius: 8px; border: 1px solid color-mix(in srgb, var(--panel) 55%, transparent);
         background: color-mix(in srgb, var(--bg) 60%, #000 12%); color: var(--ink); font-size: 14px; }
-  .spell-list { max-height: 56vh; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .spell-filters { display: flex; gap: 6px; margin: 6px 0 2px; flex-wrap: wrap; }
+  .spell-filters select { flex: 1 1 0; min-width: 96px; padding: 6px 8px; border-radius: 7px;
+        border: 1px solid color-mix(in srgb, var(--panel) 55%, transparent);
+        background: color-mix(in srgb, var(--bg) 60%, #000 12%); color: var(--ink); font-size: 12px; }
+  .spell-list { max-height: 50vh; overflow-y: auto; margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .sp-divider { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+        color: var(--red); padding: 8px 2px 3px; position: sticky; top: 0;
+        background: var(--panel, #1b1b1b); }
   .spell-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
         padding: 7px 10px; border-radius: 7px; cursor: pointer; }
   .spell-row:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
@@ -1362,6 +1369,20 @@
       ['splash','Boot splash wordmark','.splash-text',72,MON],
       ['mark','Background watermark','.bgmark-word',44,CUR],
     ]],
+    ['Spell Compendium', [
+      ['sp-h','Heading','#spellsModal .about-h',22,SER],
+      ['sp-sub','Subtitle / count','#spellsModal .about-sub',11,UI],
+      ['sp-search','Search box','#spellSearch',14,UI],
+      ['sp-filter','Filter dropdowns','.spell-filters select',12,UI],
+      ['sp-div','Level dividers','.sp-divider',11,UI],
+      ['sp-nm','List: spell name','.spell-row .sp-nm',14,UI],
+      ['sp-meta','List: school/class','.spell-row .sp-meta',11,UI],
+      ['sp-title','Detail: spell name','.spell-detail .sp-title',22,SER],
+      ['sp-detsub','Detail: level/class line','.spell-detail .sp-sub',12,UI],
+      ['sp-fields','Detail: stat fields','.spell-detail .sp-fields',13,UI],
+      ['sp-text','Detail: description','.spell-detail .sp-text',14,UI],
+      ['sp-link','Spell links (in stat blocks)','.spell-link',13,UI],
+    ]],
   ];
   var SLOTS=[]; REGIONS.forEach(function(r){ r[1].forEach(function(it){ SLOTS.push({id:it[0],name:it[1],sel:it[2],base:it[3],fb:it[4]}); }); });
 
@@ -1597,7 +1618,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v153</span>
+      <span class="appver" id="appver">v154</span>
     </div>
   </div>
 </div>
@@ -1827,8 +1848,13 @@
     <div id="spellListWrap">
       <div class="about-h">Spell Compendium</div>
       <div class="about-sub">5e SRD 5.2.1 &middot; <span id="spellCount"></span></div>
-      <input id="spellSearch" type="search" autocomplete="off" placeholder="Search spells, school or class…"
+      <input id="spellSearch" type="search" autocomplete="off" placeholder="Search spells by name…"
              oninput="onSpellSearch(this.value)" class="spell-search" />
+      <div class="spell-filters">
+        <select id="spLevel" onchange="onSpellFilter()" aria-label="Filter by level"></select>
+        <select id="spSchool" onchange="onSpellFilter()" aria-label="Filter by school"></select>
+        <select id="spClass" onchange="onSpellFilter()" aria-label="Filter by class"></select>
+      </div>
       <div id="spellListBody" class="spell-list"></div>
     </div>
     <div id="spellDetail" class="spell-detail" style="display:none"></div>
@@ -2295,6 +2321,8 @@ function sourceName(s){
 
 // ===== 5e spell compendium (SRD 5.2.1, CC-BY-4.0) =====
 let SPELLS = null, SPELL_INDEX = null, _castRe = null, _spellSearch = "";
+let _spLevel = "", _spSchool = "", _spClass = "";   // compendium filters
+const SPELL_SCHOOLS = ["Abjuration", "Conjuration", "Divination", "Enchantment", "Evocation", "Illusion", "Necromancy", "Transmutation"];
 async function loadSpells() {
   if (SPELLS) return SPELLS;
   try {
@@ -2329,27 +2357,49 @@ function linkifySpells(escaped) {
   if (!_castRe) return escaped;
   return escaped.replace(_castRe, m => `<span class="spell-link" onclick="openSpell('${_spArg(m)}')">${m}</span>`);
 }
+const spellLevelName = (n) => n === 0 ? "Cantrip" : "Level " + n;
+function populateSpellFilters() {
+  const opt = (v, label, sel) => `<option value="${esc(v)}"${sel ? " selected" : ""}>${esc(label)}</option>`;
+  const lvls = [...new Set((SPELLS || []).map(s => s.level))].sort((a, b) => a - b);
+  const cls = [...new Set((SPELLS || []).flatMap(s => s.classes || []))].sort();
+  const lvlSel = $("spLevel"); if (lvlSel) lvlSel.innerHTML = opt("", "All levels", _spLevel === "") + lvls.map(l => opt(String(l), spellLevelName(l), String(_spLevel) === String(l))).join("");
+  const schSel = $("spSchool"); if (schSel) schSel.innerHTML = opt("", "All schools", !_spSchool) + SPELL_SCHOOLS.map(s => opt(s, s, _spSchool === s)).join("");
+  const clsSel = $("spClass"); if (clsSel) clsSel.innerHTML = opt("", "All classes", !_spClass) + cls.map(c => opt(c, c, _spClass === c)).join("");
+}
 async function openSpells() {
   await loadSpells();
   $("spellDetail").style.display = "none";
   $("spellListWrap").style.display = "block";
   $("spellsModal").style.display = "flex";
   $("spellSearch").value = _spellSearch;
+  populateSpellFilters();
   renderSpellList();
   setTimeout(() => { const el = $("spellSearch"); if (el) el.focus(); }, 50);
 }
 function closeSpells() { $("spellsModal").style.display = "none"; }
 function onSpellSearch(v) { _spellSearch = v; renderSpellList(); }
+function onSpellFilter() {
+  _spLevel = $("spLevel").value; _spSchool = $("spSchool").value; _spClass = $("spClass").value;
+  renderSpellList();
+}
 function renderSpellList() {
   const q = _spellSearch.trim().toLowerCase();
-  const list = (SPELLS || []).filter(s => !q || s.name.toLowerCase().includes(q)
-    || s.school.toLowerCase().includes(q) || (s.classes || []).some(c => c.toLowerCase().includes(q)))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const list = (SPELLS || []).filter(s =>
+    (!q || s.name.toLowerCase().includes(q))
+    && (_spLevel === "" || String(s.level) === String(_spLevel))
+    && (!_spSchool || s.school === _spSchool)
+    && (!_spClass || (s.classes || []).includes(_spClass)))
+    // sort by LEVEL first, then alphabetically
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
   $("spellCount").textContent = list.length + " spell" + (list.length === 1 ? "" : "s");
-  $("spellListBody").innerHTML = list.length
-    ? list.map(s => `<div class="spell-row" onclick="openSpell('${_spArg(s.name)}')">
-        <span class="sp-nm">${esc(s.name)}</span><span class="sp-meta">${esc(spellMeta(s))}</span></div>`).join("")
-    : `<div class="sp-empty">No spells match.</div>`;
+  if (!list.length) { $("spellListBody").innerHTML = `<div class="sp-empty">No spells match.</div>`; return; }
+  let html = "", curLvl = null;
+  for (const s of list) {
+    if (s.level !== curLvl) { curLvl = s.level; html += `<div class="sp-divider">${esc(spellLevelName(s.level) + (s.level === 0 ? "s" : ""))}</div>`; }
+    html += `<div class="spell-row" onclick="openSpell('${_spArg(s.name)}')">
+      <span class="sp-nm">${esc(s.name)}</span><span class="sp-meta">${esc(s.school)}${(s.classes && s.classes.length) ? " &middot; " + esc(s.classes.join(", ")) : ""}</span></div>`;
+  }
+  $("spellListBody").innerHTML = html;
 }
 function openSpell(name) {
   const go = () => {
