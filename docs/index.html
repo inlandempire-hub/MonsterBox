@@ -1597,7 +1597,7 @@
     </div>
     <div class="signin-wrap">
       <button id="signinbtn" class="signin-btn btn primary" onclick="cloudOpen()">Sign In</button>
-      <span class="appver" id="appver">v152</span>
+      <span class="appver" id="appver">v153</span>
     </div>
   </div>
 </div>
@@ -2358,8 +2358,9 @@ function openSpell(name) {
     $("spellsModal").style.display = "flex";
     $("spellListWrap").style.display = "none";
     const det = $("spellDetail"); det.style.display = "block";
-    const body = esc(s.text || "").replace(/Using a Higher-Level Spell Slot\.\s*/g,
-      "<br><br><b>Using a Higher-Level Spell Slot.</b> ").replace(/Cantrip Upgrade\.\s*/g, "<br><br><b>Cantrip Upgrade.</b> ");
+    // text carries **bold** labels (option names, "Using a Higher-Level Spell Slot.")
+    // and \n line breaks baked in at extraction time.
+    const body = esc(s.text || "").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>");
     det.innerHTML = `<button class="btn" onclick="backToSpellList()">&larr; All spells</button>
       <h2 class="sp-title">${esc(s.name)}</h2>
       <div class="sp-sub">${esc(spellMeta(s))}${s.classes && s.classes.length ? " &middot; " + esc(s.classes.join(", ")) : ""}</div>
