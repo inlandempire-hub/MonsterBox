@@ -533,7 +533,76 @@
     // fields printed above the meta line (some layouts put Challenge there) aren't lost.
     j = metaI - 1; let steps = 0;
     while (j >= lower && steps < 30) { const s = lines[j].trim(); if (s && nameLike(s) && !looksLikeJunkName(s)) return { name: stripTrailingDecor(s), bodyStart: j + 1 }; j--; steps++; }
+    // LAST-DITCH SALVAGE — a decorative / small-caps title font can scramble spacing
+    // and case so the title line fails every name test ("m erfol K s torm CA ller" =
+    // Merfolk Stormcaller). Collapse stray single-letter spacing on the nearest line
+    // above the meta and Title-case it. Reached ONLY when no name was found, so it can
+    // never change a good parse — at worst the block stays unnamed as before.
+    const sv = salvageTitle(lines, metaI, lower);
+    if (sv) return { name: sv, bodyStart: metaI };
     return { name: "", bodyStart: metaI };
+  }
+  function salvageTitle(lines, metaI, lower) {
+    lower = lower || 0;
+    for (let j = metaI - 1; j >= lower && j >= metaI - 4; j--) {
+      const s = (lines[j] || "").trim();
+      if (!s) continue;
+      if (isStatLine(s) || RE_SECTION_LINE.test(s) || RE_AC_LINE.test(s)) break;
+      if (STAT_FIELD_PREFIXES.some(k => s.toLowerCase().startsWith(k))) continue;
+      // join stray single letters to their neighbour ("m erfol K" -> "merfolK")
+      let c = s.replace(/\b([A-Za-z])\s+(?=[A-Za-z])/g, "$1").replace(/\s{2,}/g, " ").trim();
+      const letters = (c.match(/[A-Za-z]/g) || []).length;
+      const dense = c.replace(/\s/g, "").length;
+      if (letters < 3 || !dense || letters / dense < 0.7) continue;
+      const nm = titleCase(c);
+      if (nm && !looksLikeJunkName(nm) && nm.split(/\s+/).length <= 6) return nm;
+    }
+    return "";
+  }
+  // Parse a spellcasting entry's body into { ability, save_dc, to_hit, groups:[{header,
+  // spells:[...]}] }. Handles the 2024 ("...using Charisma as the spellcasting ability
+  // (spell save DC 17): At Will: ... 1/Day Each: ..."), 2014 prepared ("Cantrips (at
+  // will): ... 1st level (4 slots): ...") and innate ("At will: ... 3/day each: ...")
+  // forms. Returns null when no spell groups are present (e.g. a "Spellcasting Focus"
+  // magic-item trait), so the caller ignores it.
+  const RE_SC_GROUP = /(At[-\s]Will|Cantrips?\s*\([^)]*\)|\d+(?:st|nd|rd|th)\s+level\s*\([^)]*\)|\d+\s*\/\s*day(?:\s+each)?|Constant|Encounter|Recharge[^:]*)\s*:/gi;
+  function parseSpellcasting(text) {
+    text = String(text || "");
+    if (!text.trim()) return null;
+    const out = { ability: null, save_dc: null, to_hit: null, groups: [] };
+    let m;
+    if ((m = /\b(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)\b\s+as the spellcasting ability/i.exec(text))
+      || (m = /spellcasting ability is\s+(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma)/i.exec(text)))
+      out.ability = titleCase(m[1]);
+    if ((m = /spell save DC\s*(\d+)/i.exec(text))) out.save_dc = +m[1];
+    if ((m = /([+\-]\d+)\s+to hit with spell/i.exec(text))) out.to_hit = m[1];
+    // locate every group header, then take the spell list between this header and the next.
+    const heads = []; let g; RE_SC_GROUP.lastIndex = 0;
+    while ((g = RE_SC_GROUP.exec(text))) heads.push({ label: g[1].replace(/\s+/g, " ").trim(), at: g.index, end: RE_SC_GROUP.lastIndex });
+    for (let i = 0; i < heads.length; i++) {
+      const stop = i + 1 < heads.length ? heads[i + 1].at : text.length;
+      const list = text.slice(heads[i].end, stop).replace(/\s*\n\s*/g, " ").trim();
+      const spells = list.split(/\s*,\s*/).map(s => s.replace(/\s+/g, " ").trim()).filter(s => s && /[A-Za-z]/.test(s) && s.length <= 60);
+      if (spells.length) out.groups.push({ header: titleCase(heads[i].label), spells });
+    }
+    return out.groups.length ? out : null;
+  }
+  // A narrow column can wrap a stat-field value onto the next line(s) (Languages
+  // "...but can't\nspeak", a long Skills/Senses/Damage list). Given the field's
+  // regex match, stitch trailing continuation lines back onto the captured value.
+  // Stops at a blank line, the next stat field/CR line, or a capitalised word that
+  // is NOT continuing a comma-separated list — so it never swallows the next field.
+  function stitchWrapped(text, m, firstVal) {
+    let val = firstVal;
+    const after = text.slice(m.index + m[0].length).split("\n");
+    for (let li = 1; li < after.length; li++) {
+      const ln = after[li].trim();
+      if (!ln || isStatLine(ln) || RE_CHALLENGE.test(ln)) break;
+      if (/^[A-Z]/.test(ln) && !/[,;]\s*$/.test(val)) break;
+      val += " " + ln;
+      if (/[.;]$/.test(ln)) break;
+    }
+    return val;
   }
   function stripFooter(body) { return body.replace(/[ \t\r\n]+\d{1,4}\s*$/, "").replace(/\s+$/, ""); }
   const hasActionsSection = (text) => reSectionG().test(text);
@@ -700,7 +769,7 @@
     const byName = new Map();
     for (const e of entries) {
       const key = (e.name || "").trim().toLowerCase();
-      if (!key) { byName.set(" " + byName.size, e); continue; }   // keep unnamed as-is
+      if (!key) { byName.set(" " + byName.size, e); continue; }   // keep unnamed as-is
       const prev = byName.get(key);
       if (!prev || (e.raw_text || "").length > (prev.raw_text || "").length) byName.set(key, e);
     }
@@ -1016,29 +1085,14 @@
     const ab = parseAbilities(text); if (ab) { sb.abilities = ab; found++; abF = true; }
     if ((m = RE_CHALLENGE.exec(text))) { sb.challenge_rating = m[1]; const xp = m[2] || m[3]; if (xp) sb.xp = +xp.replace(/,/g, ""); found++; crF = true; }
     if ((m = RE_PROF.exec(text))) sb.proficiency_bonus = +m[1];
-    if ((m = RE_SAVES.exec(text))) sb.saving_throws = parseBonuses(m[1]);
-    if ((m = RE_SKILLS.exec(text))) sb.skills = parseBonuses(m[1]);
-    if ((m = RE_SENSES.exec(text))) sb.senses = parseSenses(m[1]);
+    if ((m = RE_SAVES.exec(text))) sb.saving_throws = parseBonuses(stitchWrapped(text, m, m[1]));
+    if ((m = RE_SKILLS.exec(text))) sb.skills = parseBonuses(stitchWrapped(text, m, m[1]));
+    if ((m = RE_SENSES.exec(text))) sb.senses = parseSenses(stitchWrapped(text, m, m[1]));
     if ((m = RE_PASSIVE.exec(text))) sb.passive_perception = +m[1];
-    if ((m = RE_LANGS.exec(text))) {
-      // A narrow column can wrap the Languages value onto the next line(s)
-      // ("...but can't\nspeak"). Stitch a continuation back on; stop at a blank
-      // line, the next stat field, or a capitalised word that isn't continuing a
-      // comma-separated list (so we don't swallow the following field).
-      let langs = m[1];
-      const after = text.slice(m.index + m[0].length).split("\n");
-      for (let li = 1; li < after.length; li++) {
-        const ln = after[li].trim();
-        if (!ln || isStatLine(ln) || RE_CHALLENGE.test(ln)) break;
-        if (/^[A-Z]/.test(ln) && !/[,;]\s*$/.test(langs)) break;
-        langs += " " + ln;
-        if (/[.;]$/.test(ln)) break;
-      }
-      sb.languages = parseList(langs);
-    }
+    if ((m = RE_LANGS.exec(text))) sb.languages = parseList(stitchWrapped(text, m, m[1]));
     let dm; RE_DMG.lastIndex = 0;
-    while ((dm = RE_DMG.exec(text))) { const lst = parseList(dm[2]); const k = dm[1].toLowerCase(); if (k === "vulnerabilities") sb.damage_vulnerabilities = lst; else if (k === "resistances") sb.damage_resistances = lst; else if (k === "immunities") sb.damage_immunities = lst; }
-    if ((m = RE_COND.exec(text))) sb.condition_immunities = parseList(m[1]);
+    while ((dm = RE_DMG.exec(text))) { const lst = parseList(stitchWrapped(text, dm, dm[2])); const k = dm[1].toLowerCase(); if (k === "vulnerabilities") sb.damage_vulnerabilities = lst; else if (k === "resistances") sb.damage_resistances = lst; else if (k === "immunities") sb.damage_immunities = lst; }
+    if ((m = RE_COND.exec(text))) sb.condition_immunities = parseList(stitchWrapped(text, m, m[1]));
 
     // Excise interleaved/trailing lore sidebars (repeated NAME heading, subtitle,
     // Habitat/Treasure, flavour prose, "Secret." note, and any next-creature lore
@@ -1069,6 +1123,16 @@
     // setting it). The spell list itself stays in the trait/action text.
     sb.has_spellcasting = [].concat(sb.traits, sb.actions, sb.bonus_actions)
       .some(e => /\bspellcasting\b/i.test(e && e.name || ""));
+    // STRUCTURED spell list — pull the casting ability / save DC / to-hit and the
+    // grouped spell lists ("At Will:", "1/Day Each:", "Cantrips (at will):",
+    // "1st level (4 slots):") out of the spellcasting entry into sb.spellcasting, so
+    // the compendium can show a clean reference and a VTT export has real data. The
+    // raw entry text is left untouched. Additive only — never affects block counts.
+    for (const e of [].concat(sb.traits, sb.actions, sb.bonus_actions)) {
+      if (!e || !/\bspellcasting\b/i.test(e.name || "")) continue;
+      const sc = parseSpellcasting(e.raw_text || "");
+      if (sc && sc.groups.length) { sb.spellcasting = sc; break; }   // first real one wins
+    }
 
     // ---- ADAPTIVE RECOVERY (#2): for any field that FAILED, try slower/looser
     // logic. Only fills gaps (never overwrites a good parse), so confidence can
@@ -1151,7 +1215,30 @@
       const s = k.slice(0, k.indexOf("\u0000"));
       if (freq[k] >= threshold && s.length <= 30 && !".!?".includes(s[s.length - 1]) && !isStructuralLine(s)) chrome.add(k);
     }
-    return linePages.map(page => { const f = page.filter(([t, ft]) => { const s = t.trim(); return !chrome.has(key(s, ft)) && !isFurniture(s); }); f._page = page._page; return f; });
+    // SECOND PASS - numbered page footers / running headers ("47 Dao", "65 Efreet",
+    // "Genies of the Earth 48"). The header word changes per section so it never
+    // repeats enough for the freq pass; but the NUMBER is the printed page number,
+    // so across the whole book (number - pageIndex) is a CONSTANT offset. Find
+    // footer-shaped standalone lines, take the dominant offset, and strip lines that
+    // match it. Real content ("16 Bludgeoning") has numbers scattered across pages,
+    // so it forms no consistent offset and is left alone.
+    const FOOT_LINE = /^\s*(\d{1,4})\s+[A-Z][A-Za-z'’ ]{0,26}$|^[A-Z][A-Za-z'’ ]{0,26}?\s+(\d{1,4})\s*$/;
+    const footCand = [];
+    linePages.forEach((page, pi) => {
+      const pn = page._page || (pi + 1);
+      for (const pair of page) {
+        const s = (pair[0] || "").trim();
+        const m = FOOT_LINE.exec(s);
+        if (m && !isStructuralLine(s)) footCand.push({ off: (+(m[1] || m[2])) - pn, pair });
+      }
+    });
+    const offCount = {};
+    for (const c of footCand) offCount[c.off] = (offCount[c.off] || 0) + 1;
+    let bestOff = null, bestN = 0;
+    for (const o in offCount) if (offCount[o] > bestN) { bestN = offCount[o]; bestOff = +o; }
+    const footerPairs = new Set();
+    if (bestN >= 4) for (const c of footCand) if (c.off === bestOff) footerPairs.add(c.pair);
+    return linePages.map(page => { const f = page.filter(pair => { const s = (pair[0] || "").trim(); return !chrome.has(key(s, pair[1])) && !isFurniture(s) && !footerPairs.has(pair); }); f._page = page._page; return f; });
   }
 
   // ============================================================ blocks from pages
@@ -1403,6 +1490,24 @@
   // parse + insert ONE file via the normal TEXT path. Returns a summary; flags
   // needsOcr when there's no readable text layer or no stat blocks were found, so
   // the caller can offer the (slower) OCR fallback.
+  // Some PDFs carry a BROKEN text layer: a bad font encoding sprinkles spaces
+  // inside words ("Hi t Points", "C hallenge", "(+ O)"), so the text is present
+  // but unparseable. Signature: a high fraction of one-letter "words". A clean
+  // book sits near 0.05; a scrambled one (Jimothy Timothy) is far higher. We only
+  // ACT on this when parsing also largely failed, so a book that merely space-
+  // splits its labels (Conflux) but still parses is never misrouted to OCR.
+  function scrambleScore(pages) {
+    let single = 0, total = 0;
+    for (const pg of pages) for (const [t] of pg) {
+      for (const tok of String(t).split(/\s+/)) {
+        if (!/[A-Za-z]/.test(tok)) continue;
+        total++;
+        if (tok.replace(/[^A-Za-z]/g, "").length === 1) single++;
+      }
+    }
+    return total ? single / total : 0;
+  }
+
   async function importOneFile(file, onProgress) {
     if (!/\.pdf$/i.test(file.name)) return { ok: false, name: file.name, error: "Not a PDF file." };
     let buf;
@@ -1418,6 +1523,17 @@
     // delta-style variants (base + "Increases by"/added abilities) -> "Standard X (Variant)"
     try { const vb = synthesizeVariants(pages, blocks, file.name); if (vb.length) blocks = blocks.concat(vb); } catch (e) {}
     if (!blocks.length) return { ok: false, name: file.name, error: "No stat blocks found in the text.", needsOcr: true };
+    // BROKEN TEXT LAYER -> offer OCR. A bad font encoding (Jimothy Timothy) leaves a
+    // readable-looking but unparseable text layer: only a block or two come out and
+    // they are mostly flagged. We require ALL of: very few blocks (<=3, so big books
+    // are never discarded), most of them flagged, AND elevated scramble — together a
+    // reliable "this text is garbage, try OCR" signal that the Conflux books (which
+    // space-split labels yet parse dozens of clean blocks) never trip.
+    if (blocks.length <= 3 && scrambleScore(pages) > 0.10) {
+      const flagged = blocks.filter(b => (b.parse_confidence || 0) < 0.85).length;
+      if (flagged / blocks.length >= 0.5)
+        return { ok: false, name: file.name, error: "The text layer looks scrambled (a broken font); the stat blocks are unreadable as text.", needsOcr: true };
+    }
     const r = await persistBlocks(file, blocks);
     if (r.aborted) return { ok: false, name: file.name, aborted: true, added: r.added, dup: r.dup, flagged: r.flagged };
     return { ok: true, name: file.name, parsed: blocks.length, added: r.added, dup: r.dup, flagged: r.flagged };
